@@ -5,6 +5,7 @@ import { createReadStream, readFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { extname, join, basename, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createSupabaseStore } from './supabase-store.mjs';
 
 const APP_DIR = fileURLToPath(new URL('.', import.meta.url));
 const HTML_FILE = 'Al-toque-pe-mejorado.html';
@@ -660,11 +661,12 @@ function reelsPostView(post, profiles, viewerId) {
   };
 }
 
-async function writeReelsUpload(request, filePath, declaredMime) {
+async function writeReelsUpload(request, filePath, declaredMime, maxVideoBytes = MAX_REELS_VIDEO_BYTES) {
+  const maxVideoMiB = Math.floor(maxVideoBytes / (1024 * 1024));
   const lengthHeader = request.headers['content-length'];
-  if (lengthHeader !== undefined && Number(lengthHeader) > MAX_REELS_VIDEO_BYTES) {
+  if (lengthHeader !== undefined && Number(lengthHeader) > maxVideoBytes) {
     request.resume();
-    throw reelsError('El video supera el límite de 100 MiB.', 413);
+    throw reelsError(`El video supera el límite de ${maxVideoMiB} MiB.`, 413);
   }
   const file = await open(filePath, 'wx');
   let size = 0;
@@ -673,7 +675,7 @@ async function writeReelsUpload(request, filePath, declaredMime) {
     for await (const chunkValue of request) {
       const chunk = Buffer.isBuffer(chunkValue) ? chunkValue : Buffer.from(chunkValue);
       size += chunk.length;
-      if (size > MAX_REELS_VIDEO_BYTES) throw reelsError('El video supera el límite de 100 MiB.', 413);
+      if (size > maxVideoBytes) throw reelsError(`El video supera el límite de ${maxVideoMiB} MiB.`, 413);
       if (prefix.length < 64) prefix = Buffer.concat([prefix, chunk.subarray(0, 64 - prefix.length)]);
       let offset = 0;
       while (offset < chunk.length) {
@@ -701,7 +703,15 @@ async function writeReelsUpload(request, filePath, declaredMime) {
   }
 }
 
-async function sendReelsVideo(request, response, video, reelsVideosDir) {
+async function sendReelsVideo(request, response, video, reelsVideosDir, videoStorage) {
+  if (videoStorage) {
+    response.writeHead(302, {
+      Location: videoStorage.publicVideoUrl(video),
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'public, max-age=3600'
+    });
+    return response.end();
+  }
   const filePath = join(reelsVideosDir, `${video.id}${video.mimeType === 'video/mp4' ? '.mp4' : '.webm'}`);
   let fileInfo;
   try {
@@ -755,7 +765,7 @@ async function sendReelsVideo(request, response, video, reelsVideosDir) {
   videoStream.pipe(response);
 }
 
-async function handleReelsRequest(request, response, requestUrl, reels, persistReels, reelsVideosDir, reelsDeletePassword) {
+async function handleReelsRequest(request, response, requestUrl, reels, persistReels, reelsVideosDir, reelsDeletePassword, videoStorage, maxVideoBytes) {
   if (request.method === 'GET' && requestUrl.pathname === '/api/reels') {
     const requestedViewer = requestUrl.searchParams.get('profileId');
     let viewerId = null;
@@ -817,14 +827,22 @@ async function handleReelsRequest(request, response, requestUrl, reels, persistR
     const filePath = join(reelsVideosDir, `${id}.${extension}`);
     let uploaded;
     try {
-      uploaded = await writeReelsUpload(request, filePath, contentType);
+      uploaded = await writeReelsUpload(request, filePath, contentType, maxVideoBytes);
     } catch (error) {
       if (error.status) return json(response, error.status, { error: error.message });
       throw error;
     }
     const video = { id, mimeType: uploaded.mimeType, size: uploaded.size, createdAt: new Date().toISOString() };
     const storedPath = join(reelsVideosDir, `${id}${uploaded.mimeType === 'video/mp4' ? '.mp4' : '.webm'}`);
-    if (filePath !== storedPath) {
+    if (videoStorage) {
+      try {
+        await videoStorage.uploadVideo(video, filePath);
+      } finally {
+        await unlink(filePath).catch((error) => {
+          console.error('No se pudo limpiar el archivo temporal de un Reel:', error.message);
+        });
+      }
+    } else if (filePath !== storedPath) {
       try {
         await rename(filePath, storedPath);
       } catch (error) {
@@ -837,7 +855,15 @@ async function handleReelsRequest(request, response, requestUrl, reels, persistR
       await persistReels();
     } catch {
       reels.videos.delete(id);
-      await unlink(storedPath).catch(() => {});
+      if (videoStorage) {
+        try {
+          await videoStorage.deleteVideo(video);
+        } catch (error) {
+          console.error('No se pudo limpiar un video de Reel sin registro persistido:', error.message);
+        }
+      } else {
+        await unlink(storedPath).catch(() => {});
+      }
       return json(response, 500, { error: 'No se pudo guardar el registro del video.' });
     }
     return json(response, 201, { video: { id, url: `/api/reels/videos/${id}`, mimeType: video.mimeType } });
@@ -849,7 +875,7 @@ async function handleReelsRequest(request, response, requestUrl, reels, persistR
     if (!REELS_PROFILE_ID_PATTERN.test(id)) return json(response, 404, { error: 'No se encontró el video solicitado.' });
     const video = reels.videos.get(id);
     if (!video) return json(response, 404, { error: 'No se encontró el video solicitado.' });
-    return sendReelsVideo(request, response, video, reelsVideosDir);
+    return sendReelsVideo(request, response, video, reelsVideosDir, videoStorage);
   }
 
   if (request.method === 'POST' && requestUrl.pathname === '/api/reels/posts') {
@@ -976,7 +1002,7 @@ async function handleReelsRequest(request, response, requestUrl, reels, persistR
         reels.videos.delete(previousVideoId);
       }
       try {
-        if (shouldDeleteVideo) {
+        if (shouldDeleteVideo && !videoStorage) {
           await unlink(videoFilePath).catch(() => {});
         }
         await persistReels();
@@ -985,6 +1011,18 @@ async function handleReelsRequest(request, response, requestUrl, reels, persistR
         if (previousVideo) reels.videos.set(previousVideoId, previousVideo);
         if (error.status) return json(response, error.status, { error: error.message });
         return json(response, 500, { error: 'No se pudo eliminar la publicación de Reels.' });
+      }
+      if (shouldDeleteVideo && videoStorage) {
+        try {
+          await videoStorage.deleteVideo(previousVideo);
+        } catch (error) {
+          console.error('Se eliminó la publicación, pero no se pudo borrar su video de Supabase Storage:', error.message);
+          return json(response, 200, {
+            deleted: true,
+            postId,
+            warning: 'La publicación se eliminó, pero el video no pudo borrarse del almacenamiento.'
+          });
+        }
       }
       return json(response, 200, { deleted: true, postId });
     } catch (error) {
@@ -998,11 +1036,11 @@ async function handleReelsRequest(request, response, requestUrl, reels, persistR
   }
 }
 
-async function handleRequest(request, response, orders, idempotencyKeys, callSessions, orderChats, persistOrders, notifyOrderChange, youtubeApiKey, openAIApiKey, fetchImpl, reels, persistReels, reelsVideosDir, reelsDeletePassword) {
+async function handleRequest(request, response, orders, idempotencyKeys, callSessions, orderChats, persistOrders, notifyOrderChange, youtubeApiKey, openAIApiKey, fetchImpl, reels, persistReels, reelsVideosDir, reelsDeletePassword, videoStorage, maxVideoBytes) {
   const requestUrl = new URL(request.url || '/', `http://${request.headers.host}`);
 
   if (requestUrl.pathname === '/api/reels' || requestUrl.pathname.startsWith('/api/reels/')) {
-    await handleReelsRequest(request, response, requestUrl, reels, persistReels, reelsVideosDir, reelsDeletePassword);
+    await handleReelsRequest(request, response, requestUrl, reels, persistReels, reelsVideosDir, reelsDeletePassword, videoStorage, maxVideoBytes);
     return;
   }
 
@@ -1800,8 +1838,19 @@ export function createAlToqueServer({
   reelsDeletePassword = REELS_DELETE_PASSWORD,
   youtubeApiKey = YOUTUBE_API_KEY,
   openAIApiKey = process.env.OPENAI_API_KEY,
-  fetchImpl = fetch
+  fetchImpl = fetch,
+  persistenceStore
 } = {}) {
+  const dataBackend = process.env.DATA_BACKEND || 'file';
+  if (!['file', 'supabase'].includes(dataBackend)) {
+    throw new Error('DATA_BACKEND debe ser "file" o "supabase".');
+  }
+  const supabaseStore = persistenceStore || (dataBackend === 'supabase'
+    ? createSupabaseStore({
+      url: process.env.SUPABASE_URL,
+      serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
+    })
+    : null);
   const orders = new Map();
   const idempotencyKeys = new Map();
   const callSessions = new Map();
@@ -1809,26 +1858,31 @@ export function createAlToqueServer({
   const clients = new Set();
   const reels = { profiles: new Map(), videos: new Map(), posts: new Map() };
   let persistence = Promise.resolve();
-  const ready = readFile(ordersFile, 'utf8').then((saved) => {
-    const parsed = JSON.parse(saved);
-    if (!parsed || !Array.isArray(parsed.orders)) throw new Error('El archivo persistido de pedidos no tiene un formato válido.');
+  const loadFileState = async (filePath) => {
+    try {
+      return JSON.parse(await readFile(filePath, 'utf8'));
+    } catch (error) {
+      if (error.code === 'ENOENT') return null;
+      throw error;
+    }
+  };
+  const ready = (supabaseStore ? supabaseStore.loadState('orders') : loadFileState(ordersFile)).then((parsed) => {
+    if (parsed === null) return;
+    if (!parsed || !Array.isArray(parsed.orders)) throw new Error('El estado persistido de pedidos no tiene un formato válido.');
     for (const order of parsed.orders) {
-      if (!order || typeof order.id !== 'string') throw new Error('Se encontró un pedido inválido en el archivo persistido.');
+      if (!order || typeof order.id !== 'string') throw new Error('Se encontró un pedido inválido en el estado persistido.');
       orders.set(order.id, order);
       if (typeof order.idempotencyKey === 'string') idempotencyKeys.set(order.idempotencyKey, order.id);
     }
-  }).catch((error) => {
-    if (error.code === 'ENOENT') return;
-    throw error;
   });
-  const reelsReady = readFile(reelsFile, 'utf8').then((saved) => {
-    const parsed = JSON.parse(saved);
+  const reelsReady = (supabaseStore ? supabaseStore.loadState('reels') : loadFileState(reelsFile)).then((parsed) => {
+    if (parsed === null) return;
     if (!parsed || !Array.isArray(parsed.profiles) || !Array.isArray(parsed.videos) || !Array.isArray(parsed.posts)) {
-      throw new Error('El archivo persistido de Reels no tiene un formato válido.');
+      throw new Error('El estado persistido de Reels no tiene un formato válido.');
     }
     for (const profile of parsed.profiles) {
       if (!profile || !REELS_PROFILE_ID_PATTERN.test(profile.id) || typeof profile.name !== 'string') {
-        throw new Error('Se encontró un perfil inválido en el archivo persistido de Reels.');
+        throw new Error('Se encontró un perfil inválido en el estado persistido de Reels.');
       }
       reels.profiles.set(profile.id.toLowerCase(), {
         id: profile.id.toLowerCase(),
@@ -1838,14 +1892,14 @@ export function createAlToqueServer({
     }
     for (const video of parsed.videos) {
       if (!video || !REELS_PROFILE_ID_PATTERN.test(video.id) || !['video/mp4', 'video/webm'].includes(video.mimeType)) {
-        throw new Error('Se encontró un video inválido en el archivo persistido de Reels.');
+        throw new Error('Se encontró un video inválido en el estado persistido de Reels.');
       }
       reels.videos.set(video.id.toLowerCase(), { ...video, id: video.id.toLowerCase() });
     }
     for (const post of parsed.posts) {
       if (!post || !REELS_PROFILE_ID_PATTERN.test(post.id) || !REELS_PROFILE_ID_PATTERN.test(post.profileId)
         || !REELS_PROFILE_ID_PATTERN.test(post.videoId) || !Array.isArray(post.likes) || !Array.isArray(post.comments)) {
-        throw new Error('Se encontró una publicación inválida en el archivo persistido de Reels.');
+        throw new Error('Se encontró una publicación inválida en el estado persistido de Reels.');
       }
       reels.posts.set(post.id.toLowerCase(), {
         ...post,
@@ -1856,16 +1910,17 @@ export function createAlToqueServer({
         comments: post.comments
       });
     }
-  }).catch((error) => {
-    if (error.code === 'ENOENT') return;
-    throw error;
   });
   const persistOrders = () => {
-    const snapshot = JSON.stringify({ orders: [...orders.values()] }, null, 2);
+    const snapshot = { orders: [...orders.values()] };
     const save = async () => {
+      if (supabaseStore) {
+        await supabaseStore.saveState('orders', snapshot);
+        return;
+      }
       await mkdir(dirname(ordersFile), { recursive: true });
       const temporaryFile = `${ordersFile}.${process.pid}.${Date.now()}.tmp`;
-      await writeFile(temporaryFile, snapshot, 'utf8');
+      await writeFile(temporaryFile, JSON.stringify(snapshot, null, 2), 'utf8');
       await rename(temporaryFile, ordersFile);
     };
     const next = persistence.then(save, save);
@@ -1874,16 +1929,20 @@ export function createAlToqueServer({
   };
   let reelsPersistence = Promise.resolve();
   const persistReels = () => {
-    const snapshot = JSON.stringify({
+    const snapshot = {
       profiles: [...reels.profiles.values()],
       videos: [...reels.videos.values()],
       posts: [...reels.posts.values()]
-    }, null, 2);
+    };
     const save = async () => {
+      if (supabaseStore) {
+        await supabaseStore.saveState('reels', snapshot);
+        return;
+      }
       await mkdir(dirname(reelsFile), { recursive: true });
       const temporaryFile = `${reelsFile}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
       try {
-        await writeFile(temporaryFile, snapshot, 'utf8');
+        await writeFile(temporaryFile, JSON.stringify(snapshot, null, 2), 'utf8');
         await rename(temporaryFile, reelsFile);
       } finally {
         await unlink(temporaryFile).catch(() => {});
@@ -1910,7 +1969,25 @@ export function createAlToqueServer({
     }
   };
   const handler = (request, response) => {
-    Promise.all([ready, reelsReady]).then(() => handleRequest(request, response, orders, idempotencyKeys, callSessions, orderChats, persistOrders, notifyOrderChange, youtubeApiKey, openAIApiKey, fetchImpl, reels, persistReels, reelsVideosDir, reelsDeletePassword)).catch((error) => {
+    Promise.all([ready, reelsReady]).then(() => handleRequest(
+      request,
+      response,
+      orders,
+      idempotencyKeys,
+      callSessions,
+      orderChats,
+      persistOrders,
+      notifyOrderChange,
+      youtubeApiKey,
+      openAIApiKey,
+      fetchImpl,
+      reels,
+      persistReels,
+      reelsVideosDir,
+      reelsDeletePassword,
+      supabaseStore,
+      supabaseStore?.maxVideoBytes || MAX_REELS_VIDEO_BYTES
+    )).catch((error) => {
       console.error('Error inesperado en el servidor Al Toque:', error.message);
       if (!response.headersSent) json(response, error.status || 500, { error: error.status ? error.message : 'Ocurrió un error inesperado al procesar la solicitud.' });
       else response.destroy();

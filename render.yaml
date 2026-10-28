@@ -2,20 +2,22 @@ services:
   - type: web
     name: al-toque-upch
     runtime: node
-    plan: starter
+    plan: free
     region: oregon
     buildCommand: npm install
     startCommand: npm start
-    disk:
-      name: al-toque-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "22"
       - key: HOST
         value: 0.0.0.0
+      - key: DATA_BACKEND
+        value: supabase
       - key: DATA_DIR
-        value: /var/data
+        value: /tmp/al-toque-data
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: REELS_DELETE_PASSWORD
         sync: false
