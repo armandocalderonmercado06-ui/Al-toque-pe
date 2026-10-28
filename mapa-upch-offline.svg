@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 600" role="img" aria-label="Mapa offline de la ruta hacia UPCH">
+  <rect width="840" height="600" fill="#f7f8fa"/>
+  <path d="M0 120L220 0h120L80 210zM840 460L650 600H450l250-180z" fill="#c8f1d8"/>
+  <g fill="#e9ebef" stroke="#d8dce2" stroke-width="2">
+    <path d="M40 30h170v75H40zM250 20h130v90H250zM35 230h170v105H35zM225 220h145v110H225z"/>
+    <path d="M470 25h160v100H470zM655 25h145v100H655zM470 180h150v105H470zM650 175h160v110H650z"/>
+    <path d="M75 390h150v100H75zM260 380h145v105H260zM475 370h150v110H475zM665 360h135v120H665z"/>
+  </g>
+  <g fill="none" stroke="#9eafc0" stroke-linecap="round">
+    <path d="M-30 90L870 500" stroke-width="32"/>
+    <path d="M80 620L820 -20" stroke-width="28"/>
+    <path d="M-20 300L860 300" stroke-width="22"/>
+    <path d="M360 -20L360 620" stroke-width="18"/>
+  </g>
+  <g fill="none" stroke="#dbe2e9" stroke-width="3">
+    <path d="M0 90L870 500M80 620L820 -20M-20 300L860 300M360 -20L360 620"/>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="15" fill="#66727f" font-weight="600">
+    <text x="475" y="278" transform="rotate(24 475 278)">Av. Armendariz</text>
+    <text x="105" y="275" transform="rotate(-41 105 275)">Ca. San Ignacio de Loyola</text>
+    <text x="555" y="328">Malecón Armendariz</text>
+    <text x="385" y="72" transform="rotate(90 385 72)">Av. La Paz</text>
+    <text x="45" y="160">Parque</text>
+    <text x="685" y="555">Parque Bicentenario</text>
+    <text x="180" y="430">Las Acacias</text>
+    <text x="610" y="155">UPCH Campus</text>
+  </g>
+  <g fill="#ffffff" stroke="#aeb8c3" stroke-width="2">
+    <circle cx="92" cy="155" r="10"/><circle cx="460" cy="245" r="10"/><circle cx="610" cy="155" r="10"/>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="13" fill="#7e8994">
+    <text x="80" y="185">Lobo de Otani</text>
+    <text x="590" y="185">Universidad Peruana</text>
+    <text x="590" y="202">Cayetano Heredia</text>
+  </g>
+</svg>

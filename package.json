@@ -1,0 +1,12 @@
+{
+  "name": "al-toque-campus",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "test": "node --test server.test.mjs"
+  },
+  "engines": {
+    "node": ">=20.6"
+  }
+}

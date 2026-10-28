@@ -1,0 +1,529 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><script>if(new URLSearchParams(location.search).get('coinEmbed')==='1')document.documentElement.dataset.coinEmbed='true';</script><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Moneda Al Toque</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap">
+<style>
+/* Layout: una sola pantalla. Marca arriba, la moneda ocupa el centro, barra de controles abajo. Un solo look oscuro, como la foto de referencia. */
+:root {
+  --bg: #0f1217;
+  --bg-glow: #1b212b;
+  --fg: #ece6d6;
+  --muted: #8d95a3;
+  --gold: #e2b350;
+  --neon: #3cc8ff;
+  --line: #2b313b;
+  --font: "Jost", "Helvetica Neue", Arial, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  box-sizing: border-box;
+  padding-inline: 16px;
+  background-color: var(--bg);
+  background-image: radial-gradient(ellipse 70% 60% at 50% 46%, var(--bg-glow) 0%, var(--bg) 70%);
+  color: var(--fg);
+  font-family: var(--font);
+}
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-width: 1100px; margin-inline: auto; }
+.top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-block: 14px 4px; }
+.mark { font-weight: 500; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); }
+.face { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.face b { color: var(--fg); font-weight: 500; }
+.stage { position: relative; min-height: 0; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
+.stage canvas:focus-visible { outline: 2px solid var(--neon); outline-offset: -2px; border-radius: 8px; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); font-size: 15px; text-align: center; padding: 16px; }
+.bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 16px; padding-block: 10px 16px; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  font: 500 14px/1 var(--font);
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--gold); }
+.btn:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+.btn.primary { background: var(--gold); border-color: var(--gold); color: #1a1405; }
+.btn.primary:hover { background: #efc467; }
+.btn[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+@media (max-width: 520px) {
+  .actions { width: 100%; }
+  .actions .btn { flex: 1 1 calc(50% - 8px); padding: 0 8px; }
+  .hint { width: 100%; }
+}
+html[data-coin-embed="true"],
+html[data-coin-embed="true"] body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: transparent !important;
+  background-image: none !important;
+}
+html[data-coin-embed="true"] .app { display: block; width: 100%; height: 100%; }
+html[data-coin-embed="true"] .top,
+html[data-coin-embed="true"] .bar { display: none; }
+html[data-coin-embed="true"] .stage { position: absolute; inset: 0; }
+html[data-coin-embed="true"] .stage canvas {
+  cursor: default;
+  background: transparent !important;
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+</style>
+
+<main class="app">
+  <header class="top">
+    <span class="mark">Al-toque-pe</span>
+    <span class="face" aria-live="polite">Cara visible: <b id="faceLabel">Frente</b></span>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="c" tabindex="0" role="img" aria-label="Moneda Al Toque en 3D. Arrastra para girarla, o usa las flechas izquierda y derecha."></canvas>
+    <p class="loading" id="loading">Acuñando la moneda…</p>
+  </div>
+  <footer class="bar">
+    <p class="hint">Arrastra la moneda para girarla</p>
+    <div class="actions">
+      <button class="btn" id="bFront" type="button">Frente</button>
+      <button class="btn" id="bBack" type="button">Reverso</button>
+      <button class="btn primary" id="bFlip" type="button">Voltear</button>
+      <button class="btn" id="bAuto" type="button" aria-pressed="false">Giro automático</button>
+    </div>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var coinEmbed = new URLSearchParams(window.location.search).get('coinEmbed') === '1';
+  var stage = document.getElementById('stage');
+  var canvas = document.getElementById('c');
+  var loading = document.getElementById('loading');
+  var faceLabel = document.getElementById('faceLabel');
+  var bAuto = document.getElementById('bAuto');
+
+  function fail(msg) { loading.hidden = false; loading.textContent = msg; }
+
+  if (typeof THREE === 'undefined') { fail('No se pudo cargar el motor 3D. Revisa tu conexión e intenta de nuevo.'); return; }
+
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      antialias: true,
+      alpha: true,
+      premultipliedAlpha: true,
+      preserveDrawingBuffer: true
+    });
+  } catch (e) { fail('Este navegador no puede mostrar la moneda en 3D.'); return; }
+
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coinEmbed ? 3 : 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.setClearColor(0x000000, 0);
+  renderer.setClearAlpha(0);
+  canvas.style.backgroundColor = 'transparent';
+
+  /* ---------- Pintura de las caras (lienzos 2D) ---------- */
+  var N = 2048, R = N / 2;
+  var ST = {
+    color: { dark: '#45484d', gold: '#e2b350', hi: '#e2b350', neon: '#a51e2a' },
+    mr:    { dark: 'rgb(0,150,64)', gold: 'rgb(0,66,255)', hi: 'rgb(0,66,255)', neon: 'rgb(0,150,64)' },
+    bump:  { dark: '#404040', gold: '#e0e0e0', hi: '#ffffff', neon: '#6a6a6a' },
+    emis:  { dark: '#000', gold: '#000', hi: '#000', neon: '#a51e2a' }
+  };
+
+  function star(x, rad, ang, size, fill) {
+    x.save(); x.rotate(ang + Math.PI / 2); x.translate(0, -rad); x.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var r = i % 2 ? size * 0.42 : size, a = -Math.PI / 2 + i * Math.PI / 5;
+      var px = Math.cos(a) * r, py = Math.sin(a) * r;
+      if (i) x.lineTo(px, py); else x.moveTo(px, py);
+    }
+    x.closePath(); x.fillStyle = fill; x.fill(); x.restore();
+  }
+
+  function hatPath(x) {
+    x.beginPath();
+    x.moveTo(-0.34, 0.15);
+    x.bezierCurveTo(-0.72, 0.20, -0.76, -0.32, -0.36, -0.30);
+    x.bezierCurveTo(-0.34, -0.66, 0.30, -0.68, 0.34, -0.30);
+    x.bezierCurveTo(0.76, -0.32, 0.72, 0.20, 0.34, 0.15);
+    x.lineTo(0.30, 0.50); x.lineTo(-0.30, 0.50); x.closePath();
+  }
+  function hatBasePath(x) { x.beginPath(); x.ellipse(0, 0.64, 0.32, 0.06, 0, 0, Math.PI * 2); }
+  function knifePath(x) {
+    x.beginPath();
+    x.moveTo(-0.11, -0.68); x.bezierCurveTo(0.10, -0.72, 0.11, -0.28, 0.07, 0.02);
+    x.lineTo(0.03, 0.06); x.lineTo(0.03, 0.64);
+    x.quadraticCurveTo(0.03, 0.70, -0.04, 0.70); x.quadraticCurveTo(-0.11, 0.70, -0.11, 0.64);
+    x.closePath();
+  }
+  function forkPath(x) {
+    x.beginPath();
+    x.moveTo(-0.17, -0.68); x.lineTo(-0.17, -0.22); x.quadraticCurveTo(-0.17, -0.05, -0.05, -0.02);
+    x.lineTo(-0.05, 0.64); x.quadraticCurveTo(-0.05, 0.70, 0, 0.70); x.quadraticCurveTo(0.05, 0.70, 0.05, 0.64);
+    x.lineTo(0.05, -0.02); x.quadraticCurveTo(0.17, -0.05, 0.17, -0.22); x.lineTo(0.17, -0.68);
+    x.lineTo(0.11, -0.68); x.lineTo(0.11, -0.28); x.lineTo(0.04, -0.28); x.lineTo(0.04, -0.68);
+    x.lineTo(-0.04, -0.68); x.lineTo(-0.04, -0.28); x.lineTo(-0.11, -0.28); x.lineTo(-0.11, -0.68);
+    x.closePath();
+  }
+
+  function paintFace(layer, kind) {
+    var cv = document.createElement('canvas'); cv.width = cv.height = N;
+    var x = cv.getContext('2d'), s = ST[layer];
+    x.fillStyle = s.dark; x.fillRect(0, 0, N, N);
+    x.translate(R, R);
+
+    function ring(r0, r1, fill) {
+      x.beginPath(); x.arc(0, 0, r1 * R, 0, Math.PI * 2); x.arc(0, 0, r0 * R, 0, Math.PI * 2, true);
+      x.fillStyle = fill; x.fill();
+    }
+    ring(0.95, 1.1, s.gold);
+    ring(0.67, 0.72, s.gold);
+    ring(0.60, 0.655, s.gold);
+    ring(0.693, 0.699, s.dark);
+
+    x.strokeStyle = s.dark; x.lineWidth = 5;
+    for (var i = 0; i < 96; i++) {
+      var a = i * Math.PI * 2 / 96, ca = Math.cos(a), sa = Math.sin(a);
+      x.beginPath(); x.moveTo(ca * 0.60 * R, sa * 0.60 * R); x.lineTo(ca * 0.655 * R, sa * 0.655 * R); x.stroke();
+    }
+
+    if (layer === 'color') {
+      var g = x.createRadialGradient(-0.15 * R, -0.2 * R, 0, 0, 0, 0.6 * R);
+      g.addColorStop(0, '#4b4e53'); g.addColorStop(1, '#45484d');
+      x.beginPath(); x.arc(0, 0, 0.598 * R, 0, Math.PI * 2); x.fillStyle = g; x.fill();
+    }
+
+    /* Texto circular "Al-toque-pe" y estrellas */
+    var fs = 108, rad = 0.835 * R, label = 'Al-toque-pe', gap = 6;
+    x.font = '500 ' + fs + 'px Jost, "Helvetica Neue", Arial, sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    var tf = layer === 'bump' ? s.hi : s.gold;
+    x.fillStyle = tf;
+    var chars = label.split(''), ws = chars.map(function (c) { return x.measureText(c).width; });
+    var tot = ws.reduce(function (p, q) { return p + q; }, 0) + gap * (ws.length - 1);
+    for (var u = 0; u < 6; u++) {
+      var mid = -Math.PI / 2 + u * Math.PI / 3, pos = -tot / 2;
+      for (var k = 0; k < chars.length; k++) {
+        var ang = mid + (pos + ws[k] / 2) / rad;
+        x.save(); x.rotate(ang + Math.PI / 2); x.translate(0, -rad); x.fillText(chars[k], 0, 0); x.restore();
+        pos += ws[k] + gap;
+      }
+      star(x, rad, mid + Math.PI / 6, 32, tf);
+    }
+
+    /* Emblema central con borde de neón azul */
+    function piece(build, rot, E) {
+      x.save(); x.rotate(rot); x.scale(E, E); x.lineJoin = 'round'; x.lineCap = 'round';
+      x.save(); x.translate(0.022, 0.02); build(x);
+      x.strokeStyle = s.neon; x.lineWidth = 0.03;
+      if (layer === 'emis') { x.shadowColor = s.neon; x.shadowBlur = 26; x.stroke(); x.shadowBlur = 0; }
+      x.stroke(); x.restore();
+      if (layer === 'bump') {
+        [[0.06, '#7a7a7a'], [0.04, '#a8a8a8'], [0.02, '#d0d0d0']].forEach(function (p) {
+          build(x); x.lineWidth = p[0]; x.strokeStyle = p[1]; x.stroke();
+        });
+      }
+      var fill;
+      if (layer === 'color') {
+        fill = x.createLinearGradient(-0.7, -0.7, 0.7, 0.7);
+        fill.addColorStop(0, '#f2d07c'); fill.addColorStop(0.5, '#e0b04b'); fill.addColorStop(1, '#b8852a');
+      } else if (layer === 'mr') fill = s.gold; else if (layer === 'bump') fill = '#fff'; else fill = '#000';
+      build(x); x.fillStyle = fill; x.fill();
+      x.restore();
+    }
+
+    if (kind === 'front') {
+      var E = 500;
+      x.save(); x.scale(E, E); x.lineCap = 'round';
+      x.beginPath(); x.moveTo(-0.29, 0.545); x.quadraticCurveTo(0, 0.60, 0.29, 0.545);
+      x.strokeStyle = s.neon; x.lineWidth = 0.03;
+      if (layer === 'emis') { x.shadowColor = s.neon; x.shadowBlur = 26; x.stroke(); x.shadowBlur = 0; }
+      if (layer !== 'bump') x.stroke();
+      x.restore();
+      piece(hatPath, 0, E);
+      piece(hatBasePath, 0, E);
+      /* trazo curvo grabado en el gorro */
+      x.save(); x.scale(E, E); x.lineCap = 'round';
+      if (layer !== 'bump') {
+        x.save(); x.translate(0.012, 0.014);
+        x.beginPath(); x.moveTo(-0.55, -0.01); x.quadraticCurveTo(-0.32, 0.20, -0.02, 0.07);
+        x.strokeStyle = s.neon; x.lineWidth = 0.014;
+        if (layer === 'emis') { x.shadowColor = s.neon; x.shadowBlur = 14; x.stroke(); x.shadowBlur = 0; }
+        x.stroke(); x.restore();
+      }
+      x.beginPath(); x.moveTo(-0.55, -0.01); x.quadraticCurveTo(-0.32, 0.20, -0.02, 0.07);
+      x.lineWidth = 0.028;
+      x.strokeStyle = layer === 'color' ? '#8d5e14' : layer === 'mr' ? s.gold : layer === 'bump' ? '#262626' : '#000';
+      x.stroke();
+      x.restore();
+    } else {
+      piece(forkPath, -0.55, 540);
+      piece(knifePath, 0.55, 540);
+    }
+    return cv;
+  }
+
+  /* ---------- Mapas de relieve ---------- */
+  function boxBlur(src, S, r) {
+    var tmp = new Float32Array(S * S), dst = new Float32Array(S * S), w = 2 * r + 1, y, x, k, acc, add, rem;
+    for (y = 0; y < S; y++) {
+      acc = 0;
+      for (k = -r; k <= r; k++) acc += src[y * S + Math.min(Math.max(k, 0), S - 1)];
+      for (x = 0; x < S; x++) {
+        tmp[y * S + x] = acc / w;
+        add = Math.min(x + r + 1, S - 1); rem = Math.max(x - r, 0);
+        acc += src[y * S + add] - src[y * S + rem];
+      }
+    }
+    for (x = 0; x < S; x++) {
+      acc = 0;
+      for (k = -r; k <= r; k++) acc += tmp[Math.min(Math.max(k, 0), S - 1) * S + x];
+      for (y = 0; y < S; y++) {
+        dst[y * S + x] = acc / w;
+        add = Math.min(y + r + 1, S - 1); rem = Math.max(y - r, 0);
+        acc += tmp[add * S + x] - tmp[rem * S + x];
+      }
+    }
+    return dst;
+  }
+
+  function normalFromBump(cv, strength) {
+    var S = 1024, small = document.createElement('canvas'); small.width = small.height = S;
+    var sc = small.getContext('2d'); sc.imageSmoothingEnabled = true; sc.imageSmoothingQuality = 'high';
+    sc.drawImage(cv, 0, 0, S, S);
+    var d = sc.getImageData(0, 0, S, S).data, h = new Float32Array(S * S), i;
+    for (i = 0; i < S * S; i++) h[i] = d[i * 4] / 255;
+    h = boxBlur(h, S, 2); h = boxBlur(h, S, 2);
+    var out = document.createElement('canvas'); out.width = out.height = S;
+    var oc = out.getContext('2d'), img = oc.createImageData(S, S), o = img.data;
+    for (var y = 0; y < S; y++) {
+      var yu = Math.max(y - 1, 0), yd = Math.min(y + 1, S - 1);
+      for (var x = 0; x < S; x++) {
+        var xl = Math.max(x - 1, 0), xr = Math.min(x + 1, S - 1);
+        var gx = (h[y * S + xr] - h[y * S + xl]) * 0.5, gy = (h[yd * S + x] - h[yu * S + x]) * 0.5;
+        var nx = -gx * strength, ny = gy * strength, len = Math.sqrt(nx * nx + ny * ny + 1);
+        var p = (y * S + x) * 4;
+        o[p] = (nx / len * 0.5 + 0.5) * 255; o[p + 1] = (ny / len * 0.5 + 0.5) * 255; o[p + 2] = (1 / len * 0.5 + 0.5) * 255; o[p + 3] = 255;
+      }
+    }
+    oc.putImageData(img, 0, 0);
+    return out;
+  }
+
+  function reedNormal() {
+    var W = 4096, H = 4, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    var c = cv.getContext('2d'), img = c.createImageData(W, H), o = img.data, period = 16;
+    for (var x = 0; x < W; x++) {
+      var gx = Math.cos(2 * Math.PI * x / period) * (2 * Math.PI / period) * 0.5 * 3.5;
+      var nx = -gx, len = Math.sqrt(nx * nx + 1);
+      for (var y = 0; y < H; y++) {
+        var p = (y * W + x) * 4;
+        o[p] = (nx / len * 0.5 + 0.5) * 255; o[p + 1] = 128; o[p + 2] = (1 / len * 0.5 + 0.5) * 255; o[p + 3] = 255;
+      }
+    }
+    c.putImageData(img, 0, 0);
+    return cv;
+  }
+
+  /* ---------- Entorno de reflejos (cajas de luz) ---------- */
+  function makeEnv() {
+    var s = new THREE.Scene();
+    var c = document.createElement('canvas'); c.width = 16; c.height = 256;
+    var g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 256);
+    gr.addColorStop(0, '#454d5c'); gr.addColorStop(0.5, '#1a1e25'); gr.addColorStop(1, '#0b0d10');
+    g.fillStyle = gr; g.fillRect(0, 0, 16, 256);
+    s.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), side: THREE.BackSide })));
+    function box(w, h, pos, k, col) {
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(k), side: THREE.DoubleSide }));
+      m.position.set(pos[0], pos[1], pos[2]); m.lookAt(0, 0, 0); s.add(m);
+    }
+    box(14, 9, [0, 1.5, 9], 2.2, '#f7e7c8');
+    box(6, 4, [-4, 5, 5], 9, '#fff4e0');
+    box(1.5, 8, [7, 1, 2], 6, '#cfe8ff');
+    box(8, 2, [0, -5, 4], 2.5, '#ffe8c0');
+    box(10, 1.5, [0, 8, 0], 4, '#ffffff');
+    box(5, 5, [0, 0, -8], 3, '#aaccff');
+    var pm = new THREE.PMREMGenerator(renderer), rt = pm.fromScene(s, 0.03);
+    pm.dispose();
+    return rt.texture;
+  }
+
+  /* ---------- Escena ---------- */
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(28, 1, 0.1, 50);
+  var coin = new THREE.Group();
+  var RESTING_PITCH = coinEmbed ? -0.1 : -0.12;
+  var yaw = coinEmbed ? 0.12 : 0.18, pitch = coinEmbed ? -0.1 : RESTING_PITCH, REST = coinEmbed ? 0.12 : 0.18, vyaw = 0, dragging = false, anim = null, auto = !reduce;
+  var T = 0.15;
+
+  function tex(cv, srgb) {
+    var t = new THREE.CanvasTexture(cv);
+    if (srgb) t.encoding = THREE.sRGBEncoding;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  }
+
+  function faceMaterial(kind) {
+    var bump = paintFace('bump', kind);
+    return new THREE.MeshStandardMaterial({
+      map: tex(paintFace('color', kind), true),
+      normalMap: tex(normalFromBump(bump, 10), false),
+      metalnessMap: null, roughnessMap: null,
+      metalness: 1, roughness: 1,
+      emissive: 0xffffff, emissiveIntensity: 1.6,
+      envMapIntensity: 1.1
+    });
+  }
+
+  function build() {
+    scene.environment = makeEnv();
+    var l1 = new THREE.DirectionalLight(0xfff1d6, 0.6); l1.position.set(-2, 3, 4); scene.add(l1);
+    var l2 = new THREE.DirectionalLight(0xbfdcff, 0.35); l2.position.set(3, -1, 3); scene.add(l2);
+
+    var fm = faceMaterial('front'), bm = faceMaterial('back');
+    [['front', fm], ['back', bm]].forEach(function (p) {
+      var kind = p[0], m = p[1];
+      var mr = tex(paintFace('mr', kind), false);
+      m.metalnessMap = mr; m.roughnessMap = mr;
+      m.emissiveMap = tex(paintFace('emis', kind), true);
+      m.needsUpdate = true;
+    });
+
+    var gold = { color: 0xe2b350, metalness: 1, roughness: 0.27, envMapIntensity: 1.2 };
+    var edgeMat = new THREE.MeshStandardMaterial(Object.assign({ normalMap: tex(reedNormal(), false), color: 0xd9aa48, roughness: 0.32 }, { metalness: 1, envMapIntensity: 1.2 }));
+    var rimMat = new THREE.MeshStandardMaterial(gold);
+
+    var edge = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, T, 192, 1, true).rotateX(Math.PI / 2), edgeMat);
+    var discGeo = new THREE.CircleGeometry(0.96, 128);
+    var front = new THREE.Mesh(discGeo, fm); front.position.z = T / 2;
+    var back = new THREE.Mesh(discGeo, bm); back.rotation.y = Math.PI; back.position.z = -T / 2;
+    var rimGeo = new THREE.TorusGeometry(0.955, 0.045, 20, 192);
+    var rimF = new THREE.Mesh(rimGeo, rimMat); rimF.scale.z = 0.55; rimF.position.z = T / 2;
+    var rimB = new THREE.Mesh(rimGeo, rimMat); rimB.scale.z = 0.55; rimB.position.z = -T / 2;
+    coin.add(edge, front, back, rimF, rimB);
+    scene.add(coin);
+  }
+
+  function buildEmbeddedCoin(onReady) {
+    build();
+    onReady();
+  }
+
+  function resize() {
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    var t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), need = 1.22;
+    camera.position.set(0, 0, Math.max(need / t, need / (t * camera.aspect)));
+    camera.updateProjectionMatrix();
+  }
+
+  /* ---------- Interacción ---------- */
+  var lastX = 0, lastY = 0, lastT = 0;
+  canvas.addEventListener('pointerdown', function (e) {
+    dragging = true; anim = null; vyaw = 0;
+    lastX = e.clientX; lastY = e.clientY; lastT = e.timeStamp;
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    canvas.style.cursor = 'grabbing';
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    var dx = e.clientX - lastX, dy = e.clientY - lastY, dt = (e.timeStamp - lastT) / 1000 || 1 / 60;
+    yaw += dx * 0.011;
+    pitch = Math.max(-0.7, Math.min(0.7, pitch + dy * 0.006));
+    vyaw = Math.max(-14, Math.min(14, 0.8 * vyaw + 0.2 * (dx * 0.011 / dt)));
+    lastX = e.clientX; lastY = e.clientY; lastT = e.timeStamp;
+  });
+  function endDrag() { dragging = false; canvas.style.cursor = 'grab'; }
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowLeft') { anim = null; yaw -= 0.3; e.preventDefault(); }
+    if (e.key === 'ArrowRight') { anim = null; yaw += 0.3; e.preventDefault(); }
+  });
+
+  function setAuto(v) { auto = v; bAuto.setAttribute('aria-pressed', v ? 'true' : 'false'); }
+  function goTo(to) {
+    setAuto(false); vyaw = 0;
+    if (reduce) { yaw = to; anim = null; return; }
+    anim = { from: yaw, to: to, t0: performance.now(), dur: 900 };
+  }
+  document.getElementById('bFront').addEventListener('click', function () {
+    goTo(REST + Math.round((yaw - REST) / (2 * Math.PI)) * 2 * Math.PI);
+  });
+  document.getElementById('bBack').addEventListener('click', function () {
+    goTo(REST + Math.PI + Math.round((yaw - REST - Math.PI) / (2 * Math.PI)) * 2 * Math.PI);
+  });
+  document.getElementById('bFlip').addEventListener('click', function () {
+    goTo(REST + (Math.round((yaw - REST) / Math.PI) + 1) * Math.PI);
+  });
+  bAuto.addEventListener('click', function () { setAuto(!auto); });
+
+  /* ---------- Animación ---------- */
+  var last = performance.now(), shown = 'Frente';
+  function tick(now) {
+    var dt = Math.min((now - last) / 1000, 0.05); last = now;
+    if (anim) {
+      var p = Math.min((now - anim.t0) / anim.dur, 1), e = 1 - Math.pow(1 - p, 3);
+      yaw = anim.from + (anim.to - anim.from) * e;
+      if (p >= 1) anim = null;
+    } else if (!dragging) {
+      yaw += vyaw * dt;
+      vyaw *= Math.pow(0.04, dt);
+      if (Math.abs(vyaw) < 0.02) vyaw = 0;
+      if (auto) yaw += 0.6 * dt;
+    }
+    if (!dragging) pitch += (RESTING_PITCH - pitch) * (1 - Math.pow(0.002, dt));
+    coin.rotation.y = yaw;
+    coin.rotation.x = pitch;
+    coin.position.y = reduce ? 0 : Math.sin(now / 900) * 0.018;
+    var f = Math.cos(yaw) >= 0 ? 'Frente' : 'Reverso';
+    if (f !== shown) { shown = f; faceLabel.textContent = f; }
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+
+  function start() {
+    try {
+      function startRendering() {
+        resize();
+        if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+        window.addEventListener('resize', resize);
+        setAuto(auto);
+        loading.hidden = true;
+        requestAnimationFrame(function (t) { last = t; tick(t); });
+      }
+      if (coinEmbed) {
+        buildEmbeddedCoin(startRendering);
+        return;
+      }
+      build();
+      startRendering();
+    } catch (err) {
+      fail('No se pudo armar la moneda en este navegador.');
+      console.error('Error iniciando la moneda 3D.', err);
+    }
+  }
+
+  var fontReady = (document.fonts && document.fonts.load)
+    ? Promise.race([document.fonts.load('500 108px Jost'), new Promise(function (r) { setTimeout(r, 2500); })])
+    : Promise.resolve();
+  fontReady.catch(function () {}).then(start);
+})();
+</script>
+
+</body></html>
