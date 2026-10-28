@@ -5848,8 +5848,8 @@
       {
         title: 'Dame un beso',
         artist: 'Yuri',
-        audio: '/music/dame-un-beso.mp3',
-        cover: '/music/dame-un-beso-cover.png'
+        provider: 'youtube',
+        url: 'https://www.youtube.com/watch?v=u_hFhRgRdRQ'
       }
     ];
 
@@ -5869,14 +5869,22 @@
       const audioRef = useRef(null);
       const isCompact = playerSize === 'compact';
       const isLocalTrack = Boolean(currentTrack.audio);
+      const isYouTubeTrack = currentTrack.provider === 'youtube';
       const audioMackUrl = isLocalTrack
         ? ''
-        : currentTrack.url.replace(
-          /^https:\/\/audiomack\.com\/(?!embed\/)/,
-          'https://audiomack.com/embed/'
-        );
+        : isYouTubeTrack
+          ? currentTrack.url.replace(
+            /^https:\/\/www\.youtube\.com\/watch\?v=([^&]+).*$/,
+            'https://www.youtube.com/embed/$1'
+          )
+          : currentTrack.url.replace(
+            /^https:\/\/audiomack\.com\/(?!embed\/)/,
+            'https://audiomack.com/embed/'
+          );
       const playerUrl = audioMackUrl ? new URL(audioMackUrl) : null;
-      if (playerUrl) playerUrl.searchParams.set('background', '1');
+      if (playerUrl) {
+        playerUrl.searchParams.set(isYouTubeTrack ? 'playsinline' : 'background', '1');
+      }
 
       useEffect(() => {
         if (audioRef.current) {
@@ -5945,7 +5953,7 @@
             : 'relative z-10 mx-3 mb-3 shrink-0 overflow-hidden rounded-[26px] border border-[#eceef2] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.06)]'}
           aria-hidden={!isOnHome || (isCompact && isHiddenOnScroll)}
           inert={!isOnHome || (isCompact && isHiddenOnScroll) ? '' : undefined}
-          aria-label="Reproductor de Audiomack"
+          aria-label="Reproductor de música"
           aria-live="polite"
         >
           <div className={isCompact ? 'relative m-0 rounded-none border-0 bg-transparent p-0 shadow-none' : 'm-2 rounded-[24px] border border-black/[0.03] bg-white p-4 shadow-[0_8px_26px_rgba(0,0,0,0.045)] sm:m-3 sm:p-5'}>
@@ -5953,15 +5961,27 @@
               <div className="min-w-0">
                 <h2 className="truncate text-[15px] font-bold leading-tight text-[#1e2538]">
                   Reproductor de{' '}
-                  <a
-                    href="./audiomack-player-terms.html"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Consulta los términos de uso del reproductor"
-                    className="text-blue-600 underline decoration-blue-300 underline-offset-2 hover:text-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                  >
-                    Audiomack
-                  </a>
+                  {isYouTubeTrack ? (
+                    <a
+                      href={currentTrack.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Abrir la canción oficial en YouTube"
+                      className="text-blue-600 underline decoration-blue-300 underline-offset-2 hover:text-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                    >
+                      YouTube
+                    </a>
+                  ) : (
+                    <a
+                      href="./audiomack-player-terms.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Consulta los términos de uso del reproductor"
+                      className="text-blue-600 underline decoration-blue-300 underline-offset-2 hover:text-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                    >
+                      Audiomack
+                    </a>
+                  )}
                 </h2>
                 <p className="mt-0.5 truncate text-[10px] text-[#7a8293]">Tu lista de música</p>
               </div>
@@ -6112,10 +6132,11 @@
               <iframe
                 key={currentTrack.url}
                 src={playerUrl.href}
-                title={`Reproductor de Audiomack: ${currentTrack.title} - ${currentTrack.artist}`}
+                title={`Reproductor de ${isYouTubeTrack ? 'YouTube' : 'Audiomack'}: ${currentTrack.title} - ${currentTrack.artist}`}
                 scrolling="no"
                 className="block h-[250px] w-full border-0"
                 allow="autoplay"
+                referrerPolicy={isYouTubeTrack ? 'strict-origin-when-cross-origin' : undefined}
                 loading="lazy"
               ></iframe>
             )}
