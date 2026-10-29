@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 import { composePrompt, createAlToqueServer, detectMenuIntent, getAssistantPersona, getLocalMenuAnswer, makeRiderSupportInstructions, selectMenuItem, shouldUseWebSearch, styleLocalAnswer } from './server.mjs';
 
 async function createReelsTestServer(t, testDataDir, reelsDeletePassword = 'test-reels-delete-password') {
@@ -68,6 +69,28 @@ test('serves the offline JavaScript and font assets from local paths', async (t)
     assert.equal(response.headers.get('content-type'), contentType);
     assert.ok(Number(response.headers.get('content-length')) > 0, `${path} should not be empty`);
   }
+});
+
+test('compresses large text assets when the client accepts gzip', async (t) => {
+  const testDataDir = await createReelsTestDirectory();
+  const server = await createReelsTestServer(t, testDataDir);
+  const response = await new Promise((resolve, reject) => {
+    const request = http.get(`http://127.0.0.1:${server.address().port}/vendor/babel.min.js`, {
+      headers: { 'accept-encoding': 'gzip' }
+    }, resolve);
+    request.once('error', reject);
+  });
+  const chunks = [];
+  for await (const chunk of response) chunks.push(chunk);
+  const compressed = Buffer.concat(chunks);
+  const original = gunzipSync(compressed);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers['content-encoding'], 'gzip');
+  assert.equal(response.headers.vary, 'Accept-Encoding');
+  assert.equal(response.headers['content-type'], 'text/javascript; charset=utf-8');
+  assert.ok(compressed.length < original.length);
+  assert.equal(Number(response.headers['content-length']), compressed.length);
 });
 
 test('serves the professor photo used in the October promotion window', async (t) => {

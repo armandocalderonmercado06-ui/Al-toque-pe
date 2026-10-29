@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Al Toque - UPCH Campus</title>
-  <script src="https://cdn.botpress.cloud/webchat/v5.0/inject.js"></script>
+  <script src="https://cdn.botpress.cloud/webchat/v5.0/inject.js" defer></script>
   <script src="https://files.bpcontent.cloud/2026/10/11/22/20261011222049-IGT6DVHC.js" defer></script>
   <script>
     (() => {
@@ -350,7 +350,7 @@
       }
     })();
   </script>
-  <script src="/vendor/tailwind.js"></script>
+  <script src="/vendor/tailwind.js" defer></script>
   <link href="/vendor/fonts.css" rel="stylesheet" />
 
   <script>
@@ -368,7 +368,8 @@
   </script>
 
   <script>
-    tailwind.config = {
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = {
       theme: {
         extend: {
           colors: {
@@ -387,10 +388,10 @@
     };
   </script>
 
-  <script src="/vendor/react.development.js"></script>
-  <script src="/vendor/react-dom.development.js"></script>
-  <script src="/vendor/babel.min.js"></script>
-  <script src="/vendor/lucide.js"></script>
+  <script src="/vendor/react.development.js" defer></script>
+  <script src="/vendor/react-dom.development.js" defer></script>
+  <script src="/vendor/babel.min.js" defer></script>
+  <script src="/vendor/lucide.js" defer></script>
 
   <style>
     body {

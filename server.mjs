@@ -5,6 +5,7 @@ import { createReadStream, readFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { extname, join, basename, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync, constants as zlibConstants } from 'node:zlib';
 import { createSupabaseStore } from './supabase-store.mjs';
 
 const APP_DIR = fileURLToPath(new URL('.', import.meta.url));
@@ -35,6 +36,7 @@ const MAX_MESSAGE_LENGTH = 1500;
 const MAX_MEMORY_LENGTH = 1600;
 let nominatimQueue = Promise.resolve();
 let lastNominatimRequestAt = 0;
+const gzipCache = new Map();
 
 function requestNominatim(url) {
   const request = nominatimQueue.then(async () => {
@@ -484,14 +486,41 @@ function rateLimit(request, limits = rateLimits, maximum = 20) {
   return true;
 }
 
-function sendHtml(response, content, { allowSameOriginFrame = false } = {}) {
-  response.writeHead(200, {
+function sendStaticContent(request, response, content, headers, cacheKey) {
+  const contentType = headers['Content-Type'] || '';
+  const compressible = /^(text\/|application\/(javascript|json))|image\/svg\+xml/i.test(contentType);
+  const acceptsGzip = (request.headers['accept-encoding'] || '').split(',').some((encoding) => {
+    const [name, ...parameters] = encoding.trim().split(';');
+    const quality = parameters.find((parameter) => parameter.trim().startsWith('q='));
+    return name.toLowerCase() === 'gzip' && (!quality || Number(quality.trim().slice(2)) > 0);
+  });
+  let body = content;
+  const responseHeaders = { ...headers };
+  if (compressible && content.length >= 1024) {
+    responseHeaders.Vary = 'Accept-Encoding';
+    if (acceptsGzip) {
+      const compressedCacheKey = `${cacheKey}:${createHash('sha256').update(content).digest('hex')}`;
+      body = gzipCache.get(compressedCacheKey);
+      if (!body) {
+        body = gzipSync(content, { level: zlibConstants.Z_BEST_SPEED });
+        gzipCache.set(compressedCacheKey, body);
+      }
+      responseHeaders['Content-Encoding'] = 'gzip';
+    }
+  }
+  responseHeaders['Content-Length'] = body.length;
+  response.writeHead(200, responseHeaders);
+  return response.end(body);
+}
+
+function sendHtml(request, response, content, { allowSameOriginFrame = false, cacheKey } = {}) {
+  const headers = {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'same-origin',
     'X-Frame-Options': allowSameOriginFrame ? 'SAMEORIGIN' : 'DENY'
-  });
+  };
   const turnConfig = TURN_URL
     ? { urls: TURN_URL.split(',').map((url) => url.trim()).filter(Boolean), username: TURN_USER, credential: TURN_PASS }
     : null;
@@ -503,7 +532,7 @@ function sendHtml(response, content, { allowSameOriginFrame = false } = {}) {
     '<!-- ALTOQUE_CONFIG -->',
     `<script>window.ALTOQUE_CONFIG=${config};</script>`
   );
-  response.end(html);
+  return sendStaticContent(request, response, Buffer.from(html), headers, cacheKey);
 }
 
 function websocketFrame(payload) {
@@ -1709,13 +1738,11 @@ async function handleRequest(request, response, orders, idempotencyKeys, callSes
         if (error.code === 'ENOENT') return json(response, 404, { error: 'No se encontró el recurso solicitado.' });
         throw error;
       }
-      response.writeHead(200, {
+      return sendStaticContent(request, response, content, {
         'Content-Type': vendorAsset[1],
-        'Content-Length': content.length,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'public, max-age=31536000, immutable'
-      });
-      return response.end(content);
+      }, `vendor:${vendorAsset[0]}`);
     }
 
     const playerImageName = PLAYER_IMAGE_ASSETS.get(requestUrl.pathname);
@@ -1806,7 +1833,10 @@ async function handleRequest(request, response, orders, idempotencyKeys, callSes
       if (!fileInfo.isFile()) return json(response, 404, { error: 'No se encontró el recurso solicitado.' });
       const content = await readFile(filePath);
       if (assetName === HTML_FILE || assetName === AUDIOMACK_TERMS_FILE || assetName === COIN_FILE) {
-        return sendHtml(response, content, { allowSameOriginFrame: assetName === COIN_FILE });
+        return sendHtml(request, response, content, {
+          allowSameOriginFrame: assetName === COIN_FILE,
+          cacheKey: `html:${assetName}`
+        });
       }
       const types = {
         '.jpg': 'image/jpeg',
@@ -1816,12 +1846,11 @@ async function handleRequest(request, response, orders, idempotencyKeys, callSes
         '.svg': 'image/svg+xml',
         '.mp3': 'audio/mpeg'
       };
-      response.writeHead(200, {
+      return sendStaticContent(request, response, content, {
         'Content-Type': types[extname(assetName)] || 'application/octet-stream',
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'public, max-age=3600'
-      });
-      return response.end(content);
+      }, `asset:${assetName}`);
     } catch (error) {
       if (error.code === 'ENOENT') return json(response, 404, { error: 'No se encontró el recurso solicitado.' });
       throw error;
