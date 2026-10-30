@@ -404,6 +404,54 @@
       font-family: 'Space Grotesk', sans-serif;
     }
 
+    .menu-add-button {
+      position: relative;
+      overflow: hidden;
+      color: #4a2d0b;
+      background: linear-gradient(135deg, #ffe9a8, #e8b84f 55%, #ffdf82);
+      box-shadow: 0 2px 6px rgba(160, 108, 24, 0.22);
+      isolation: isolate;
+    }
+
+    .menu-add-button::before {
+      position: absolute;
+      inset: -35% auto -35% -65%;
+      width: 45%;
+      content: '';
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+      animation: menuAddShine 3.2s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    .menu-add-button > * {
+      position: relative;
+      z-index: 1;
+      animation: menuAddDrift 2.8s ease-in-out infinite;
+    }
+
+    .menu-add-button:hover {
+      background: linear-gradient(135deg, #fff0bc, #efc765 55%, #ffe7a0);
+      box-shadow: 0 3px 8px rgba(160, 108, 24, 0.3);
+    }
+
+    @keyframes menuAddDrift {
+      0%, 100% { translate: 0 0; }
+      50% { translate: 2px 0; }
+    }
+
+    @keyframes menuAddShine {
+      0%, 24% { translate: 0 0; opacity: 0; }
+      38% { opacity: 1; }
+      62%, 100% { translate: 360% 0; opacity: 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .menu-add-button > *,
+      .menu-add-button::before {
+        animation: none !important;
+      }
+    }
+
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
@@ -7787,7 +7835,7 @@
                       <i data-lucide="clock" className="w-3 h-3 mr-1 text-green-600"></i>
                       {dish.time}
                     </span>
-                    <button onClick={() => onOpenCustomize(dish)} aria-label={`Añadir ${dish.name}`} className="w-7 h-7 bg-dark text-white rounded-lg flex items-center justify-center hover:bg-black transition active:scale-95">
+                    <button onClick={() => onOpenCustomize(dish)} aria-label={`Añadir ${dish.name}`} className="menu-add-button w-7 h-7 rounded-lg flex items-center justify-center transition active:scale-95">
                       <i data-lucide="plus" className="w-4 h-4"></i>
                     </button>
                   </div>
@@ -7820,7 +7868,7 @@
                       <i data-lucide="clock" className="w-3 h-3 mr-1 text-green-600"></i>
                       {dish.time}
                     </span>
-                    <button onClick={() => onOpenCustomize(dish)} aria-label={`Añadir ${dish.name}`} className="w-7 h-7 bg-dark text-white rounded-lg flex items-center justify-center hover:bg-black transition active:scale-95">
+                    <button onClick={() => onOpenCustomize(dish)} aria-label={`Añadir ${dish.name}`} className="menu-add-button w-7 h-7 rounded-lg flex items-center justify-center transition active:scale-95">
                       <i data-lucide="plus" className="w-4 h-4"></i>
                     </button>
                   </div>
@@ -8095,7 +8143,7 @@
                       <i data-lucide="clock" className="w-3.5 h-3.5 mr-1"></i>
                       {dish.time}
                     </span>
-                    <button onClick={() => onOpenCustomize(pricedDish)} aria-label={`Añadir ${dish.name}`} className="w-8 h-8 bg-dark text-white rounded-xl flex items-center justify-center hover:bg-black transition active:scale-95">
+                    <button onClick={() => onOpenCustomize(pricedDish)} aria-label={`Añadir ${dish.name}`} className="menu-add-button w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95">
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
                         <path d="M12 5v14M5 12h14" />
                       </svg>
