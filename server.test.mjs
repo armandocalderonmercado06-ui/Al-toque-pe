@@ -1209,6 +1209,13 @@ test('shows the matching order received animation for each assigned rider transp
   assert.match(html, /if \(!shouldShowArrivalVideo \|\| !video\) return undefined;/);
 });
 
+test('keeps customer order tracking visible as soon as the rider confirms pickup', async (t) => {
+  const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
+
+  assert.match(html, /orderStatus === 'delivered' \|\| deliveryPhase === 'arrived'\s*\?\s*renderArrival\(\)/);
+  assert.match(html, /orderStatus === 'picked_up' \|\| deliveryPhase === 'tracking'\s*\?\s*<>\{renderDeliveryTracking\(\)\}\{renderRiderProfileCard\(\)\}<\/>\s*:\s*\(/);
+});
+
 test('unlocks VIP Gorritos at twenty points or twenty purchases and keeps the level for existing members', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
