@@ -11667,13 +11667,42 @@
       { id: 'visa', label: 'VISA', gradient: 'from-[#a90000] via-[#7d1025] to-[#4b0d1d]' },
       { id: 'mastercard', label: 'Mastercard', gradient: 'from-[#5a1420] via-[#a90000] to-[#c85432]' },
       { id: 'amex', label: 'AMEX', gradient: 'from-[#29405d] via-[#8d1429] to-[#4b1020]' },
-      { id: 'carnet', label: 'CARNET', gradient: 'from-[#a90000] via-[#bd432d] to-[#5c1020]' }
+      { id: 'carnet', label: 'CARNET', gradient: 'from-[#a90000] via-[#bd432d] to-[#5c1020]' },
+      { id: 'diners', label: 'Diners Club', gradient: 'from-[#006b91] via-[#9f1d2e] to-[#4b0d1d]' }
     ];
+
+    function DemoCardBrandLogo({ cardType }) {
+      if (cardType.id === 'mastercard') {
+        return (
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-white px-2 py-1">
+            <span className="flex items-center" aria-hidden="true">
+              <span className="h-3 w-3 rounded-full bg-[#eb001b]"></span>
+              <span className="-ml-1.5 h-3 w-3 rounded-full bg-[#f79e1b]/90"></span>
+            </span>
+            <span className="text-[9px] font-black text-[#1a1f71]">Mastercard</span>
+          </span>
+        );
+      }
+
+      const logoStyles = {
+        visa: 'bg-white px-2 py-1 text-[11px] font-black italic text-[#1a1f71]',
+        amex: 'bg-[#016fd0] px-2 py-1 text-[9px] font-black text-white',
+        carnet: 'bg-[#c8102e] px-2 py-1 text-[9px] font-black text-white',
+        diners: 'bg-[#0077a8] px-2 py-1 text-[9px] font-black text-white'
+      };
+
+      return (
+        <span className={`inline-flex items-center rounded-md ${logoStyles[cardType.id] || logoStyles.visa}`}>
+          {cardType.id === 'diners' ? 'DINERS CLUB' : cardType.label}
+        </span>
+      );
+    }
 
     function getDemoCardTypeFromNumber(cardNumber) {
       const digits = cardNumber.replace(/\D/g, '');
       if (digits.startsWith('4')) return 'visa';
       if (/^3[47]/.test(digits)) return 'amex';
+      if (/^(30[0-5]|36|38|39)/.test(digits)) return 'diners';
 
       const firstTwo = Number(digits.slice(0, 2));
       const firstFour = Number(digits.slice(0, 4));
@@ -13056,11 +13085,12 @@
                         <button
                           key={cardType.id}
                           type="button"
+                          aria-label={`Elegir tarjeta ${cardType.label}`}
                           aria-pressed={demoCardBrand === cardType.id}
                           onClick={() => setDemoCardBrand(cardType.id)}
-                          className={`rounded border px-2 py-1 text-[9px] font-extrabold transition ${demoCardBrand === cardType.id ? 'border-[#a90000] bg-[#fff0d6] text-[#7d1025] ring-1 ring-[#a90000]/20' : 'border-[#e8d9bf] bg-white text-gray-600'}`}
+                          className={`rounded-lg border p-1 transition ${demoCardBrand === cardType.id ? 'border-[#a90000] bg-[#fff0d6] ring-1 ring-[#a90000]/20' : 'border-[#e8d9bf] bg-white'}`}
                         >
-                          {cardType.label}
+                          <DemoCardBrandLogo cardType={cardType} />
                         </button>
                       ))}
                     </div>
@@ -13072,7 +13102,7 @@
                       </div>
                       <div className="mt-5 flex items-center justify-between gap-3">
                         <p className="font-mono text-sm tracking-[0.18em]">•••• •••• •••• {demoCardLast4}</p>
-                        <span className="rounded-md bg-white/90 px-2 py-1 text-[9px] font-black text-[#7d1025]">{demoCardType.label}</span>
+                        <DemoCardBrandLogo cardType={demoCardType} />
                       </div>
                       <div className="mt-3 flex justify-between gap-3 text-[9px] uppercase tracking-wide text-white/80">
                         <span>Nombre del titular</span>

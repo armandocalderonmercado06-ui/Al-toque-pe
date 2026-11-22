@@ -931,6 +931,9 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /Dirección de facturación/);
   assert.match(html, /id: 'amex', label: 'AMEX'/);
   assert.match(html, /id: 'carnet', label: 'CARNET'/);
+  assert.match(html, /id: 'diners', label: 'Diners Club'/);
+  assert.match(html, /function DemoCardBrandLogo\(\{ cardType \}\)/);
+  assert.match(html, /DINERS CLUB/);
   assert.match(checkout, /role="group" aria-label="Tipo de tarjeta"/);
   assert.match(checkout, /aria-pressed=\{demoCardBrand === cardType\.id\}/);
   assert.match(checkout, /Vista previa ficticia de tarjeta \$\{demoCardType\.label\}/);
@@ -940,6 +943,7 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /digits\.startsWith\('4'\).*return 'visa'/);
   assert.match(html, /firstTwo >= 51 && firstTwo <= 55/);
   assert.match(html, /firstFour >= 2221 && firstFour <= 2720/);
+  assert.match(html, /30\[0-5\]\|36\|38\|39/);
   assert.match(checkout, /aria-label="Resumen del pago"/);
   assert.match(html, /const finishDemoCardForm = \(form, notice\) => \{\s*if \(!form \|\| !form\.reportValidity\(\)\) return;\s*form\.reset\(\);\s*closeDemoCardForm\(\);\s*setDemoCardFormNotice\(notice\);\s*\};/);
   assert.match(checkout, /Guardar \(demo\)/);
