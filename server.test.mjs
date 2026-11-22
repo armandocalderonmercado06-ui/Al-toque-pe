@@ -920,6 +920,8 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('transferencia'\)\}/);
   assert.match(checkout, /Continuar con el pedido · pago pendiente/);
   assert.match(html, /contentRef\.current\.scrollTop = 0/);
+  assert.match(html, /document\.body\.scrollTop = 0/);
+  assert.match(html, /document\.documentElement\.scrollTop = 0/);
   assert.match(html, /window\.scrollTo\(0, 0\);\s+setIsCardCheckoutOpen\(true\)/);
   assert.match(serverSource, /'transferencia'/);
   assert.match(serverSource, /paymentStatus: 'pending'/);

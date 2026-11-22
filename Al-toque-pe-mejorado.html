@@ -11730,6 +11730,8 @@
         if (!isCardCheckoutOpen) return undefined;
         const frame = window.requestAnimationFrame(() => {
           if (contentRef.current) contentRef.current.scrollTop = 0;
+          document.body.scrollTop = 0;
+          document.documentElement.scrollTop = 0;
           window.scrollTo(0, 0);
         });
         return () => window.cancelAnimationFrame(frame);
@@ -13495,6 +13497,8 @@
               <button onClick={paymentMethod === 'tarjeta' && !isBembosDemoOnly ? () => {
                 setOrderSubmitError('');
                 if (contentRef.current) contentRef.current.scrollTop = 0;
+                document.body.scrollTop = 0;
+                document.documentElement.scrollTop = 0;
                 window.scrollTo(0, 0);
                 setIsCardCheckoutOpen(true);
               } : handleConfirmOrder} disabled={isSubmittingOrder || isRedirecting || hasMixedProviders || hasInvalidGorritosMix} className="w-full bg-brand text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-lg active:scale-98 transition disabled:opacity-60">
