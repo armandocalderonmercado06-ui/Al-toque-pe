@@ -2743,17 +2743,31 @@
       z-index: 5;
       right: 8px;
       bottom: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      max-width: calc(100% - 16px);
+      color: #605a50;
+      font-size: 8px;
+      pointer-events: none;
+    }
+    .live-route-map-attribution-links,
+    .live-route-map-license {
       border-radius: 4px;
       background: rgba(255,255,255,.92);
       padding: 3px 5px;
-      color: #605a50;
-      font-size: 8px;
-      white-space: nowrap;
     }
+    .live-route-map-license { max-width: 100%; text-align: right; white-space: normal; }
     .live-route-map-attribution a {
       color: inherit;
       text-decoration: underline;
       text-underline-offset: 2px;
+      pointer-events: auto;
+    }
+    @media (max-width: 560px) {
+      .live-route-map-attribution { bottom: 44px; }
     }
 
     .delivery-progress-card {
@@ -12012,9 +12026,19 @@
           />
           {mapProvider === 'openstreetmap' && (
             <div className="live-route-map-attribution">
-              <a href={OPENSTREETMAP_WAY_URL} target="_blank" rel="noopener noreferrer">Ver en OSM</a>
-              {' · '}
-              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
+              <span className="live-route-map-attribution-links">
+                <a href={OPENSTREETMAP_WAY_URL} target="_blank" rel="noopener noreferrer">Ver en OSM</a>
+                {' · '}
+                <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
+              </span>
+              <a
+                className="live-route-map-license"
+                href="https://opendatacommons.org/licenses/odbl/1-0/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Datos bajo Licencia de Base de Datos Abierta (ODbL)
+              </a>
             </div>
           )}
           <div className="live-route-map-controls" role="group" aria-label="Controles del mapa">
