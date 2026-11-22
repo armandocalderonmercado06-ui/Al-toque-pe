@@ -901,6 +901,29 @@ test('offers animated WhatsApp support for the Al Toque help phone number', asyn
   assert.match(html, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.help-whatsapp-button,[\s\S]*?\.complaint-book-page \{ animation: none !important; \}\s*\}/);
 });
 
+test('opens the Al Toque demo checkout from card and keeps transfers pending', async () => {
+  const [html, serverSource] = await Promise.all([
+    readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
+    readFile(join(process.cwd(), 'server.mjs'), 'utf8')
+  ]);
+  const cartScreenStart = html.indexOf('function CartScreen(');
+  const checkoutStart = html.indexOf('aria-label="Opciones de pago de demostración"', cartScreenStart);
+  const checkoutEnd = html.indexOf('if (isRedirecting)', checkoutStart);
+  const checkout = html.slice(checkoutStart, checkoutEnd);
+
+  assert.ok(cartScreenStart >= 0 && checkoutStart > cartScreenStart && checkoutEnd > checkoutStart);
+  assert.match(html, /paymentMethod === 'tarjeta' && !isBembosDemoOnly[\s\S]*?setIsCardCheckoutOpen\(true\)/);
+  assert.match(checkout, /Visa · Mastercard · American Express/);
+  assert.match(checkout, /PayPal/);
+  assert.match(checkout, /Google Pay/);
+  assert.match(checkout, /Apple Pay/);
+  assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('transferencia'\)\}/);
+  assert.match(checkout, /Continuar con el pedido · pago pendiente/);
+  assert.match(serverSource, /'transferencia'/);
+  assert.match(serverSource, /paymentStatus: 'pending'/);
+  assert.match(html, /order\.paymentStatus === 'pending'/);
+});
+
 test('offers animated pickup-point choices at checkout and accepts them for customer orders', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
@@ -939,6 +962,22 @@ test('offers animated pickup-point choices at checkout and accepts them for cust
     assert.equal(response.status, 201, `${pickupPoint} should be accepted for an order`);
     assert.equal((await response.json()).order.pickupPoint, pickupPoint);
   }
+
+  const transferResponse = await fetch(`${baseUrl}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+    body: JSON.stringify({
+      idempotencyKey: `transfer-test-${randomUUID()}`,
+      customer: 'Cliente',
+      items: [{ name: 'Lomo saltado', quantity: 1, price: 12 }],
+      pickupPoint: 'En la puerta principal',
+      paymentMethod: 'transferencia'
+    })
+  });
+  assert.equal(transferResponse.status, 201);
+  const { order: transferOrder } = await transferResponse.json();
+  assert.equal(transferOrder.paymentMethod, 'transferencia');
+  assert.equal(transferOrder.paymentStatus, 'pending');
 
   const oldPickupPointResponse = await fetch(`${baseUrl}/api/orders`, {
     method: 'POST',

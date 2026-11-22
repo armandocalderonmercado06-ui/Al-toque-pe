@@ -1649,7 +1649,7 @@ async function handleRequest(request, response, orders, riderLocations, idempote
 
     const isDemo = body.isDemo === true;
     const validPickupPoints = new Set(['En la puerta principal', 'En el patio', 'Área de tutoría']);
-    const validPaymentMethods = new Set(['yape', 'plin', 'tarjeta', 'efectivo', 'gorritos']);
+    const validPaymentMethods = new Set(['yape', 'plin', 'tarjeta', 'efectivo', 'transferencia', 'gorritos']);
     const isGorritosOrder = body.paymentMethod === 'gorritos';
     const gorritosSpent = body.gorritosSpent;
     if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 20) {
@@ -1702,6 +1702,7 @@ async function handleRequest(request, response, orders, riderLocations, idempote
       items,
       pickupPoint: isDemo ? (typeof body.pickupPoint === 'string' ? body.pickupPoint.slice(0, 120) : 'Punto de recojo') : body.pickupPoint,
       paymentMethod: body.paymentMethod,
+      ...(body.paymentMethod === 'transferencia' ? { paymentStatus: 'pending' } : {}),
       subtotal: Number(subtotal.toFixed(2)),
       total: Number((subtotal + (isDemo || isGorritosOrder ? 0 : 1)).toFixed(2)),
       payout: isDemo ? 0 : items.reduce((sum, item) => sum + item.quantity, 0),

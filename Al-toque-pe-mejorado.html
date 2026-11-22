@@ -11682,6 +11682,8 @@
       const [pagoEfectivoExpiryDate, setPagoEfectivoExpiryDate] = useState('');
       const [isRedirecting, setIsRedirecting] = useState(false);
       const [redirectUrl, setRedirectUrl] = useState('');
+      const [isCardCheckoutOpen, setIsCardCheckoutOpen] = useState(false);
+      const [confirmedPaymentMethod, setConfirmedPaymentMethod] = useState('');
       const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
       const [orderSubmitError, setOrderSubmitError] = useState('');
       const [orderSubmitNotice, setOrderSubmitNotice] = useState('');
@@ -12208,7 +12210,7 @@
       const total = subtotal + commission;
       const orderPaymentMethod = isGorritosOrder ? 'gorritos' : paymentMethod;
 
-      const publishOrderToRiderQueue = async (isDemo = false) => {
+      const publishOrderToRiderQueue = async (isDemo = false, selectedPaymentMethod = orderPaymentMethod) => {
         const orderDetails = {
           customerProfileId,
           customer: profile.nickname || 'Cliente UPCH',
@@ -12221,7 +12223,7 @@
             ...(item.brand === 'Starbucks' ? { image: item.image } : {})
           })),
           pickupPoint,
-          paymentMethod: orderPaymentMethod,
+          paymentMethod: selectedPaymentMethod,
           ...(isGorritosOrder ? { gorritosSpent: gorritosCost } : {}),
           ...(isDemo ? { isDemo: true, storeName: 'Bembos' } : {})
         };
@@ -12301,20 +12303,22 @@
         }
       };
 
-      const completeOrderConfirmation = async () => {
+      const completeOrderConfirmation = async (selectedPaymentMethod = orderPaymentMethod) => {
         setOrderSubmitError('');
         setOrderSubmitNotice('');
         setIsSubmittingOrder(true);
         try {
           if (isBembosDemoOnly) {
-            await publishOrderToRiderQueue(true);
+            await publishOrderToRiderQueue(true, selectedPaymentMethod);
             setOrderConfirmed(true);
+            setConfirmedPaymentMethod(selectedPaymentMethod);
             setDeliveryPhase('idle');
             return;
           }
-          const confirmedOrder = await publishOrderToRiderQueue();
+          const confirmedOrder = await publishOrderToRiderQueue(false, selectedPaymentMethod);
           onOrderRegistered(confirmedOrder);
           setOrderConfirmed(true);
+          setConfirmedPaymentMethod(selectedPaymentMethod);
           setIsPagoEfectivoSimulation(false);
           setDeliveryPhase('idle');
         } catch (error) {
@@ -12324,7 +12328,8 @@
         }
       };
 
-      const handleConfirmOrder = () => {
+      const handleConfirmOrder = (paymentMethodOverride = orderPaymentMethod) => {
+        const selectedPaymentMethod = paymentMethodOverride || orderPaymentMethod;
         if (isSubmittingOrder || isRedirecting) return;
         if (hasMixedProviders) {
           setOrderSubmitError('No se pueden combinar promociones Bembos y productos Al Toque en un mismo pedido. Elimina una de las dos opciones.');
@@ -12348,14 +12353,14 @@
             setOrderSubmitError('No tienes suficientes Gorritos para confirmar este pedido.');
             return;
           }
-          completeOrderConfirmation();
+          completeOrderConfirmation(selectedPaymentMethod);
           return;
         }
         if (isBembosDemoOnly) {
-          completeOrderConfirmation();
+          completeOrderConfirmation(selectedPaymentMethod);
           return;
         }
-        if (orderPaymentMethod === 'efectivo') {
+        if (selectedPaymentMethod === 'efectivo') {
           setOrderSubmitError('');
           setPagoEfectivoCip(String(Math.floor(100000000 + Math.random() * 900000000)));
           setPagoEfectivoExpiryDate(new Intl.DateTimeFormat('en-GB', {
@@ -12368,11 +12373,11 @@
         }
         let url = '';
 
-        if (orderPaymentMethod === 'yape') {
+        if (selectedPaymentMethod === 'yape') {
           url = 'https://www.yape.com.pe/';
-        } else if (orderPaymentMethod === 'plin') {
+        } else if (selectedPaymentMethod === 'plin') {
           url = 'https://www.interbank.pe/promociones/detalles/plin';
-        } else if (orderPaymentMethod === 'tarjeta') {
+        } else if (selectedPaymentMethod === 'tarjeta') {
           url = 'https://www.niubiz.com.pe/';
         }
 
@@ -12383,12 +12388,12 @@
           setTimeout(async () => {
             window.open(url, '_blank', 'noopener,noreferrer');
             setIsRedirecting(false);
-            await completeOrderConfirmation();
+            await completeOrderConfirmation(selectedPaymentMethod);
           }, 2000);
           return;
         }
 
-        completeOrderConfirmation();
+        completeOrderConfirmation(selectedPaymentMethod);
       };
 
       const renderDeliveryTracking = () => (
@@ -12874,6 +12879,94 @@
         </div>
       );
 
+      if (isCardCheckoutOpen && !orderConfirmed) {
+        return (
+          <div className="space-y-4 pb-4">
+            <button
+              type="button"
+              onClick={() => setIsCardCheckoutOpen(false)}
+              className="flex items-center gap-2 rounded-xl px-1 py-2 text-xs font-bold text-brand"
+            >
+              <i data-lucide="arrow-left" className="h-4 w-4"></i>
+              Volver a tu pedido
+            </button>
+
+            <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#7d1025] via-[#9f1d2e] to-[#cf4c37] p-5 text-white shadow-lg">
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-white/75">Al Toque · Checkout</p>
+              <h2 className="mt-2 font-title text-2xl font-extrabold">¡Ya casi!</h2>
+              <p className="mt-1 text-xs text-white/85">Elige cómo continuar con tu pedido.</p>
+              <div className="mt-5 flex items-end justify-between rounded-2xl border border-white/20 bg-white/10 px-4 py-3">
+                <span className="text-[10px] font-semibold text-white/80">Total del pedido</span>
+                <span className="text-xl font-extrabold">S/{total.toFixed(2)}</span>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-3xl border border-gray-100 bg-white p-4 shadow-sm" aria-label="Opciones de pago de demostración">
+              <div>
+                <h3 className="text-sm font-extrabold text-dark">Opciones de pago</h3>
+                <p className="mt-1 text-[10px] text-gray-500">Diseño de demostración · sin cobros ni datos de tarjeta</p>
+              </div>
+
+              <div className="rounded-2xl border border-brand/20 bg-brand/5 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-brand">
+                      <i data-lucide="credit-card" className="h-5 w-5"></i>
+                    </span>
+                    <div>
+                      <p className="text-xs font-bold text-dark">Tarjeta de crédito o débito</p>
+                      <p className="text-[9px] text-gray-500">Visa · Mastercard · American Express</p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-amber-100 px-2 py-1 text-[8px] font-extrabold uppercase tracking-wide text-amber-800">Demo</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { name: 'PayPal', style: 'font-extrabold italic text-[#1266a8]' },
+                  { name: 'Google Pay', style: 'font-bold text-[#3c4043]' },
+                  { name: 'Apple Pay', style: 'font-bold text-black' }
+                ].map((method) => (
+                  <div key={method.name} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-gray-200 bg-white px-2 py-2 text-center">
+                    <span className={`text-[10px] ${method.style}`}>{method.name}</span>
+                    <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-gray-500">Demo</span>
+                  </div>
+                ))}
+              </div>
+
+              <p className="rounded-xl bg-gray-50 p-3 text-[10px] leading-relaxed text-gray-600" role="note">
+                Estos medios todavía no están conectados a una pasarela. No ingreses datos de tarjeta aquí.
+              </p>
+            </section>
+
+            <section className="space-y-3 rounded-3xl border border-orange-200 bg-[#fff9f1] p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-orange-100 text-xl" aria-hidden="true">✨</span>
+                <div>
+                  <h3 className="text-sm font-extrabold text-dark">¿Prefieres transferir?</h3>
+                  <p className="mt-1 text-[10px] leading-relaxed text-gray-600">Continúa y registraremos tu pedido con transferencia pendiente de confirmación.</p>
+                </div>
+              </div>
+              {orderSubmitError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-left text-[11px] text-red-700" role="alert">{orderSubmitError}</p>}
+              <button
+                type="button"
+                onClick={() => handleConfirmOrder('transferencia')}
+                disabled={isSubmittingOrder || hasMixedProviders || hasInvalidGorritosMix}
+                className="flex w-full items-center justify-between gap-3 rounded-2xl bg-brand px-4 py-3.5 text-left text-white shadow-lg transition active:scale-[0.99] disabled:opacity-60"
+              >
+                <span>
+                  <span className="block text-sm font-extrabold">Transfer now 💫</span>
+                  <span className="mt-0.5 block text-[9px] font-semibold text-white/80">{isSubmittingOrder ? 'Registrando pedido…' : 'Continuar con el pedido · pago pendiente'}</span>
+                </span>
+                {isSubmittingOrder ? <i data-lucide="loader-circle" className="h-5 w-5 animate-spin"></i> : <i data-lucide="arrow-right" className="h-5 w-5"></i>}
+              </button>
+              <p className="text-center text-[9px] leading-relaxed text-gray-500">No se verifica una transferencia ni se confirma un pago en esta demostración.</p>
+            </section>
+          </div>
+        );
+      }
+
       if (isRedirecting) {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4 py-12">
@@ -12979,6 +13072,11 @@
                   Tu pedido está en la lista de repartidores. Te avisaremos aquí cuando uno lo acepte.
                 </p>
               </div>
+              {confirmedPaymentMethod === 'transferencia' && (
+                <p className="w-full rounded-2xl border border-amber-200 bg-amber-50 p-3 text-left text-[10px] leading-relaxed text-amber-900" role="note">
+                  Pago por transferencia pendiente de confirmación. Esta demostración no valida que se haya realizado un pago.
+                </p>
+              )}
               <p className="text-[10px] font-semibold text-gray-500">{`Pedido #${liveOrderId}`}</p>
               <div className="w-full rounded-2xl border border-[#f1dfb5] bg-[#fffaf0] p-4 text-left text-xs">
                 <div className="flex justify-between">
@@ -13045,7 +13143,7 @@
                 <div className="bg-cream/50 border border-cream p-4 rounded-2xl w-full text-left space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500">Método de pago:</span>
-                    <span className="font-bold uppercase">{paymentMethod}</span>
+                    <span className="font-bold uppercase">{confirmedPaymentMethod === 'transferencia' ? 'Transferencia · Pendiente' : (confirmedPaymentMethod || paymentMethod)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500">Punto de recojo:</span>
@@ -13385,7 +13483,10 @@
               </div>
 
               {orderSubmitError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-left text-[11px] text-red-700" role="alert">{orderSubmitError}</p>}
-              <button onClick={handleConfirmOrder} disabled={isSubmittingOrder || isRedirecting || hasMixedProviders || hasInvalidGorritosMix} className="w-full bg-brand text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-lg active:scale-98 transition disabled:opacity-60">
+              <button onClick={paymentMethod === 'tarjeta' && !isBembosDemoOnly ? () => {
+                setOrderSubmitError('');
+                setIsCardCheckoutOpen(true);
+              } : handleConfirmOrder} disabled={isSubmittingOrder || isRedirecting || hasMixedProviders || hasInvalidGorritosMix} className="w-full bg-brand text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-lg active:scale-98 transition disabled:opacity-60">
                 <span>
                   {isSubmittingOrder ? 'Registrando pedido…' : isGorritosOrder
                     ? `Canjear pedido (${gorritosCost} Gorritos)`
@@ -13864,7 +13965,7 @@
               dropoff: order.pickupPoint,
               eta: 5,
               distance: 'Campus UPCH',
-              payment: `${order.paymentMethod.toUpperCase()} · ${order.paymentMethod === 'efectivo' ? `Cobrar S/${order.total.toFixed(2)}` : 'Registrado'}`
+              payment: `${order.paymentMethod.toUpperCase()} · ${order.paymentStatus === 'pending' ? 'Pendiente de confirmación' : order.paymentMethod === 'efectivo' ? `Cobrar S/${order.total.toFixed(2)}` : 'Registrado'}`
             })));
             setOrderSyncError('');
           } catch (error) {
