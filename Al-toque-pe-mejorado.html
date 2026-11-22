@@ -11396,9 +11396,10 @@
     }
 
     const DELIVERY_DURATION_MS = 300000;
-    const DELIVERY_ROUTE_START = [-12.1348222, -77.0260012];
-    const DELIVERY_ROUTE_END = [-12.1341675, -77.0260721];
-    // Google Maps is cross-origin, so these points trace the visible route in the fixed map viewport.
+    const DELIVERY_ROUTE_START = [-12.1348478, -77.0260225];
+    const DELIVERY_ROUTE_END = [-12.1342114, -77.0261145];
+    const OPENSTREETMAP_MAP_CENTER = [-12.1345787, -77.0259511];
+    // Embedded maps are cross-origin, so these points trace the visible route in the fixed map viewport.
     const WALKING_ROUTE_POINTS = [
       { x: 58, y: 72 },
       { x: 54, y: 68 },
@@ -11437,6 +11438,28 @@
       { x: 17, y: 23 },
       { x: 10, y: 20 }
     ];
+
+    function getOpenStreetMapEmbedUrl(routeOrigin, routeDestination) {
+      const routeCoordinates = [routeOrigin, routeDestination, OPENSTREETMAP_MAP_CENTER];
+      const latitudes = routeCoordinates.map(([latitude]) => latitude);
+      const longitudes = routeCoordinates.map(([, longitude]) => longitude);
+      const minLatitude = Math.min(...latitudes);
+      const maxLatitude = Math.max(...latitudes);
+      const minLongitude = Math.min(...longitudes);
+      const maxLongitude = Math.max(...longitudes);
+      const latitudePadding = Math.max((maxLatitude - minLatitude) * 0.2, 0.00005);
+      const longitudePadding = Math.max((maxLongitude - minLongitude) * 0.35, 0.00005);
+      const mapUrl = new URL('https://www.openstreetmap.org/export/embed.html');
+      mapUrl.searchParams.set('bbox', [
+        minLongitude - longitudePadding,
+        minLatitude - latitudePadding,
+        maxLongitude + longitudePadding,
+        maxLatitude + latitudePadding
+      ].map((coordinate) => coordinate.toFixed(7)).join(','));
+      mapUrl.searchParams.set('layer', 'mapnik');
+      mapUrl.searchParams.set('marker', routeOrigin.join(','));
+      return mapUrl;
+    }
 
     function calcularAngulo(desde, hasta) {
       return Math.atan2(hasta.y - desde.y, hasta.x - desde.x) * (180 / Math.PI);
@@ -11600,6 +11623,7 @@
       location,
       className,
       label,
+      mapProvider = 'google',
       walkingStartedAt = null,
       allowMapInteraction = false,
       walkingRoutePoints = WALKING_ROUTE_POINTS,
@@ -11829,13 +11853,17 @@
         };
       }, [gpsLocation, mapOrigin, walkingRoutePoints]);
 
-      const mapUrl = new URL('https://www.google.com/maps');
-      mapUrl.searchParams.set('output', 'embed');
-      mapUrl.searchParams.set('saddr', `${mapOrigin[0]},${mapOrigin[1]}`);
-      mapUrl.searchParams.set('daddr', `${DELIVERY_ROUTE_END[0]},${DELIVERY_ROUTE_END[1]}`);
-      mapUrl.searchParams.set('dirflg', 'w');
-      mapUrl.searchParams.set('hl', 'es');
-      mapUrl.searchParams.set('z', '19');
+      const mapUrl = mapProvider === 'openstreetmap'
+        ? getOpenStreetMapEmbedUrl(mapOrigin, DELIVERY_ROUTE_END)
+        : new URL('https://www.google.com/maps');
+      if (mapProvider !== 'openstreetmap') {
+        mapUrl.searchParams.set('output', 'embed');
+        mapUrl.searchParams.set('saddr', `${mapOrigin[0]},${mapOrigin[1]}`);
+        mapUrl.searchParams.set('daddr', `${DELIVERY_ROUTE_END[0]},${DELIVERY_ROUTE_END[1]}`);
+        mapUrl.searchParams.set('dirflg', 'w');
+        mapUrl.searchParams.set('hl', 'es');
+        mapUrl.searchParams.set('z', '19');
+      }
 
       const directionsUrl = new URL('https://www.google.com/maps/dir/');
       directionsUrl.searchParams.set('api', '1');
@@ -11913,7 +11941,7 @@
               ? `GPS en vivo · ±${Math.round(gpsLocation.accuracy || 0)} m`
               : isWalkingAnimationActive
                 ? allowMapInteraction ? 'Ruta a pie · 5 min' : 'Ruta fija a pie · 5 min'
-              : location ? `GPS en vivo · ±${Math.round(location.accuracy || 0)} m` : 'Ruta de Google Maps · Esperando GPS'}
+              : location ? `GPS en vivo · ±${Math.round(location.accuracy || 0)} m` : `Mapa de ${mapProvider === 'openstreetmap' ? 'OpenStreetMap' : 'Google Maps'} · Esperando GPS`}
           </span>
           {mapError && (
             <a className="live-route-map-error" href={directionsUrl.toString()} target="_blank" rel="noopener noreferrer">
@@ -12727,6 +12755,7 @@
               walkingStartedAt={deliveryPhase === 'tracking' && assignedRider?.vehicle === 'Caminando'
                 ? deliveryStartedAtRef.current
                 : null}
+              mapProvider="openstreetmap"
               className="delivery-map"
               label={`Ruta en vivo del repartidor para el pedido ${liveOrderId || ''}`}
             />

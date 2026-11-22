@@ -1137,7 +1137,7 @@ test('shows Starbucks packs with official prices, photos and starting-price labe
   assert.match(packsPanel, /onClick=\{\(\) => onAddStarbucks\(product\)\}/);
 });
 
-test('animates the walking rider from the first blue point through the route to the destination', async (t) => {
+test('uses the customer OpenStreetMap route and animates the walking rider to the destination', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
   const response = await fetch(`http://127.0.0.1:${server.address().port}/`);
@@ -1145,6 +1145,29 @@ test('animates the walking rider from the first blue point through the route to 
 
   assert.equal(response.status, 200);
   assert.match(html, /const DELIVERY_DURATION_MS = 300000;/);
+  assert.match(html, /const DELIVERY_ROUTE_START = \[-12\.1348478, -77\.0260225\]/);
+  assert.match(html, /const DELIVERY_ROUTE_END = \[-12\.1342114, -77\.0261145\]/);
+  assert.match(html, /const OPENSTREETMAP_MAP_CENTER = \[-12\.1345787, -77\.0259511\]/);
+  const osmMapSourceStart = html.indexOf('const OPENSTREETMAP_MAP_CENTER =');
+  const osmMapSourceEnd = html.indexOf('function calcularAngulo(', osmMapSourceStart);
+  assert.ok(osmMapSourceStart >= 0 && osmMapSourceEnd > osmMapSourceStart, 'the OpenStreetMap embed helper should be defined');
+  const getOpenStreetMapEmbedUrl = vm.runInNewContext(
+    `(() => { ${html.slice(osmMapSourceStart, osmMapSourceEnd)}; return getOpenStreetMapEmbedUrl; })()`,
+    { URL }
+  );
+  const osmMapUrl = getOpenStreetMapEmbedUrl(
+    [-12.1348478, -77.0260225],
+    [-12.1342114, -77.0261145]
+  );
+  assert.equal(osmMapUrl.origin, 'https://www.openstreetmap.org');
+  assert.equal(osmMapUrl.pathname, '/export/embed.html');
+  assert.equal(osmMapUrl.searchParams.get('layer'), 'mapnik');
+  assert.equal(osmMapUrl.searchParams.get('marker'), '-12.1348478,-77.0260225');
+  const osmBounds = osmMapUrl.searchParams.get('bbox').split(',').map(Number);
+  assert.ok(osmBounds[0] < -77.0261145 && osmBounds[2] > -77.0260225,
+    'the OpenStreetMap view should include both route longitudes');
+  assert.ok(osmBounds[1] < -12.1348478 && osmBounds[3] > -12.1342114,
+    'the OpenStreetMap view should include both route latitudes');
   const routeMatch = html.match(/const WALKING_ROUTE_POINTS = \[([\s\S]*?)\];/);
   assert.ok(routeMatch, 'walking route waypoints should be defined');
   const routePoints = Array.from(routeMatch[1].matchAll(/\{ x: (\d+), y: (\d+) \}/g), (match) => ({
@@ -1171,16 +1194,16 @@ test('animates the walking rider from the first blue point through the route to 
   const gpsPositionSource = html.slice(gpsPositionStart, gpsPositionEnd).trim();
   const getWalkingGpsPosition = vm.runInNewContext(`(${gpsPositionSource})`);
   const originPosition = getWalkingGpsPosition(
-    { latitude: -12.1348222, longitude: -77.0260012 },
-    [-12.1348222, -77.0260012],
-    [-12.1341675, -77.0260721],
+    { latitude: -12.1348478, longitude: -77.0260225 },
+    [-12.1348478, -77.0260225],
+    [-12.1342114, -77.0261145],
     400,
     300
   );
   const destinationPosition = getWalkingGpsPosition(
-    { latitude: -12.1341675, longitude: -77.0260721 },
-    [-12.1348222, -77.0260012],
-    [-12.1341675, -77.0260721],
+    { latitude: -12.1342114, longitude: -77.0261145 },
+    [-12.1348478, -77.0260225],
+    [-12.1342114, -77.0261145],
     400,
     300
   );
@@ -1207,6 +1230,10 @@ test('animates the walking rider from the first blue point through the route to 
   assert.match(html, /getClosestWalkingRoutePosition\(\s*gpsPosition,\s*walkingRoutePoints,\s*bounds\.width,\s*bounds\.height\s*\)/);
   assert.match(html, /style=\{\{ left: `\$\{walkingRoutePoints\[0\]\.x\}%`, top: `\$\{walkingRoutePoints\[0\]\.y\}%` \}\}/);
   assert.match(html, /walkingStartedAt=\{deliveryPhase === 'tracking' && assignedRider\?\.vehicle === 'Caminando'\s*\? deliveryStartedAtRef\.current\s*: null\}/);
+  const customerMapStart = html.indexOf("location={assignedRider?.vehicle === 'Caminando' ? null : riderLocation}");
+  const customerMapEnd = html.indexOf('/>', customerMapStart);
+  assert.ok(customerMapStart >= 0 && customerMapEnd > customerMapStart, 'the customer map should be rendered in the delivery tracking view');
+  assert.match(html.slice(customerMapStart, customerMapEnd), /mapProvider="openstreetmap"/);
   assert.match(html, /walking-route-character/);
   assert.match(html, /src="\/repartidor-caminando-sticker\.mp4"/);
   assert.match(html, /\{isWalkingAnimationActive && \(\s*<video/);
@@ -1234,7 +1261,7 @@ test('animates the walking rider from the first blue point through the route to 
   assert.doesNotMatch(html, /isMapInteractionLocked|walking-route-locked/);
   assert.match(html, /Ruta fija a pie · 5 min/);
   assert.match(html, /allowMapInteraction \? 'Ruta a pie · 5 min' : 'Ruta fija a pie · 5 min'/);
-  assert.match(html, /function LiveRouteMap\(\{\s*location,\s*className,\s*label,\s*walkingStartedAt = null,\s*allowMapInteraction = false,\s*walkingRoutePoints = WALKING_ROUTE_POINTS,\s*gpsLocation = null\s*\}\)/);
+  assert.match(html, /function LiveRouteMap\(\{\s*location,\s*className,\s*label,\s*mapProvider = 'google',\s*walkingStartedAt = null,\s*allowMapInteraction = false,\s*walkingRoutePoints = WALKING_ROUTE_POINTS,\s*gpsLocation = null\s*\}\)/);
   assert.match(html, /walkingStartedAt=\{step === 1 && riderDetails\.vehicle === 'Caminando'\s*\?\s*activeOrder\?\.routeStartedAt \|\| activeOrder\?\.pickedUpAt\s*:\s*null\}/);
   assert.match(html, /label=\{`Ruta en vivo del pedido \$\{activeOrder\?\.id \|\| ''\}`\}\s*walkingStartedAt=\{step === 1 && riderDetails\.vehicle === 'Caminando'/);
   assert.match(html, /\.delivery-map \.walking-route-character\s*\{\s*width:\s*clamp\(56px, 16%, 70px\)/);
