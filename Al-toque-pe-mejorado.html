@@ -7002,6 +7002,7 @@
                 setProfile={setProfile}
                 customerProfileId={customerProfileId}
                 onOrderRegistered={registerCompletedOrder}
+                contentRef={contentRef}
               />
             )}
             {activeTab === 'profile' && (
@@ -11660,7 +11661,7 @@
       );
     }
 
-    function CartScreen({ cart, updateQuantity, removeFromCart, onNavigate, orderConfirmed, setOrderConfirmed, liveOrderId, setLiveOrderId, clearCart, pickupPoint, setPickupPoint, profile, setProfile, customerProfileId, onOrderRegistered }) {
+    function CartScreen({ cart, updateQuantity, removeFromCart, onNavigate, orderConfirmed, setOrderConfirmed, liveOrderId, setLiveOrderId, clearCart, pickupPoint, setPickupPoint, profile, setProfile, customerProfileId, onOrderRegistered, contentRef }) {
       const deliveryDuration = DELIVERY_DURATION_MS;
       const deliveryProgressKey = liveOrderId ? getCustomerStorageKey(`altoque_delivery_progress_${liveOrderId}`, customerProfileId) : '';
       const readSavedDeliveryProgress = () => {
@@ -11725,6 +11726,14 @@
       const isBembosDemoOnly = cart.length > 0 && cart.every((item) => item.isBembosDemo);
       const hasMixedProviders = hasBembosDemoItems && !isBembosDemoOnly;
       const isBembosDemoOrder = false;
+      useEffect(() => {
+        if (!isCardCheckoutOpen) return undefined;
+        const frame = window.requestAnimationFrame(() => {
+          if (contentRef.current) contentRef.current.scrollTop = 0;
+          window.scrollTo(0, 0);
+        });
+        return () => window.cancelAnimationFrame(frame);
+      }, [contentRef, isCardCheckoutOpen]);
       const saveDeliveryProgress = (phase, startedAt) => {
         if (!deliveryProgressKey) return;
         try {
