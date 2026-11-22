@@ -12482,6 +12482,13 @@
         completeOrderConfirmation(selectedPaymentMethod);
       };
 
+      const handleDemoCardPayment = (form) => {
+        if (form) form.reset();
+        closeDemoCardForm();
+        setDemoCardFormNotice('');
+        handleConfirmOrder('transferencia');
+      };
+
       const renderDeliveryTracking = () => (
         <>
         <div className="space-y-4 py-2">
@@ -13235,8 +13242,9 @@
                       </button>
                       <button
                         type="button"
-                        onClick={(event) => finishDemoCardForm(event.currentTarget.form, 'Demostración: no se realizó ningún cobro ni se guardó o envió ningún dato.')}
-                        className="rounded-lg bg-[#a90000] px-8 py-3 text-sm font-bold text-white hover:bg-[#800014]"
+                        onClick={(event) => handleDemoCardPayment(event.currentTarget.form)}
+                        disabled={isSubmittingOrder || hasMixedProviders || hasInvalidGorritosMix}
+                        className="rounded-lg bg-[#a90000] px-8 py-3 text-sm font-bold text-white hover:bg-[#800014] disabled:opacity-60"
                       >
                         Pagar (demo)
                       </button>

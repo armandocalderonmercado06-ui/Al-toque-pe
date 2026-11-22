@@ -946,9 +946,10 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /30\[0-5\]\|36\|38\|39/);
   assert.match(checkout, /aria-label="Resumen del pago"/);
   assert.match(html, /const finishDemoCardForm = \(form, notice\) => \{\s*if \(!form \|\| !form\.reportValidity\(\)\) return;\s*form\.reset\(\);\s*closeDemoCardForm\(\);\s*setDemoCardFormNotice\(notice\);\s*\};/);
+  assert.match(html, /const handleDemoCardPayment = \(form\) => \{\s*if \(form\) form\.reset\(\);\s*closeDemoCardForm\(\);\s*setDemoCardFormNotice\(''\);\s*handleConfirmOrder\('transferencia'\);\s*\};/);
   assert.match(checkout, /Guardar \(demo\)/);
   assert.match(checkout, /Pagar \(demo\)/);
-  assert.match(checkout, /no se realizó ningún cobro ni se guardó o envió ningún dato/);
+  assert.match(checkout, /onClick=\{\(event\) => handleDemoCardPayment\(event\.currentTarget\.form\)\}/);
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('transferencia'\)\}/);
   assert.match(checkout, /Continuar con el pedido · pago pendiente/);
   assert.match(html, /contentRef\.current\.scrollTop = 0/);
