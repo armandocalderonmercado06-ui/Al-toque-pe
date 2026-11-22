@@ -873,7 +873,7 @@
       padding-right: 68px !important;
     }
     .payment-globe-button--cards .payment-globe-art {
-      top: 50%;
+      top: calc(50% + 12px);
       width: 84px;
       height: 72px;
       transform: translateY(-50%);
@@ -13309,7 +13309,7 @@
                     >
                       {['yape', 'plin', 'tarjeta'].includes(method.id) ? (
                         <img
-                          src={method.id === 'yape' ? 'yape-globo.png?v=2' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjetas-bancos.png?v=2'}
+                          src={method.id === 'yape' ? 'yape-globo.png?v=2' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjetas-bancos.png?v=3'}
                           alt=""
                           aria-hidden="true"
                           className="payment-globe-art"
