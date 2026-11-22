@@ -1168,7 +1168,7 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
     'the map should show the Open Database License notice');
   assert.ok(html.includes('https://opendatacommons.org/licenses/odbl/1-0/'),
     'the Open Database License notice should link to the ODbL terms');
-  assert.match(html, /@media \(max-width: 560px\) \{\s*\.live-route-map-attribution \{ bottom: 44px; \}\s*\}/);
+  assert.match(html, /@media \(max-width: 380px\) \{\s*\.live-route-map-attribution \{ bottom: 44px; \}\s*\}/);
   assert.ok(html.includes('https://www.openstreetmap.org/way/435345830#map=20/-12.1345787/-77.0259511&layers=T'),
     'the map should retain the supplied OpenStreetMap way as a reference link');
   const routeMatch = html.match(/const WALKING_ROUTE_POINTS = \[([\s\S]*?)\];/);
