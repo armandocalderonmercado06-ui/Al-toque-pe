@@ -11636,6 +11636,8 @@
         }
       };
       const [paymentMethod, setPaymentMethod] = useState('yape');
+      const [isPagoEfectivoSimulation, setIsPagoEfectivoSimulation] = useState(false);
+      const [pagoEfectivoCip, setPagoEfectivoCip] = useState('');
       const [isRedirecting, setIsRedirecting] = useState(false);
       const [redirectUrl, setRedirectUrl] = useState('');
       const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -12271,6 +12273,7 @@
           const confirmedOrder = await publishOrderToRiderQueue();
           onOrderRegistered(confirmedOrder);
           setOrderConfirmed(true);
+          setIsPagoEfectivoSimulation(false);
           setDeliveryPhase('idle');
         } catch (error) {
           setOrderSubmitError(`No se pudo enviar el pedido a repartidores: ${error.message}`);
@@ -12308,6 +12311,12 @@
         }
         if (isBembosDemoOnly) {
           completeOrderConfirmation();
+          return;
+        }
+        if (orderPaymentMethod === 'efectivo') {
+          setOrderSubmitError('');
+          setPagoEfectivoCip(String(Math.floor(100000000 + Math.random() * 900000000)));
+          setIsPagoEfectivoSimulation(true);
           return;
         }
         let url = '';
@@ -13033,6 +13042,78 @@
               </>
                   )}
           {renderCancellationPolicyDialog()}
+          </div>
+        );
+      }
+
+      if (isPagoEfectivoSimulation) {
+        return (
+          <div className="space-y-3 pt-2 pb-4">
+            <button
+              type="button"
+              onClick={completeOrderConfirmation}
+              disabled={isSubmittingOrder}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-white shadow-lg transition active:scale-98 disabled:opacity-60"
+            >
+              <span>{isSubmittingOrder ? 'Registrando pedido…' : '¡Ya pagué! 😊'}</span>
+              <i data-lucide="arrow-right" className="h-4 w-4"></i>
+            </button>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-brand">PagoEfectivo</p>
+                <h2 className="font-title text-2xl font-bold">Paga con tu código CIP</h2>
+              </div>
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-[10px] font-bold text-amber-900">Pendiente</span>
+            </div>
+
+            <section className="space-y-3 rounded-2xl border border-brand/20 bg-white p-4 shadow-sm" aria-label="Comprobante simulado de PagoEfectivo">
+              <div className="text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Código de pago (CIP)</p>
+                <p className="mt-1 font-mono text-3xl font-extrabold tracking-[0.18em] text-brand" aria-label={`Código CIP ${pagoEfectivoCip}`}>
+                  {pagoEfectivoCip}
+                </p>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-sm">
+                <span className="text-gray-500">Monto a pagar</span>
+                <span className="font-extrabold text-dark">S/{total.toFixed(2)} PEN</span>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-2xl bg-cream/50 p-4" aria-label="Cómo pagar con PagoEfectivo">
+              <h3 className="text-sm font-bold text-dark">¿Cómo completar tu pago?</h3>
+              <ol className="space-y-3 text-xs text-gray-700">
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white">1</span>
+                  <span>Guarda o anota tu código CIP y el monto exacto.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white">2</span>
+                  <span>Paga en efectivo en un banco, supermercado o agente afiliado; también puedes pagar desde la banca por internet.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand text-[11px] font-bold text-white">3</span>
+                  <span>La confirmación puede tardar un momento. En un pago real, el pedido se procesa al confirmarse el pago.</span>
+                </li>
+              </ol>
+            </section>
+
+            <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[10px] leading-relaxed text-amber-900" role="note">
+              Simulación: este CIP es de prueba. No se realiza ni se verifica ningún cobro; al tocar “¡Ya pagué!” se simula la confirmación para continuar con el pedido.
+            </p>
+
+            {orderSubmitError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-left text-[11px] text-red-700" role="alert">{orderSubmitError}</p>}
+
+            <button
+              type="button"
+              onClick={() => {
+                setOrderSubmitError('');
+                setIsPagoEfectivoSimulation(false);
+              }}
+              className="w-full rounded-2xl border border-gray-200 bg-white py-3 text-xs font-bold text-gray-600 transition hover:border-brand/40"
+            >
+              Volver al pedido
+            </button>
           </div>
         );
       }
