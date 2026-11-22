@@ -6556,6 +6556,23 @@
       return scopedKey;
     }
 
+    function normalizeOrderText(value, fieldName) {
+      if (typeof value === 'string') return value;
+      if (value && typeof value === 'object' && typeof value.textContent === 'string') {
+        return value.textContent.trim();
+      }
+      throw new Error(`El campo ${fieldName} del pedido no contiene texto válido.`);
+    }
+
+    function normalizeOrderImage(value) {
+      if (typeof value === 'string') return value || undefined;
+      if (value && typeof value === 'object') {
+        const imageUrl = typeof value.currentSrc === 'string' && value.currentSrc ? value.currentSrc : value.src;
+        if (typeof imageUrl === 'string' && imageUrl) return imageUrl;
+      }
+      return undefined;
+    }
+
     function App() {
       const [showSplash, setShowSplash] = useState(true);
       const [customerProfileId] = useState(getCustomerProfileId);
@@ -6764,25 +6781,37 @@
           showToast('Vacía el pedido simulado de Bembos antes de añadir productos Al Toque.');
           return;
         }
-        const priceDeduction = removedComponents.length * 1.0;
+        const itemId = normalizeOrderText(item.id, 'identificador del producto');
+        const itemName = normalizeOrderText(item.name, 'nombre del producto');
+        const itemDescription = item.description
+          ? normalizeOrderText(item.description, 'descripción del producto')
+          : undefined;
+        const itemBrand = item.brand ? normalizeOrderText(item.brand, 'marca') : undefined;
+        if (!Array.isArray(removedComponents)) {
+          throw new Error('Los componentes retirados del producto no son válidos.');
+        }
+        const normalizedRemovedComponents = removedComponents.map((component) => (
+          normalizeOrderText(component, 'componente del producto')
+        ));
+        const priceDeduction = normalizedRemovedComponents.length * 1.0;
         const finalPrice = Math.max(0, item.price - priceDeduction);
 
         setCart((prev) => [
           ...prev,
           {
             cartId: Date.now().toString(),
-            id: item.id,
-            name: item.name,
+            id: itemId,
+            name: itemName,
             price: finalPrice,
-            image: item.image,
-            description: item.description,
-            brand: item.brand,
-            removedComponents,
+            image: normalizeOrderImage(item.image),
+            description: itemDescription,
+            brand: itemBrand,
+            removedComponents: normalizedRemovedComponents,
             quantity: 1
           }
         ]);
 
-        showToast(`¡${item.name} agregado al pedido!`);
+        showToast(`¡${itemName} agregado al pedido!`);
       };
 
       const addGorritosRedemptionToCart = (item, gorritosCost) => {
@@ -12299,17 +12328,20 @@
       const publishOrderToRiderQueue = async (isDemo = false, selectedPaymentMethod = orderPaymentMethod) => {
         const orderDetails = {
           customerProfileId,
-          customer: profile.nickname || 'Cliente UPCH',
-          items: cart.map((item) => ({
-            id: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            ...(item.description ? { description: item.description } : {}),
-            ...(item.brand === 'Starbucks' ? { image: item.image } : {})
-          })),
-          pickupPoint,
-          paymentMethod: selectedPaymentMethod,
+          customer: profile.nickname ? normalizeOrderText(profile.nickname, 'nombre del cliente') : 'Cliente UPCH',
+          items: cart.map((item) => {
+            const image = item.brand === 'Starbucks' ? normalizeOrderImage(item.image) : undefined;
+            return {
+              id: normalizeOrderText(item.id, 'identificador del producto'),
+              name: normalizeOrderText(item.name, 'nombre del producto'),
+              quantity: item.quantity,
+              price: item.price,
+              ...(item.description ? { description: normalizeOrderText(item.description, 'descripción del producto') } : {}),
+              ...(image ? { image } : {})
+            };
+          }),
+          pickupPoint: normalizeOrderText(pickupPoint, 'punto de recojo'),
+          paymentMethod: normalizeOrderText(selectedPaymentMethod, 'método de pago'),
           ...(isGorritosOrder ? { gorritosSpent: gorritosCost } : {}),
           ...(isDemo ? { isDemo: true, storeName: 'Bembos' } : {})
         };

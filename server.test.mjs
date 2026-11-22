@@ -986,6 +986,37 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /order\.paymentStatus === 'pending'/);
 });
 
+test('normalizes React DOM values before order serialization', async () => {
+  const html = await readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8');
+  const textNormalizer = html.match(/function normalizeOrderText\(value, fieldName\) \{[\s\S]*?\n    \}/);
+  const imageNormalizer = html.match(/function normalizeOrderImage\(value\) \{[\s\S]*?\n    \}/);
+
+  assert.ok(textNormalizer);
+  assert.ok(imageNormalizer);
+  const normalizeOrderText = vm.runInNewContext(`(${textNormalizer[0]})`);
+  const normalizeOrderImage = vm.runInNewContext(`(${imageNormalizer[0]})`);
+  const fiber = {};
+  const span = { textContent: 'Yape', __reactFiber$: fiber };
+  fiber.stateNode = span;
+  const productImage = { src: 'https://example.test/product.png' };
+
+  assert.equal(normalizeOrderText(span, 'método de pago'), 'Yape');
+  assert.doesNotThrow(() => JSON.stringify({ paymentMethod: normalizeOrderText(span, 'método de pago') }));
+  assert.equal(normalizeOrderImage(productImage), productImage.src);
+  assert.equal(normalizeOrderImage(span), undefined);
+  assert.throws(() => normalizeOrderText({ value: 'Yape' }, 'método de pago'), /no contiene texto válido/);
+
+  const addToCartStart = html.indexOf('const addToCart =');
+  const orderStart = html.indexOf('const publishOrderToRiderQueue =');
+  const orderEnd = html.indexOf('const cancelOrder =', orderStart);
+  const orderSubmission = html.slice(orderStart, orderEnd);
+  assert.ok(addToCartStart >= 0 && orderStart > addToCartStart && orderEnd > orderStart);
+  assert.match(html.slice(addToCartStart, orderStart), /const itemName = normalizeOrderText\(item\.name/);
+  assert.match(orderSubmission, /name: normalizeOrderText\(item\.name/);
+  assert.match(orderSubmission, /pickupPoint: normalizeOrderText\(pickupPoint/);
+  assert.match(orderSubmission, /paymentMethod: normalizeOrderText\(selectedPaymentMethod/);
+});
+
 test('offers animated pickup-point choices at checkout and accepts them for customer orders', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
