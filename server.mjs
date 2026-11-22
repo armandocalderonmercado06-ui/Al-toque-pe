@@ -93,6 +93,7 @@ const PUBLIC_ASSETS = new Set([
   'caminante-ruta.png',
   'coin-front-red.png',
   'yape-globo.jpg',
+  'yape-globo.png',
   'al-toque-pe-logo.png',
   'al-toque-pe-emblema.png',
   'al-toque-reel-watermark.png',
