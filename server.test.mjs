@@ -924,6 +924,8 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('applepay'\)\}/);
   assert.match(checkout, /src="\/apple-pay-demo\.png\?v=1"/);
   assert.match(checkout, /src="\/google-pay-demo\.png\?v=1"/);
+  assert.match(checkout, /aspect-\[1\.875\][^"]*rounded-full/);
+  assert.match(checkout, /aspect-\[1\.6\][^"]*rounded-\[6px\]/);
   assert.match(serverSource, /'apple-pay-demo\.png'/);
   assert.match(serverSource, /'google-pay-demo\.png'/);
   assert.deepEqual([...applePayAsset.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
