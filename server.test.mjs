@@ -922,6 +922,7 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('applepay'\)\}/);
   assert.match(checkout, /Google Pay/);
   assert.match(checkout, /Apple Pay/);
+  assert.doesNotMatch(checkout, /PayPal, Google Pay y Apple Pay abren sus páginas oficiales/);
   assert.match(checkout, /aria-label="Formulario de tarjeta de demostración"/);
   assert.match(checkout, /Número de tarjeta \(demo\)/);
   assert.match(checkout, /Vencimiento/);
