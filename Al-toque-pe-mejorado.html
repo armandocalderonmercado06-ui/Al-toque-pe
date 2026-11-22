@@ -851,6 +851,33 @@
       0%, 100% { transform: translateY(0) rotate(-3deg); }
       50% { transform: translateY(-5px) rotate(3deg); }
     }
+    .yape-globo-button {
+      position: relative;
+      justify-content: flex-start !important;
+      padding-left: 50px !important;
+      overflow: visible;
+    }
+    .yape-globo-button .yape-globo-art {
+      position: absolute;
+      left: -4px;
+      top: 50%;
+      z-index: 2;
+      width: 58px;
+      height: 58px;
+      object-fit: contain;
+      transform: translateY(-50%);
+      filter: drop-shadow(0 4px 5px rgba(92, 18, 111, 0.18));
+      mix-blend-mode: multiply;
+      animation: yapeGloboFloat 2.8s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes yapeGloboFloat {
+      0%, 100% { transform: translateY(-50%) rotate(-2deg) scale(1); }
+      50% { transform: translateY(calc(-50% - 5px)) rotate(3deg) scale(1.035); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .yape-globo-button .yape-globo-art { animation: none; }
+    }
     .gorritos-membership-sticker {
       display: block;
       width: 80px;
@@ -13262,11 +13289,20 @@
                     <button
                       key={method.id}
                       onClick={() => setPaymentMethod(method.id)}
-                      className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${
+                      className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${method.id === 'yape' ? 'yape-globo-button' : ''} ${
                         paymentMethod === method.id ? 'border-brand bg-brand/5 text-brand font-bold' : 'border-gray-200 bg-white text-gray-600'
                       }`}
                     >
-                      <i data-lucide={method.icon} className="w-4 h-4"></i>
+                      {method.id === 'yape' ? (
+                        <img
+                          src="yape-globo.jpg"
+                          alt=""
+                          aria-hidden="true"
+                          className="yape-globo-art"
+                        />
+                      ) : (
+                        <i data-lucide={method.icon} className="w-4 h-4"></i>
+                      )}
                       <span className="text-xs">{method.name}</span>
                     </button>
                   ))}
