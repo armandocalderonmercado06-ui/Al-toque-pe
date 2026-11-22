@@ -99,6 +99,7 @@ const PUBLIC_ASSETS = new Set([
   'tarjetas-bancos.png',
   'apple-pay-demo.png',
   'google-pay-demo.png',
+  'paypal-demo.png',
   'al-toque-pe-logo.png',
   'al-toque-pe-emblema.png',
   'al-toque-reel-watermark.png',
