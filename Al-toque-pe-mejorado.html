@@ -853,27 +853,26 @@
     }
     .yape-globo-button {
       position: relative;
-      justify-content: flex-start !important;
-      padding-left: 50px !important;
+      justify-content: center !important;
       overflow: visible;
     }
     .yape-globo-button .yape-globo-art {
       position: absolute;
-      left: -4px;
-      top: 50%;
+      right: -5px;
+      top: -14px;
       z-index: 2;
       width: 58px;
       height: 58px;
       object-fit: contain;
-      transform: translateY(-50%);
+      transform: translateY(0);
       filter: drop-shadow(0 4px 5px rgba(92, 18, 111, 0.18));
       mix-blend-mode: multiply;
       animation: yapeGloboFloat 2.8s ease-in-out infinite;
       pointer-events: none;
     }
     @keyframes yapeGloboFloat {
-      0%, 100% { transform: translateY(-50%) rotate(-2deg) scale(1); }
-      50% { transform: translateY(calc(-50% - 5px)) rotate(3deg) scale(1.035); }
+      0%, 100% { transform: translateY(0) rotate(-2deg) scale(1); }
+      50% { transform: translateY(-5px) rotate(3deg) scale(1.035); }
     }
     @media (prefers-reduced-motion: reduce) {
       .yape-globo-button .yape-globo-art { animation: none; }
