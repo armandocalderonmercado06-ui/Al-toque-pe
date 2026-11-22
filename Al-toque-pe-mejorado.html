@@ -11688,6 +11688,12 @@
       const [isCardCheckoutOpen, setIsCardCheckoutOpen] = useState(false);
       const [isDemoCardFormOpen, setIsDemoCardFormOpen] = useState(false);
       const [demoCardFormNotice, setDemoCardFormNotice] = useState('');
+      const finishDemoCardForm = (form, notice) => {
+        if (!form || !form.reportValidity()) return;
+        form.reset();
+        setIsDemoCardFormOpen(false);
+        setDemoCardFormNotice(notice);
+      };
       const [confirmedPaymentMethod, setConfirmedPaymentMethod] = useState('');
       const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
       const [orderSubmitError, setOrderSubmitError] = useState('');
@@ -12989,17 +12995,71 @@
                       ×
                     </button>
                   </header>
+                  <section className="mb-5 rounded-xl border border-blue-100 bg-white/80 p-3 text-xs" aria-label="Resumen del pago">
+                    <p className="mb-2 font-bold text-blue-900">Resumen del pago</p>
+                    <div className="flex items-center justify-between gap-3 text-gray-600">
+                      <span>Concepto</span>
+                      <span className="font-semibold text-gray-800">Pedido Al Toque</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-3 text-gray-600">
+                      <span>Total</span>
+                      <span className="font-bold text-gray-900">S/{total.toFixed(2)} PEN</span>
+                    </div>
+                  </section>
                   <form
                     aria-label="Formulario de tarjeta de demostración"
                     autoComplete="off"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      event.currentTarget.reset();
-                      setIsDemoCardFormOpen(false);
-                      setDemoCardFormNotice('Demostración: no se guardó ni envió ningún dato.');
+                      finishDemoCardForm(event.currentTarget, 'Demostración: no se guardó ningún dato ni se registró la tarjeta.');
                     }}
                     className="space-y-5"
                   >
+                    <div className="flex flex-wrap gap-2" aria-label="Marcas de tarjeta (demostración)">
+                      {[
+                        { name: 'VISA', style: 'font-extrabold italic text-blue-700' },
+                        { name: 'Mastercard', style: 'font-extrabold text-red-600' },
+                        { name: 'AMEX', style: 'font-extrabold text-blue-800' },
+                        { name: 'CARNET', style: 'font-extrabold text-red-700' }
+                      ].map((brand) => (
+                        <span key={brand.name} className={`rounded border border-gray-200 bg-white px-2 py-1 text-[9px] ${brand.style}`}>{brand.name}</span>
+                      ))}
+                    </div>
+
+                    <div role="img" aria-label="Vista previa ficticia de tarjeta Al Toque" className="rounded-2xl bg-gradient-to-br from-[#9ca8b6] via-[#46688e] to-[#234a75] p-4 text-white shadow-md">
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span>Al Toque</span>
+                        <i data-lucide="wifi" className="h-4 w-4 rotate-90"></i>
+                      </div>
+                      <p className="mt-5 font-mono text-sm tracking-[0.18em]">0000 0000 0000 0000</p>
+                      <div className="mt-3 flex justify-between gap-3 text-[9px] uppercase tracking-wide text-white/80">
+                        <span>Nombre de demostración</span>
+                        <span>MM/AA</span>
+                      </div>
+                    </div>
+
+                    <label className="block border-b border-gray-300 pb-1 text-xs font-medium text-gray-500">
+                      Nombre del titular
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Nombre para demostración"
+                        className="mt-1 w-full bg-transparent py-1 text-sm text-gray-800 outline-none"
+                        required
+                      />
+                    </label>
+
+                    <label className="block border-b border-gray-300 pb-1 text-xs font-medium text-gray-500">
+                      Apellidos del titular
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Apellidos para demostración"
+                        className="mt-1 w-full bg-transparent py-1 text-sm text-gray-800 outline-none"
+                        required
+                      />
+                    </label>
+
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_76px_76px]">
                       <label className="block text-xs font-medium text-blue-600">
                         Número de tarjeta (demo)
@@ -13013,8 +13073,6 @@
                             className="min-w-0 flex-1 bg-transparent py-1 text-base text-gray-800 outline-none"
                             required
                           />
-                          <span className="rounded border border-gray-300 bg-white px-1 text-[8px] font-bold text-red-600">Mastercard</span>
-                          <span className="rounded border border-gray-300 bg-white px-1 text-[9px] font-extrabold text-blue-700">VISA</span>
                         </div>
                       </label>
                       <label className="block text-xs font-medium text-gray-500">
@@ -13041,14 +13099,38 @@
                           required
                         />
                       </label>
+                      <label className="block text-xs font-medium text-gray-500">
+                        Código postal
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          maxLength={10}
+                          placeholder="Código postal"
+                          className="mt-1 w-full border-b border-gray-300 bg-transparent py-2 text-sm text-gray-800 outline-none focus:border-blue-500"
+                          required
+                        />
+                      </label>
                     </div>
 
                     <label className="block border-b border-gray-300 pb-1 text-xs font-medium text-gray-500">
-                      Nombre del titular
+                      Correo electrónico
                       <input
-                        type="text"
+                        type="email"
                         autoComplete="off"
-                        placeholder="Nombre para demostración"
+                        inputMode="email"
+                        placeholder="correo@ejemplo.com"
+                        className="mt-1 w-full bg-transparent py-1 text-sm text-gray-800 outline-none"
+                        required
+                      />
+                    </label>
+
+                    <label className="block border-b border-gray-300 pb-1 text-xs font-medium text-gray-500">
+                      Teléfono
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="off"
+                        placeholder="Número de teléfono"
                         className="mt-1 w-full bg-transparent py-1 text-sm text-gray-800 outline-none"
                         required
                       />
@@ -13066,11 +13148,20 @@
                     </label>
 
                     <p className="text-xs leading-relaxed text-gray-600">
-                      Formulario solo visual. Usa datos ficticios: Al Toque no guarda ni envía esta información.
+                      Formulario solo visual. Usa datos ficticios: Al Toque no realiza cobros ni guarda o envía esta información.
                     </p>
-                    <button type="submit" className="ml-auto block rounded-lg bg-blue-600 px-8 py-3 text-sm font-bold text-white hover:bg-blue-700">
-                      Guardar (demo)
-                    </button>
+                    <div className="flex flex-col-reverse justify-end gap-2 sm:flex-row">
+                      <button type="submit" className="rounded-lg border border-blue-600 px-6 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50">
+                        Guardar (demo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => finishDemoCardForm(event.currentTarget.form, 'Demostración: no se realizó ningún cobro ni se guardó o envió ningún dato.')}
+                        className="rounded-lg bg-blue-600 px-8 py-3 text-sm font-bold text-white hover:bg-blue-700"
+                      >
+                        Pagar (demo)
+                      </button>
+                    </div>
                   </form>
                 </section>
               </div>
