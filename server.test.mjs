@@ -912,6 +912,8 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   const checkout = html.slice(checkoutStart, checkoutEnd);
 
   assert.ok(cartScreenStart >= 0 && checkoutStart > cartScreenStart && checkoutEnd > checkoutStart);
+  assert.match(html, /\.payment-globe-button\s*\{[^}]*isolation:\s*isolate;/);
+  assert.match(html, /\.payment-globe-button--cards \.payment-globe-art\s*\{[^}]*z-index:\s*20;[^}]*mix-blend-mode:\s*normal;/);
   assert.match(html, /paymentMethod === 'tarjeta' && !isBembosDemoOnly[\s\S]*?setIsCardCheckoutOpen\(true\)/);
   assert.match(checkout, /Visa · Mastercard · American Express/);
   assert.match(checkout, /PayPal/);
