@@ -2679,6 +2679,8 @@
       z-index: 3;
       width: clamp(34px, 12%, 48px);
       height: auto;
+      background: transparent;
+      object-fit: contain;
       pointer-events: none;
       transform: translate(-50%, -50%);
       transform-origin: 50% 50%;
@@ -2724,6 +2726,11 @@
       font-size: 15px;
       font-weight: 800;
       box-shadow: 0 2px 8px #251b1b24;
+    }
+    .live-route-map-controls button.live-route-map-overview-button {
+      min-width: 40px;
+      padding: 0 5px;
+      font-size: 9px;
     }
     .live-route-map-error {
       position: absolute;
@@ -11449,7 +11456,11 @@
     const DELIVERY_ROUTE_START = [-12.1348478, -77.0260225];
     const DELIVERY_ROUTE_END = [-12.1342114, -77.0261145];
     const OPENSTREETMAP_MAP_CENTER = [-12.1345787, -77.0259511];
+    const PERU_MAP_CENTER = [-9.19, -75.015];
+    const OPENSTREETMAP_MIN_ZOOM = 4;
+    const OPENSTREETMAP_MAX_ZOOM = 19;
     const OPENSTREETMAP_WAY_URL = 'https://www.openstreetmap.org/way/435345830#map=20/-12.1345787/-77.0259511&layers=T';
+    const OPENSTREETMAP_PERU_URL = 'https://www.openstreetmap.org/#map=4/-9.19/-75.015';
     // Embedded maps are cross-origin, so these points trace the visible route in the fixed map viewport.
     const WALKING_ROUTE_POINTS = [
       { x: 58, y: 72 },
@@ -11694,10 +11705,14 @@
       const mapGestureRef = useRef(null);
       const gpsAnimationFrameRef = useRef(0);
       const gpsPositionRef = useRef(null);
+      const wheelZoomDeltaRef = useRef(0);
       const [walkingPreviewStartedAt, setWalkingPreviewStartedAt] = useState(null);
       const [mapOrigin, setMapOrigin] = useState(DELIVERY_ROUTE_START);
       const [mapTransform, setMapTransform] = useState({ x: 0, y: 0, scale: 1, rotation: 0 });
+      const [isPeruOverview, setIsPeruOverview] = useState(false);
+      const [osmZoom, setOsmZoom] = useState(OPENSTREETMAP_MAX_ZOOM);
       const [mapError, setMapError] = useState(false);
+      const osmMapCenter = isPeruOverview ? PERU_MAP_CENTER : OPENSTREETMAP_MAP_CENTER;
       const hasWalkingStartTime = Number.isFinite(walkingStartedAt) && walkingStartedAt > 0;
       const isWalkingPreviewActive = walkingPreview && !hasWalkingStartTime
         && Number.isFinite(walkingPreviewStartedAt) && walkingPreviewStartedAt > 0;
@@ -11706,7 +11721,8 @@
         && Number.isFinite(gpsLocation.latitude)
         && Number.isFinite(gpsLocation.longitude));
       const isWalkingAnimationActive = hasWalkingStartTime || isGpsLocationActive || isWalkingPreviewActive;
-      const isWalkingRouteVisible = isWalkingAnimationActive || mapProvider === 'openstreetmap';
+      const isPeruMap = mapProvider === 'openstreetmap' && isPeruOverview;
+      const isWalkingRouteVisible = (isWalkingAnimationActive || mapProvider === 'openstreetmap') && !isPeruMap;
 
       useEffect(() => {
         if (!walkingPreview) {
@@ -11725,6 +11741,18 @@
             setMapTransform((current) => ({ ...current, rotation: current.rotation + event.deltaY * 0.2 }));
             return;
           }
+          if (mapProvider === 'openstreetmap' && isPeruOverview) {
+            wheelZoomDeltaRef.current += event.deltaY;
+            if (Math.abs(wheelZoomDeltaRef.current) < 100) return;
+            const zoomDirection = wheelZoomDeltaRef.current < 0 ? 1 : -1;
+            wheelZoomDeltaRef.current = 0;
+            setOsmZoom((current) => Math.max(
+              OPENSTREETMAP_MIN_ZOOM,
+              Math.min(OPENSTREETMAP_MAX_ZOOM, current + zoomDirection)
+            ));
+            setMapTransform((current) => ({ ...current, scale: 1 }));
+            return;
+          }
           const zoomFactor = Math.exp(-event.deltaY * 0.001);
           setMapTransform((current) => ({
             ...current,
@@ -11733,7 +11761,7 @@
         };
         gestureLayer.addEventListener('wheel', handleWheel, { passive: false });
         return () => gestureLayer.removeEventListener('wheel', handleWheel);
-      }, []);
+      }, [isPeruOverview, mapProvider]);
 
       const getPointerMetrics = (first, second) => {
         const deltaX = second.x - first.x;
@@ -11772,7 +11800,8 @@
           startCenter: metrics.center,
           startDistance: metrics.distance,
           startAngle: metrics.angle,
-          startTransform: mapTransform
+          startTransform: mapTransform,
+          startZoom: osmZoom
         };
       };
 
@@ -11798,6 +11827,20 @@
         if (!first || !second) return;
         const metrics = getPointerMetrics(first, second);
         const rotationDelta = ((metrics.angle - gesture.startAngle + 540) % 360) - 180;
+        if (isPeruMap) {
+          const zoomDelta = Math.round(Math.log2(metrics.distance / gesture.startDistance));
+          setOsmZoom(Math.max(
+            OPENSTREETMAP_MIN_ZOOM,
+            Math.min(OPENSTREETMAP_MAX_ZOOM, gesture.startZoom + zoomDelta)
+          ));
+          setMapTransform({
+            x: gesture.startTransform.x + metrics.center.x - gesture.startCenter.x,
+            y: gesture.startTransform.y + metrics.center.y - gesture.startCenter.y,
+            scale: 1,
+            rotation: gesture.startTransform.rotation + rotationDelta
+          });
+          return;
+        }
         setMapTransform({
           x: gesture.startTransform.x + metrics.center.x - gesture.startCenter.x,
           y: gesture.startTransform.y + metrics.center.y - gesture.startCenter.y,
@@ -11821,6 +11864,39 @@
           startY: remainingPointer[1].y,
           startTransform: mapTransform
         };
+      };
+
+      const handleMapZoom = (direction) => {
+        if (isPeruMap) {
+          setOsmZoom((current) => Math.max(
+            OPENSTREETMAP_MIN_ZOOM,
+            Math.min(OPENSTREETMAP_MAX_ZOOM, current + direction)
+          ));
+          setMapTransform((current) => ({ ...current, scale: 1 }));
+          return;
+        }
+        setMapTransform((current) => ({
+          ...current,
+          scale: direction > 0
+            ? Math.min(3, current.scale * 1.2)
+            : Math.max(0.75, current.scale / 1.2)
+        }));
+      };
+
+      const handleMapOverviewToggle = () => {
+        const nextIsPeruOverview = !isPeruOverview;
+        wheelZoomDeltaRef.current = 0;
+        setIsPeruOverview(nextIsPeruOverview);
+        setOsmZoom(nextIsPeruOverview ? OPENSTREETMAP_MIN_ZOOM : OPENSTREETMAP_MAX_ZOOM);
+        setMapTransform({ x: 0, y: 0, scale: 1, rotation: 0 });
+      };
+
+      const handleMapReset = () => {
+        wheelZoomDeltaRef.current = 0;
+        setMapTransform({ x: 0, y: 0, scale: 1, rotation: 0 });
+        if (mapProvider === 'openstreetmap') {
+          setOsmZoom(isPeruOverview ? OPENSTREETMAP_MIN_ZOOM : OPENSTREETMAP_MAX_ZOOM);
+        }
       };
 
       useEffect(() => {
@@ -11849,6 +11925,7 @@
       }, [isGpsLocationActive, isWalkingAnimationActive, location]);
 
       useEffect(() => {
+        if (isPeruMap) return undefined;
         if (!isWalkingAnimationActive) return undefined;
         if (isGpsLocationActive) return undefined;
         if (!Number.isFinite(walkingAnimationStartedAt) || walkingAnimationStartedAt <= 0) return undefined;
@@ -11866,9 +11943,10 @@
         };
         updatePosition();
         return () => window.cancelAnimationFrame(animationFrame);
-      }, [isGpsLocationActive, isWalkingAnimationActive, isWalkingPreviewActive, walkingAnimationStartedAt, walkingRoutePoints]);
+      }, [isGpsLocationActive, isPeruMap, isWalkingAnimationActive, isWalkingPreviewActive, walkingAnimationStartedAt, walkingRoutePoints]);
 
       useEffect(() => {
+        if (isPeruMap) return undefined;
         if (!gpsLocation) {
           window.cancelAnimationFrame(gpsAnimationFrameRef.current);
           gpsPositionRef.current = null;
@@ -11925,10 +12003,10 @@
           window.removeEventListener('resize', updateGpsPosition);
           window.cancelAnimationFrame(gpsAnimationFrameRef.current);
         };
-      }, [gpsLocation, mapOrigin, walkingRoutePoints]);
+      }, [gpsLocation, isPeruMap, mapOrigin, walkingRoutePoints]);
 
       const openStreetMapTiles = mapProvider === 'openstreetmap'
-        ? getOpenStreetMapTiles(OPENSTREETMAP_MAP_CENTER)
+        ? getOpenStreetMapTiles(osmMapCenter, osmZoom)
         : [];
       const mapUrl = new URL('https://www.google.com/maps');
       mapUrl.searchParams.set('output', 'embed');
@@ -11997,20 +12075,13 @@
                 ))}
               </svg>
             )}
-            {isWalkingAnimationActive && (
-              <video
+            {isWalkingAnimationActive && !isPeruMap && (
+              <img
                 ref={walkingCharacterRef}
                 className="walking-route-character"
-                src="/repartidor-caminando-sticker.mp4"
-                poster="/caminante-ruta.png"
-                role="img"
-                aria-label="Repartidor caminando por la ruta hacia la entrega"
-                autoPlay
-                loop
-                muted
-                playsInline
-                preload="metadata"
-                onError={() => console.error('No se pudo cargar el sticker animado del repartidor.')}
+                src="/caminante-ruta.png"
+                alt="Repartidor caminando por la ruta hacia la entrega"
+                draggable="false"
                 style={{ left: `${walkingRoutePoints[0].x}%`, top: `${walkingRoutePoints[0].y}%` }}
               />
             )}
@@ -12027,7 +12098,7 @@
           {mapProvider === 'openstreetmap' && (
             <div className="live-route-map-attribution">
               <span className="live-route-map-attribution-links">
-                <a href={OPENSTREETMAP_WAY_URL} target="_blank" rel="noopener noreferrer">Ver en OSM</a>
+                <a href={isPeruMap ? OPENSTREETMAP_PERU_URL : OPENSTREETMAP_WAY_URL} target="_blank" rel="noopener noreferrer">Ver en OSM</a>
                 {' · '}
                 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
               </span>
@@ -12042,13 +12113,25 @@
             </div>
           )}
           <div className="live-route-map-controls" role="group" aria-label="Controles del mapa">
-            <button type="button" aria-label="Acercar mapa" onClick={() => setMapTransform((current) => ({ ...current, scale: Math.min(3, current.scale * 1.2) }))}>+</button>
-            <button type="button" aria-label="Alejar mapa" onClick={() => setMapTransform((current) => ({ ...current, scale: Math.max(0.75, current.scale / 1.2) }))}>−</button>
+            <button type="button" aria-label="Acercar mapa" onClick={() => handleMapZoom(1)}>+</button>
+            <button type="button" aria-label="Alejar mapa" onClick={() => handleMapZoom(-1)}>−</button>
+            {mapProvider === 'openstreetmap' && (
+              <button
+                className="live-route-map-overview-button"
+                type="button"
+                aria-label={isPeruOverview ? 'Volver a la ruta KOU-XIN a UPCH' : 'Ver mapa de Perú'}
+                onClick={handleMapOverviewToggle}
+              >
+                {isPeruOverview ? 'Ruta' : 'Perú'}
+              </button>
+            )}
             <button type="button" aria-label="Girar mapa" onClick={() => setMapTransform((current) => ({ ...current, rotation: current.rotation + 15 }))}>↻</button>
-            <button type="button" aria-label="Restablecer mapa" onClick={() => setMapTransform({ x: 0, y: 0, scale: 1, rotation: 0 })}>↺</button>
+            <button type="button" aria-label="Restablecer mapa" onClick={handleMapReset}>↺</button>
           </div>
           <span className="live-route-map-status" role="status">
-            {isGpsLocationActive
+            {isPeruMap
+              ? `OpenStreetMap · Perú · zoom ${osmZoom}`
+              : isGpsLocationActive
               ? `GPS en vivo · ±${Math.round(gpsLocation.accuracy || 0)} m`
               : isWalkingAnimationActive
                 ? allowMapInteraction ? 'Ruta a pie · 5 min' : 'Ruta fija a pie · 5 min'

@@ -1148,6 +1148,9 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.match(html, /const DELIVERY_ROUTE_START = \[-12\.1348478, -77\.0260225\]/);
   assert.match(html, /const DELIVERY_ROUTE_END = \[-12\.1342114, -77\.0261145\]/);
   assert.match(html, /const OPENSTREETMAP_MAP_CENTER = \[-12\.1345787, -77\.0259511\]/);
+  assert.match(html, /const PERU_MAP_CENTER = \[-9\.19, -75\.015\]/);
+  assert.match(html, /const OPENSTREETMAP_MIN_ZOOM = 4/);
+  assert.match(html, /const OPENSTREETMAP_MAX_ZOOM = 19/);
   const osmMapSourceStart = html.indexOf('const OPENSTREETMAP_MAP_CENTER =');
   const osmMapSourceEnd = html.indexOf('function calcularAngulo(', osmMapSourceStart);
   assert.ok(osmMapSourceStart >= 0 && osmMapSourceEnd > osmMapSourceStart, 'the OpenStreetMap tile helper should be defined');
@@ -1161,6 +1164,17 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.ok(osmTiles.some((tile) => (
     tile.left <= 0 && tile.left + 256 > 0 && tile.top <= 0 && tile.top + 256 > 0
   )), 'the tile grid should center the provided OpenStreetMap location');
+  const peruTiles = getOpenStreetMapTiles([-9.19, -75.015], 4);
+  assert.equal(peruTiles.length, 9, 'the Peru overview should request the visible 3x3 OpenStreetMap tile grid');
+  assert.ok(peruTiles.every((tile) => /^https:\/\/tile\.openstreetmap\.org\/4\/\d+\/\d+\.png$/.test(tile.src)),
+    'the Peru overview should load standard OpenStreetMap tiles at a country-level zoom');
+  assert.match(html, /getOpenStreetMapTiles\(osmMapCenter, osmZoom\)/);
+  assert.match(html, /aria-label=\{isPeruOverview \? 'Volver a la ruta KOU-XIN a UPCH' : 'Ver mapa de Perú'\}/);
+  assert.match(html, /href=\{isPeruMap \? OPENSTREETMAP_PERU_URL : OPENSTREETMAP_WAY_URL\}/);
+  assert.match(html, /const OPENSTREETMAP_PERU_URL = 'https:\/\/www\.openstreetmap\.org\/#map=4\/-9\.19\/-75\.015'/);
+  assert.match(html, /const isWalkingRouteVisible = \(isWalkingAnimationActive \|\| mapProvider === 'openstreetmap'\) && !isPeruMap/);
+  assert.match(html, /isWalkingAnimationActive && !isPeruMap && \(\s*<img/);
+  assert.match(html, /\.walking-route-character\s*\{[\s\S]*?background:\s*transparent;/);
   assert.match(html, /className="osm-route-tile"/);
   assert.match(html, /className="live-route-map-attribution"/);
   assert.match(html, /className="live-route-map-license"/);
@@ -1239,8 +1253,8 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.ok(customerMapStart >= 0 && customerMapEnd > customerMapStart, 'the customer map should be rendered in the delivery tracking view');
   assert.match(html.slice(customerMapStart, customerMapEnd), /mapProvider="openstreetmap"/);
   assert.match(html, /walking-route-character/);
-  assert.match(html, /src="\/repartidor-caminando-sticker\.mp4"/);
-  assert.match(html, /\{isWalkingAnimationActive && \(\s*<video/);
+  assert.match(html, /src="\/caminante-ruta\.png"/);
+  assert.match(html, /\{isWalkingAnimationActive && !isPeruMap && \(\s*<img/);
   assert.match(html, /window\.requestAnimationFrame\(updatePosition\)/);
   assert.match(html, /window\.cancelAnimationFrame\(animationFrame\)/);
   assert.doesNotMatch(html, /setInterval\(updateProgress,\s*1000\)/);
@@ -1253,7 +1267,7 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   const gestureLayerStart = html.indexOf('ref={mapGestureLayerRef}', mapLayerStart);
   assert.ok(mapLayerStart >= 0 && gestureLayerStart > mapLayerStart, 'the shared map layer should wrap the map and walking overlay');
   const synchronizedMapLayer = html.slice(mapLayerStart, gestureLayerStart);
-  for (const element of ['className="osm-route-tiles"', 'className="live-route-map-frame"', 'className="walking-route-guide"', 'src="/repartidor-caminando-sticker.mp4"']) {
+  for (const element of ['className="osm-route-tiles"', 'className="live-route-map-frame"', 'className="walking-route-guide"', 'src="/caminante-ruta.png"']) {
     assert.ok(synchronizedMapLayer.includes(element), `${element} should transform with the route layer`);
   }
   assert.match(html, /addEventListener\('wheel', handleWheel, \{ passive: false \}\)/);
