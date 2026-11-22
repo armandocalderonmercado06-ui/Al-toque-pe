@@ -1150,24 +1150,21 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.match(html, /const OPENSTREETMAP_MAP_CENTER = \[-12\.1345787, -77\.0259511\]/);
   const osmMapSourceStart = html.indexOf('const OPENSTREETMAP_MAP_CENTER =');
   const osmMapSourceEnd = html.indexOf('function calcularAngulo(', osmMapSourceStart);
-  assert.ok(osmMapSourceStart >= 0 && osmMapSourceEnd > osmMapSourceStart, 'the OpenStreetMap embed helper should be defined');
-  const getOpenStreetMapEmbedUrl = vm.runInNewContext(
-    `(() => { ${html.slice(osmMapSourceStart, osmMapSourceEnd)}; return getOpenStreetMapEmbedUrl; })()`,
-    { URL }
+  assert.ok(osmMapSourceStart >= 0 && osmMapSourceEnd > osmMapSourceStart, 'the OpenStreetMap tile helper should be defined');
+  const getOpenStreetMapTiles = vm.runInNewContext(
+    `(() => { ${html.slice(osmMapSourceStart, osmMapSourceEnd)}; return getOpenStreetMapTiles; })()`
   );
-  const osmMapUrl = getOpenStreetMapEmbedUrl(
-    [-12.1348478, -77.0260225],
-    [-12.1342114, -77.0261145]
-  );
-  assert.equal(osmMapUrl.origin, 'https://www.openstreetmap.org');
-  assert.equal(osmMapUrl.pathname, '/export/embed.html');
-  assert.equal(osmMapUrl.searchParams.get('layer'), 'mapnik');
-  assert.equal(osmMapUrl.searchParams.get('marker'), '-12.1348478,-77.0260225');
-  const osmBounds = osmMapUrl.searchParams.get('bbox').split(',').map(Number);
-  assert.ok(osmBounds[0] < -77.0261145 && osmBounds[2] > -77.0260225,
-    'the OpenStreetMap view should include both route longitudes');
-  assert.ok(osmBounds[1] < -12.1348478 && osmBounds[3] > -12.1342114,
-    'the OpenStreetMap view should include both route latitudes');
+  const osmTiles = getOpenStreetMapTiles([-12.1345787, -77.0259511]);
+  assert.equal(osmTiles.length, 9, 'the client map should request only the visible 3x3 OpenStreetMap tile grid');
+  assert.ok(osmTiles.every((tile) => /^https:\/\/tile\.openstreetmap\.org\/19\/\d+\/\d+\.png$/.test(tile.src)),
+    'each map tile should use the OpenStreetMap tile service at zoom 19');
+  assert.ok(osmTiles.some((tile) => (
+    tile.left <= 0 && tile.left + 256 > 0 && tile.top <= 0 && tile.top + 256 > 0
+  )), 'the tile grid should center the provided OpenStreetMap location');
+  assert.match(html, /className="osm-route-tile"/);
+  assert.match(html, /className="live-route-map-attribution"/);
+  assert.ok(html.includes('https://www.openstreetmap.org/way/435345830#map=20/-12.1345787/-77.0259511&layers=T'),
+    'the map should retain the supplied OpenStreetMap way as a reference link');
   const routeMatch = html.match(/const WALKING_ROUTE_POINTS = \[([\s\S]*?)\];/);
   assert.ok(routeMatch, 'walking route waypoints should be defined');
   const routePoints = Array.from(routeMatch[1].matchAll(/\{ x: (\d+), y: (\d+) \}/g), (match) => ({
@@ -1248,8 +1245,8 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   const gestureLayerStart = html.indexOf('ref={mapGestureLayerRef}', mapLayerStart);
   assert.ok(mapLayerStart >= 0 && gestureLayerStart > mapLayerStart, 'the shared map layer should wrap the map and walking overlay');
   const synchronizedMapLayer = html.slice(mapLayerStart, gestureLayerStart);
-  for (const element of ['className="live-route-map-frame"', 'className="walking-route-guide"', 'src="/repartidor-caminando-sticker.mp4"']) {
-    assert.ok(synchronizedMapLayer.includes(element), `${element} should transform with the iframe`);
+  for (const element of ['className="osm-route-tiles"', 'className="live-route-map-frame"', 'className="walking-route-guide"', 'src="/repartidor-caminando-sticker.mp4"']) {
+    assert.ok(synchronizedMapLayer.includes(element), `${element} should transform with the route layer`);
   }
   assert.match(html, /addEventListener\('wheel', handleWheel, \{ passive: false \}\)/);
   assert.match(html, /onPointerDown=\{handleMapPointerDown\}/);

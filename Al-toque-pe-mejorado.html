@@ -2631,6 +2631,25 @@
       border: 0;
       pointer-events: none;
     }
+    .osm-route-tiles {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .osm-route-tile-plane {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+    }
+    .osm-route-tile {
+      position: absolute;
+      width: 256px;
+      height: 256px;
+      max-width: none;
+    }
     .live-route-map-layer {
       position: absolute;
       inset: 0;
@@ -2718,6 +2737,23 @@
       color: #8d0000;
       font-size: 9px;
       box-shadow: 0 2px 8px #251b1b24;
+    }
+    .live-route-map-attribution {
+      position: absolute;
+      z-index: 5;
+      right: 8px;
+      bottom: 8px;
+      border-radius: 4px;
+      background: rgba(255,255,255,.92);
+      padding: 3px 5px;
+      color: #605a50;
+      font-size: 8px;
+      white-space: nowrap;
+    }
+    .live-route-map-attribution a {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
 
     .delivery-progress-card {
@@ -11399,6 +11435,7 @@
     const DELIVERY_ROUTE_START = [-12.1348478, -77.0260225];
     const DELIVERY_ROUTE_END = [-12.1342114, -77.0261145];
     const OPENSTREETMAP_MAP_CENTER = [-12.1345787, -77.0259511];
+    const OPENSTREETMAP_WAY_URL = 'https://www.openstreetmap.org/way/435345830#map=20/-12.1345787/-77.0259511&layers=T';
     // Embedded maps are cross-origin, so these points trace the visible route in the fixed map viewport.
     const WALKING_ROUTE_POINTS = [
       { x: 58, y: 72 },
@@ -11439,26 +11476,31 @@
       { x: 10, y: 20 }
     ];
 
-    function getOpenStreetMapEmbedUrl(routeOrigin, routeDestination) {
-      const routeCoordinates = [routeOrigin, routeDestination, OPENSTREETMAP_MAP_CENTER];
-      const latitudes = routeCoordinates.map(([latitude]) => latitude);
-      const longitudes = routeCoordinates.map(([, longitude]) => longitude);
-      const minLatitude = Math.min(...latitudes);
-      const maxLatitude = Math.max(...latitudes);
-      const minLongitude = Math.min(...longitudes);
-      const maxLongitude = Math.max(...longitudes);
-      const latitudePadding = Math.max((maxLatitude - minLatitude) * 0.2, 0.00005);
-      const longitudePadding = Math.max((maxLongitude - minLongitude) * 0.35, 0.00005);
-      const mapUrl = new URL('https://www.openstreetmap.org/export/embed.html');
-      mapUrl.searchParams.set('bbox', [
-        minLongitude - longitudePadding,
-        minLatitude - latitudePadding,
-        maxLongitude + longitudePadding,
-        maxLatitude + latitudePadding
-      ].map((coordinate) => coordinate.toFixed(7)).join(','));
-      mapUrl.searchParams.set('layer', 'mapnik');
-      mapUrl.searchParams.set('marker', routeOrigin.join(','));
-      return mapUrl;
+    function getOpenStreetMapTiles(center, zoom = 19) {
+      const tileCount = 2 ** zoom;
+      const latitudeRadians = (center[0] * Math.PI) / 180;
+      const centerTileX = ((center[1] + 180) / 360) * tileCount;
+      const centerTileY = ((1 - Math.asinh(Math.tan(latitudeRadians)) / Math.PI) / 2) * tileCount;
+      const firstTileX = Math.floor(centerTileX);
+      const firstTileY = Math.floor(centerTileY);
+      const tiles = [];
+
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        const tileY = firstTileY + offsetY;
+        if (tileY < 0 || tileY >= tileCount) continue;
+        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+          const tileX = firstTileX + offsetX;
+          const wrappedTileX = ((tileX % tileCount) + tileCount) % tileCount;
+          tiles.push({
+            key: `${zoom}-${tileX}-${tileY}`,
+            src: `https://tile.openstreetmap.org/${zoom}/${wrappedTileX}/${tileY}.png`,
+            left: (tileX - centerTileX) * 256,
+            top: (tileY - centerTileY) * 256
+          });
+        }
+      }
+
+      return tiles;
     }
 
     function calcularAngulo(desde, hasta) {
@@ -11645,6 +11687,7 @@
         && Number.isFinite(gpsLocation.longitude));
       const isWalkingAnimationActive = (Number.isFinite(walkingStartedAt) && walkingStartedAt > 0)
         || isGpsLocationActive;
+      const isWalkingRouteVisible = isWalkingAnimationActive || mapProvider === 'openstreetmap';
 
       useEffect(() => {
         const gestureLayer = mapGestureLayerRef.current;
@@ -11853,17 +11896,16 @@
         };
       }, [gpsLocation, mapOrigin, walkingRoutePoints]);
 
-      const mapUrl = mapProvider === 'openstreetmap'
-        ? getOpenStreetMapEmbedUrl(mapOrigin, DELIVERY_ROUTE_END)
-        : new URL('https://www.google.com/maps');
-      if (mapProvider !== 'openstreetmap') {
-        mapUrl.searchParams.set('output', 'embed');
-        mapUrl.searchParams.set('saddr', `${mapOrigin[0]},${mapOrigin[1]}`);
-        mapUrl.searchParams.set('daddr', `${DELIVERY_ROUTE_END[0]},${DELIVERY_ROUTE_END[1]}`);
-        mapUrl.searchParams.set('dirflg', 'w');
-        mapUrl.searchParams.set('hl', 'es');
-        mapUrl.searchParams.set('z', '19');
-      }
+      const openStreetMapTiles = mapProvider === 'openstreetmap'
+        ? getOpenStreetMapTiles(OPENSTREETMAP_MAP_CENTER)
+        : [];
+      const mapUrl = new URL('https://www.google.com/maps');
+      mapUrl.searchParams.set('output', 'embed');
+      mapUrl.searchParams.set('saddr', `${mapOrigin[0]},${mapOrigin[1]}`);
+      mapUrl.searchParams.set('daddr', `${DELIVERY_ROUTE_END[0]},${DELIVERY_ROUTE_END[1]}`);
+      mapUrl.searchParams.set('dirflg', 'w');
+      mapUrl.searchParams.set('hl', 'es');
+      mapUrl.searchParams.set('z', '19');
 
       const directionsUrl = new URL('https://www.google.com/maps/dir/');
       directionsUrl.searchParams.set('api', '1');
@@ -11874,20 +11916,42 @@
       return (
         <div ref={mapContainerRef} className={`live-route-map ${className}`}>
           <div className="live-route-map-layer" style={{ transform: mapTransformStyle }}>
-            <iframe
-              className="live-route-map-frame"
-              src={mapUrl.toString()}
-              title={label}
-              loading="eager"
-              referrerPolicy="strict-origin-when-cross-origin"
-              tabIndex={-1}
-              allowFullScreen
-              onError={() => {
-                console.error('Google Maps no pudo cargar el mapa de seguimiento.');
-                setMapError(true);
-              }}
-            />
-            {isWalkingAnimationActive && (
+            {mapProvider === 'openstreetmap' ? (
+              <div className="osm-route-tiles" aria-hidden="true">
+                <div className="osm-route-tile-plane">
+                  {openStreetMapTiles.map((tile) => (
+                    <img
+                      key={tile.key}
+                      className="osm-route-tile"
+                      src={tile.src}
+                      alt=""
+                      draggable="false"
+                      loading="eager"
+                      style={{ left: `${tile.left}px`, top: `${tile.top}px` }}
+                      onError={() => {
+                        console.error(`No se pudo cargar el mosaico OpenStreetMap ${tile.key}.`);
+                        setMapError(true);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <iframe
+                className="live-route-map-frame"
+                src={mapUrl.toString()}
+                title={label}
+                loading="eager"
+                referrerPolicy="strict-origin-when-cross-origin"
+                tabIndex={-1}
+                allowFullScreen
+                onError={() => {
+                  console.error('Google Maps no pudo cargar el mapa de seguimiento.');
+                  setMapError(true);
+                }}
+              />
+            )}
+            {isWalkingRouteVisible && (
               <svg className="walking-route-guide" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
                 <polyline
                   points={walkingRoutePoints.map((point) => `${point.x},${point.y}`).join(' ')}
@@ -11930,6 +11994,13 @@
             onPointerUp={handleMapPointerUp}
             onPointerCancel={handleMapPointerUp}
           />
+          {mapProvider === 'openstreetmap' && (
+            <div className="live-route-map-attribution">
+              <a href={OPENSTREETMAP_WAY_URL} target="_blank" rel="noopener noreferrer">Abrir OpenStreetMap</a>
+              {' · '}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
+            </div>
+          )}
           <div className="live-route-map-controls" role="group" aria-label="Controles del mapa">
             <button type="button" aria-label="Acercar mapa" onClick={() => setMapTransform((current) => ({ ...current, scale: Math.min(3, current.scale * 1.2) }))}>+</button>
             <button type="button" aria-label="Alejar mapa" onClick={() => setMapTransform((current) => ({ ...current, scale: Math.max(0.75, current.scale / 1.2) }))}>−</button>
