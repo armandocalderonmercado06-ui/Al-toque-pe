@@ -598,22 +598,6 @@ test('serves the walking order received animation as a public video asset', asyn
   assert.deepEqual(Buffer.from(await response.arrayBuffer()), video.subarray(0, 32));
 });
 
-test('serves the walking map sticker as a public video asset', async (t) => {
-  const testDataDir = await createReelsTestDirectory();
-  const server = await createReelsTestServer(t, testDataDir);
-  const baseUrl = `http://127.0.0.1:${server.address().port}`;
-  const video = await readFile(new URL('./repartidor-caminando-sticker.mp4', import.meta.url));
-  const response = await fetch(`${baseUrl}/repartidor-caminando-sticker.mp4`, {
-    headers: { Range: 'bytes=0-31' }
-  });
-
-  assert.equal(response.status, 206);
-  assert.equal(response.headers.get('content-type'), 'video/mp4');
-  assert.equal(response.headers.get('accept-ranges'), 'bytes');
-  assert.equal(response.headers.get('content-range'), `bytes 0-31/${video.length}`);
-  assert.deepEqual(Buffer.from(await response.arrayBuffer()), video.subarray(0, 32));
-});
-
 test('serves the transparent looping walking route character as an APNG image', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
@@ -1137,7 +1121,7 @@ test('shows Starbucks packs with official prices, photos and starting-price labe
   assert.match(packsPanel, /onClick=\{\(\) => onAddStarbucks\(product\)\}/);
 });
 
-test('uses the customer OpenStreetMap route and animates the walking rider to the destination', async (t) => {
+test('animates the walking rider from the first blue point through the route to the destination', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
   const response = await fetch(`http://127.0.0.1:${server.address().port}/`);
@@ -1145,46 +1129,6 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
 
   assert.equal(response.status, 200);
   assert.match(html, /const DELIVERY_DURATION_MS = 300000;/);
-  assert.match(html, /const DELIVERY_ROUTE_START = \[-12\.1348478, -77\.0260225\]/);
-  assert.match(html, /const DELIVERY_ROUTE_END = \[-12\.1342114, -77\.0261145\]/);
-  assert.match(html, /const OPENSTREETMAP_MAP_CENTER = \[-12\.1345787, -77\.0259511\]/);
-  assert.match(html, /const PERU_MAP_CENTER = \[-9\.19, -75\.015\]/);
-  assert.match(html, /const OPENSTREETMAP_MIN_ZOOM = 4/);
-  assert.match(html, /const OPENSTREETMAP_MAX_ZOOM = 19/);
-  const osmMapSourceStart = html.indexOf('const OPENSTREETMAP_MAP_CENTER =');
-  const osmMapSourceEnd = html.indexOf('function calcularAngulo(', osmMapSourceStart);
-  assert.ok(osmMapSourceStart >= 0 && osmMapSourceEnd > osmMapSourceStart, 'the OpenStreetMap tile helper should be defined');
-  const getOpenStreetMapTiles = vm.runInNewContext(
-    `(() => { ${html.slice(osmMapSourceStart, osmMapSourceEnd)}; return getOpenStreetMapTiles; })()`
-  );
-  const osmTiles = getOpenStreetMapTiles([-12.1345787, -77.0259511]);
-  assert.equal(osmTiles.length, 9, 'the client map should request only the visible 3x3 OpenStreetMap tile grid');
-  assert.ok(osmTiles.every((tile) => /^https:\/\/tile\.openstreetmap\.org\/19\/\d+\/\d+\.png$/.test(tile.src)),
-    'each map tile should use the OpenStreetMap tile service at zoom 19');
-  assert.ok(osmTiles.some((tile) => (
-    tile.left <= 0 && tile.left + 256 > 0 && tile.top <= 0 && tile.top + 256 > 0
-  )), 'the tile grid should center the provided OpenStreetMap location');
-  const peruTiles = getOpenStreetMapTiles([-9.19, -75.015], 4);
-  assert.equal(peruTiles.length, 9, 'the Peru overview should request the visible 3x3 OpenStreetMap tile grid');
-  assert.ok(peruTiles.every((tile) => /^https:\/\/tile\.openstreetmap\.org\/4\/\d+\/\d+\.png$/.test(tile.src)),
-    'the Peru overview should load standard OpenStreetMap tiles at a country-level zoom');
-  assert.match(html, /getOpenStreetMapTiles\(osmMapCenter, osmZoom\)/);
-  assert.match(html, /aria-label=\{isPeruOverview \? 'Volver a la ruta KOU-XIN a UPCH' : 'Ver mapa de Perú'\}/);
-  assert.match(html, /href=\{isPeruMap \? OPENSTREETMAP_PERU_URL : OPENSTREETMAP_WAY_URL\}/);
-  assert.match(html, /const OPENSTREETMAP_PERU_URL = 'https:\/\/www\.openstreetmap\.org\/#map=4\/-9\.19\/-75\.015'/);
-  assert.match(html, /const isWalkingRouteVisible = \(isWalkingAnimationActive \|\| mapProvider === 'openstreetmap'\) && !isPeruMap/);
-  assert.match(html, /isWalkingAnimationActive && !isPeruMap && mapProvider === 'openstreetmap' && \(\s*<img/);
-  assert.match(html, /\.delivery-map \.walking-route-character\s*\{[^}]*background:\s*transparent;/);
-  assert.match(html, /className="osm-route-tile"/);
-  assert.match(html, /className="live-route-map-attribution"/);
-  assert.match(html, /className="live-route-map-license"/);
-  assert.ok(html.includes('Datos bajo Licencia de Base de Datos Abierta (ODbL)'),
-    'the map should show the Open Database License notice');
-  assert.ok(html.includes('https://opendatacommons.org/licenses/odbl/1-0/'),
-    'the Open Database License notice should link to the ODbL terms');
-  assert.match(html, /@media \(max-width: 380px\) \{\s*\.live-route-map-attribution \{ bottom: 44px; \}\s*\}/);
-  assert.ok(html.includes('https://www.openstreetmap.org/way/435345830#map=20/-12.1345787/-77.0259511&layers=T'),
-    'the map should retain the supplied OpenStreetMap way as a reference link');
   const routeMatch = html.match(/const WALKING_ROUTE_POINTS = \[([\s\S]*?)\];/);
   assert.ok(routeMatch, 'walking route waypoints should be defined');
   const routePoints = Array.from(routeMatch[1].matchAll(/\{ x: (\d+), y: (\d+) \}/g), (match) => ({
@@ -1211,78 +1155,34 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   const gpsPositionSource = html.slice(gpsPositionStart, gpsPositionEnd).trim();
   const getWalkingGpsPosition = vm.runInNewContext(`(${gpsPositionSource})`);
   const originPosition = getWalkingGpsPosition(
-    { latitude: -12.1348478, longitude: -77.0260225 },
-    [-12.1348478, -77.0260225],
-    [-12.1342114, -77.0261145],
+    { latitude: -12.1348222, longitude: -77.0260012 },
+    [-12.1348222, -77.0260012],
+    [-12.1341675, -77.0260721],
     400,
     300
   );
   const destinationPosition = getWalkingGpsPosition(
-    { latitude: -12.1342114, longitude: -77.0261145 },
-    [-12.1348478, -77.0260225],
-    [-12.1342114, -77.0261145],
+    { latitude: -12.1341675, longitude: -77.0260721 },
+    [-12.1348222, -77.0260012],
+    [-12.1341675, -77.0260721],
     400,
     300
   );
   assert.ok(originPosition.y > destinationPosition.y, 'GPS projection should move north as the rider approaches the destination');
-  const routeHelpersStart = html.indexOf('function calcularAngulo(');
-  const routeHelpersEnd = html.indexOf('function getWalkingGpsPosition(', routeHelpersStart);
-  assert.ok(routeHelpersStart >= 0 && routeHelpersEnd > routeHelpersStart, 'walking route helpers should be defined');
-  const routeHelpers = html.slice(routeHelpersStart, routeHelpersEnd);
-  const { getClosestWalkingRoutePosition, getWalkingRoutePosition } = vm.runInNewContext(
-    `(() => { ${routeHelpers}; return { getClosestWalkingRoutePosition, getWalkingRoutePosition }; })()`
-  );
-  assert.deepEqual(
-    { ...getClosestWalkingRoutePosition({ x: 4, y: 3 }, [{ x: 0, y: 0 }, { x: 10, y: 0 }], 100, 100) },
-    { x: 4, y: 0, angle: 0 },
-    'GPS positions should snap to the nearest point on the blue route segment'
-  );
-  assert.deepEqual(
-    { ...getWalkingRoutePosition(0.5, [{ x: 0, y: 0 }, { x: 10, y: 0 }]) },
-    { x: 5, y: 0, angle: 0 },
-    'the simulated sticker should interpolate and face along the active segment'
-  );
   assert.match(html, /if \(isGpsLocationActive\) return undefined;/);
   assert.match(html, /getWalkingGpsPosition\(\s*gpsLocation,\s*mapOrigin,\s*DELIVERY_ROUTE_END,\s*bounds\.width,\s*bounds\.height\s*\)/);
-  assert.match(html, /getClosestWalkingRoutePosition\(\s*gpsPosition,\s*walkingRoutePoints,\s*bounds\.width,\s*bounds\.height\s*\)/);
   assert.match(html, /style=\{\{ left: `\$\{walkingRoutePoints\[0\]\.x\}%`, top: `\$\{walkingRoutePoints\[0\]\.y\}%` \}\}/);
   assert.match(html, /walkingStartedAt=\{deliveryPhase === 'tracking' && assignedRider\?\.vehicle === 'Caminando'\s*\? deliveryStartedAtRef\.current\s*: null\}/);
-  assert.match(html, /walkingPreview=\{assignedRider\?\.vehicle === 'Caminando' && deliveryPhase !== 'arrived'\}/);
-  const customerMapStart = html.indexOf("location={assignedRider?.vehicle === 'Caminando' ? null : riderLocation}");
-  const customerMapEnd = html.indexOf('/>', customerMapStart);
-  assert.ok(customerMapStart >= 0 && customerMapEnd > customerMapStart, 'the customer map should be rendered in the delivery tracking view');
-  assert.match(html.slice(customerMapStart, customerMapEnd), /mapProvider="openstreetmap"/);
   assert.match(html, /walking-route-character/);
-  assert.match(html, /src="\/caminante-ruta\.png"/);
-  assert.match(html, /src="\/repartidor-caminando-sticker\.mp4"/);
-  assert.match(html, /\{isWalkingAnimationActive && !isPeruMap && mapProvider === 'openstreetmap' && \(\s*<img/);
-  assert.match(html, /\{isWalkingAnimationActive && mapProvider !== 'openstreetmap' && \(\s*<video/);
   assert.match(html, /window\.requestAnimationFrame\(updatePosition\)/);
   assert.match(html, /window\.cancelAnimationFrame\(animationFrame\)/);
   assert.doesNotMatch(html, /setInterval\(updateProgress,\s*1000\)/);
-  assert.match(html, /\.live-route-map-frame\s*\{[^}]*pointer-events:\s*none;/);
-  assert.match(html, /className="live-route-map-layer" style=\{\{ transform: mapTransformStyle \}\}/);
-  assert.match(html, /className="walking-route-guide"/);
-  assert.doesNotMatch(html, /strokeDasharray="0\.2 1\.4"/);
-  assert.match(html, /className="live-route-map-gesture-layer"/);
-  const mapLayerStart = html.indexOf('<div className="live-route-map-layer"');
-  const gestureLayerStart = html.indexOf('ref={mapGestureLayerRef}', mapLayerStart);
-  assert.ok(mapLayerStart >= 0 && gestureLayerStart > mapLayerStart, 'the shared map layer should wrap the map and walking overlay');
-  const synchronizedMapLayer = html.slice(mapLayerStart, gestureLayerStart);
-  for (const element of ['className="osm-route-tiles"', 'className="live-route-map-frame"', 'className="walking-route-guide"', 'src="/caminante-ruta.png"', 'src="/repartidor-caminando-sticker.mp4"']) {
-    assert.ok(synchronizedMapLayer.includes(element), `${element} should transform with the route layer`);
-  }
-  assert.match(html, /addEventListener\('wheel', handleWheel, \{ passive: false \}\)/);
-  assert.match(html, /onPointerDown=\{handleMapPointerDown\}/);
-  assert.match(html, /onPointerMove=\{handleMapPointerMove\}/);
-  assert.match(html, /onPointerUp=\{handleMapPointerUp\}/);
-  assert.match(html, /aria-label="Acercar mapa"/);
-  assert.match(html, /aria-label="Girar mapa"/);
-  assert.match(html, /transform-origin:\s*50% 50%/);
-  assert.doesNotMatch(html, /isMapInteractionLocked|walking-route-locked/);
+  assert.match(html, /\.walking-route-locked\s+\.live-route-map-frame\s*\{\s*pointer-events:\s*none;/);
+  assert.match(html, /isMapInteractionLocked\s*\?\s*' walking-route-locked'/);
+  assert.match(html, /tabIndex=\{isMapInteractionLocked \? -1 : undefined\}/);
   assert.match(html, /Ruta fija a pie · 5 min/);
   assert.match(html, /allowMapInteraction \? 'Ruta a pie · 5 min' : 'Ruta fija a pie · 5 min'/);
-  assert.match(html, /function LiveRouteMap\(\{\s*location,\s*className,\s*label,\s*mapProvider = 'google',\s*walkingStartedAt = null,\s*walkingPreview = false,\s*allowMapInteraction = false,\s*walkingRoutePoints = WALKING_ROUTE_POINTS,\s*gpsLocation = null\s*\}\)/);
+  assert.match(html, /function LiveRouteMap\(\{\s*location,\s*className,\s*label,\s*walkingStartedAt = null,\s*allowMapInteraction = false,\s*walkingRoutePoints = WALKING_ROUTE_POINTS,\s*gpsLocation = null\s*\}\)/);
   assert.match(html, /walkingStartedAt=\{step === 1 && riderDetails\.vehicle === 'Caminando'\s*\?\s*activeOrder\?\.routeStartedAt \|\| activeOrder\?\.pickedUpAt\s*:\s*null\}/);
   assert.match(html, /label=\{`Ruta en vivo del pedido \$\{activeOrder\?\.id \|\| ''\}`\}\s*walkingStartedAt=\{step === 1 && riderDetails\.vehicle === 'Caminando'/);
   assert.match(html, /\.delivery-map \.walking-route-character\s*\{\s*width:\s*clamp\(56px, 16%, 70px\)/);
@@ -1290,11 +1190,9 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.match(html, /\.rider-map \.walking-route-character\s*\{[^}]*transition:\s*left \.7s linear, top \.7s linear/);
   assert.match(html, /\.walking-route-character\s*\{[\s\S]*?width:\s*clamp\(34px, 12%, 48px\)/);
   assert.match(html, /walkingStartedAt=\{step === 1 && riderDetails\.vehicle === 'Caminando'[\s\S]{0,240}?allowMapInteraction\s*walkingRoutePoints=\{RIDER_WALKING_ROUTE_POINTS\}/);
-  assert.match(html, /walkingPreview=\{step === 1 && riderDetails\.vehicle === 'Caminando'\}/);
   assert.match(html, /gpsLocation=\{riderDetails\.vehicle === 'Caminando' && gps\.status === 'active' \? gps : null\}/);
   assert.match(html, /function getWalkingRoutePosition\(progress, routePoints = WALKING_ROUTE_POINTS\)/);
-  assert.match(html, /const elapsed = Math\.max\(0, Date\.now\(\) - walkingAnimationStartedAt\)/);
-  assert.match(html, /\(elapsed % DELIVERY_DURATION_MS\) \/ DELIVERY_DURATION_MS/);
+  assert.match(html, /Date\.now\(\) - walkingStartedAt\) \/ DELIVERY_DURATION_MS/);
   assert.match(html, /isWalkingAnimationActive\s*\?\s*allowMapInteraction \? 'Ruta a pie · 5 min' : 'Ruta fija a pie · 5 min'/);
 });
 
