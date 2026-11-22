@@ -918,6 +918,7 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /Visa · Mastercard · American Express/);
   assert.match(checkout, /PayPal/);
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('paypal'\)\}/);
+  assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('googlepay'\)\}/);
   assert.match(checkout, /Google Pay/);
   assert.match(checkout, /Apple Pay/);
   assert.match(checkout, /aria-label="Formulario de tarjeta de demostración"/);
@@ -954,8 +955,10 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('transferencia'\)\}/);
   assert.match(checkout, /Continuar con el pedido · pago pendiente/);
   assert.match(html, /url = 'https:\/\/www\.paypal\.com\/signin'/);
-  assert.match(html, /if \(selectedPaymentMethod === 'paypal'\) \{\s*window\.open\(url, '_blank', 'noopener,noreferrer'\);\s*\}/);
+  assert.match(html, /url = 'https:\/\/payments\.google\.com\/gp\/w\/u\/0\/home\/signup\?sctid=8843196690302193'/);
+  assert.match(html, /const opensPaymentInNewTab = \['paypal', 'googlepay'\]\.includes\(selectedPaymentMethod\);\s*if \(opensPaymentInNewTab\) \{\s*window\.open\(url, '_blank', 'noopener,noreferrer'\);\s*\}/);
   assert.match(html, /confirmedPaymentMethod === 'paypal' \? 'PayPal · Pendiente'/);
+  assert.match(html, /confirmedPaymentMethod === 'googlepay' \? 'Google Pay · Pendiente'/);
   assert.match(html, /contentRef\.current\.scrollTop = 0/);
   assert.match(html, /document\.body\.scrollTop = 0/);
   assert.match(html, /document\.documentElement\.scrollTop = 0/);
@@ -1035,6 +1038,22 @@ test('offers animated pickup-point choices at checkout and accepts them for cust
   const { order: paypalOrder } = await paypalResponse.json();
   assert.equal(paypalOrder.paymentMethod, 'paypal');
   assert.equal(paypalOrder.paymentStatus, 'pending');
+
+  const googlePayResponse = await fetch(`${baseUrl}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+    body: JSON.stringify({
+      idempotencyKey: `googlepay-test-${randomUUID()}`,
+      customer: 'Cliente',
+      items: [{ name: 'Lomo saltado', quantity: 1, price: 12 }],
+      pickupPoint: 'En la puerta principal',
+      paymentMethod: 'googlepay'
+    })
+  });
+  assert.equal(googlePayResponse.status, 201);
+  const { order: googlePayOrder } = await googlePayResponse.json();
+  assert.equal(googlePayOrder.paymentMethod, 'googlepay');
+  assert.equal(googlePayOrder.paymentStatus, 'pending');
 
   const oldPickupPointResponse = await fetch(`${baseUrl}/api/orders`, {
     method: 'POST',

@@ -12442,7 +12442,7 @@
           completeOrderConfirmation(selectedPaymentMethod);
           return;
         }
-        if (isBembosDemoOnly && selectedPaymentMethod !== 'paypal') {
+        if (isBembosDemoOnly && !['paypal', 'googlepay'].includes(selectedPaymentMethod)) {
           completeOrderConfirmation(selectedPaymentMethod);
           return;
         }
@@ -12461,6 +12461,8 @@
 
         if (selectedPaymentMethod === 'paypal') {
           url = 'https://www.paypal.com/signin';
+        } else if (selectedPaymentMethod === 'googlepay') {
+          url = 'https://payments.google.com/gp/w/u/0/home/signup?sctid=8843196690302193';
         } else if (selectedPaymentMethod === 'yape') {
           url = 'https://www.yape.com.pe/';
         } else if (selectedPaymentMethod === 'plin') {
@@ -12473,11 +12475,12 @@
           setOrderSubmitError('');
           setIsRedirecting(true);
           setRedirectUrl(url);
-          if (selectedPaymentMethod === 'paypal') {
+          const opensPaymentInNewTab = ['paypal', 'googlepay'].includes(selectedPaymentMethod);
+          if (opensPaymentInNewTab) {
             window.open(url, '_blank', 'noopener,noreferrer');
           }
           setTimeout(async () => {
-            if (selectedPaymentMethod !== 'paypal') {
+            if (!opensPaymentInNewTab) {
               window.open(url, '_blank', 'noopener,noreferrer');
             }
             setIsRedirecting(false);
@@ -13043,8 +13046,17 @@
                   <span className="text-[10px] font-extrabold italic text-[#1266a8]">PayPal</span>
                   <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-gray-500">Demo</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleConfirmOrder('googlepay')}
+                  disabled={isSubmittingOrder || isRedirecting || hasMixedProviders || hasInvalidGorritosMix}
+                  aria-label="Continuar con Google Pay (demo)"
+                  className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-gray-200 bg-white px-2 py-2 text-center hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
+                >
+                  <span className="text-[10px] font-bold text-[#3c4043]">Google Pay</span>
+                  <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-gray-500">Demo</span>
+                </button>
                 {[
-                  { name: 'Google Pay', style: 'font-bold text-[#3c4043]' },
                   { name: 'Apple Pay', style: 'font-bold text-black' }
                 ].map((method) => (
                   <div key={method.name} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-gray-200 bg-white px-2 py-2 text-center">
@@ -13055,7 +13067,7 @@
               </div>
 
               <p className="rounded-xl bg-gray-50 p-3 text-[10px] leading-relaxed text-gray-600" role="note">
-                PayPal abre su inicio de sesión oficial en otra pestaña y continúa el pedido como pendiente; esta demostración no verifica el pago. Google Pay y Apple Pay no están conectados a una pasarela.
+                PayPal y Google Pay abren sus páginas oficiales en otra pestaña y continúan el pedido como pendiente; esta demostración no verifica el pago. Apple Pay no está conectado a una pasarela.
               </p>
             </section>
 
@@ -13402,9 +13414,9 @@
                   Tu pedido está en la lista de repartidores. Te avisaremos aquí cuando uno lo acepte.
                 </p>
               </div>
-              {['transferencia', 'paypal'].includes(confirmedPaymentMethod) && (
+              {['transferencia', 'paypal', 'googlepay'].includes(confirmedPaymentMethod) && (
                 <p className="w-full rounded-2xl border border-amber-200 bg-amber-50 p-3 text-left text-[10px] leading-relaxed text-amber-900" role="note">
-                  {confirmedPaymentMethod === 'paypal' ? 'Pago por PayPal pendiente de confirmación.' : 'Pago por transferencia pendiente de confirmación.'} Esta demostración no valida que se haya realizado un pago.
+                  {confirmedPaymentMethod === 'paypal' ? 'Pago por PayPal pendiente de confirmación.' : confirmedPaymentMethod === 'googlepay' ? 'Pago por Google Pay pendiente de confirmación.' : 'Pago por transferencia pendiente de confirmación.'} Esta demostración no valida que se haya realizado un pago.
                 </p>
               )}
               <p className="text-[10px] font-semibold text-gray-500">{`Pedido #${liveOrderId}`}</p>
@@ -13473,7 +13485,7 @@
                 <div className="bg-cream/50 border border-cream p-4 rounded-2xl w-full text-left space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500">Método de pago:</span>
-                    <span className="font-bold uppercase">{confirmedPaymentMethod === 'transferencia' ? 'Transferencia · Pendiente' : confirmedPaymentMethod === 'paypal' ? 'PayPal · Pendiente' : (confirmedPaymentMethod || paymentMethod)}</span>
+                    <span className="font-bold uppercase">{confirmedPaymentMethod === 'transferencia' ? 'Transferencia · Pendiente' : confirmedPaymentMethod === 'paypal' ? 'PayPal · Pendiente' : confirmedPaymentMethod === 'googlepay' ? 'Google Pay · Pendiente' : (confirmedPaymentMethod || paymentMethod)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500">Punto de recojo:</span>
