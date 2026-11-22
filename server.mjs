@@ -94,6 +94,8 @@ const PUBLIC_ASSETS = new Set([
   'coin-front-red.png',
   'yape-globo.jpg',
   'yape-globo.png',
+  'plin-globo.jpg',
+  'plin-globo.png',
   'al-toque-pe-logo.png',
   'al-toque-pe-emblema.png',
   'al-toque-reel-watermark.png',
