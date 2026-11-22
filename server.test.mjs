@@ -902,9 +902,10 @@ test('offers animated WhatsApp support for the Al Toque help phone number', asyn
 });
 
 test('opens the Al Toque demo checkout from card and keeps transfers pending', async () => {
-  const [html, serverSource] = await Promise.all([
+  const [html, serverSource, applePayAsset] = await Promise.all([
     readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
-    readFile(join(process.cwd(), 'server.mjs'), 'utf8')
+    readFile(join(process.cwd(), 'server.mjs'), 'utf8'),
+    readFile(join(process.cwd(), 'apple-pay-demo.png'))
   ]);
   const cartScreenStart = html.indexOf('function CartScreen(');
   const checkoutStart = html.indexOf('aria-label="Opciones de pago de demostración"', cartScreenStart);
@@ -920,6 +921,9 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('paypal'\)\}/);
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('googlepay'\)\}/);
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('applepay'\)\}/);
+  assert.match(checkout, /src="\/apple-pay-demo\.png\?v=1"/);
+  assert.match(serverSource, /'apple-pay-demo\.png'/);
+  assert.deepEqual([...applePayAsset.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.match(checkout, /Google Pay/);
   assert.match(checkout, /Apple Pay/);
   assert.doesNotMatch(checkout, /PayPal, Google Pay y Apple Pay abren sus páginas oficiales/);
