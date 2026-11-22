@@ -11667,6 +11667,7 @@
       label,
       mapProvider = 'google',
       walkingStartedAt = null,
+      walkingPreview = false,
       allowMapInteraction = false,
       walkingRoutePoints = WALKING_ROUTE_POINTS,
       gpsLocation = null
@@ -11679,15 +11680,27 @@
       const mapGestureRef = useRef(null);
       const gpsAnimationFrameRef = useRef(0);
       const gpsPositionRef = useRef(null);
+      const [walkingPreviewStartedAt, setWalkingPreviewStartedAt] = useState(null);
       const [mapOrigin, setMapOrigin] = useState(DELIVERY_ROUTE_START);
       const [mapTransform, setMapTransform] = useState({ x: 0, y: 0, scale: 1, rotation: 0 });
       const [mapError, setMapError] = useState(false);
+      const hasWalkingStartTime = Number.isFinite(walkingStartedAt) && walkingStartedAt > 0;
+      const isWalkingPreviewActive = walkingPreview && !hasWalkingStartTime
+        && Number.isFinite(walkingPreviewStartedAt) && walkingPreviewStartedAt > 0;
+      const walkingAnimationStartedAt = hasWalkingStartTime ? walkingStartedAt : walkingPreviewStartedAt;
       const isGpsLocationActive = Boolean(gpsLocation
         && Number.isFinite(gpsLocation.latitude)
         && Number.isFinite(gpsLocation.longitude));
-      const isWalkingAnimationActive = (Number.isFinite(walkingStartedAt) && walkingStartedAt > 0)
-        || isGpsLocationActive;
+      const isWalkingAnimationActive = hasWalkingStartTime || isGpsLocationActive || isWalkingPreviewActive;
       const isWalkingRouteVisible = isWalkingAnimationActive || mapProvider === 'openstreetmap';
+
+      useEffect(() => {
+        if (!walkingPreview) {
+          setWalkingPreviewStartedAt(null);
+          return;
+        }
+        setWalkingPreviewStartedAt((current) => current || Date.now());
+      }, [walkingPreview]);
 
       useEffect(() => {
         const gestureLayer = mapGestureLayerRef.current;
@@ -11824,10 +11837,14 @@
       useEffect(() => {
         if (!isWalkingAnimationActive) return undefined;
         if (isGpsLocationActive) return undefined;
+        if (!Number.isFinite(walkingAnimationStartedAt) || walkingAnimationStartedAt <= 0) return undefined;
 
         let animationFrame = 0;
         const updatePosition = () => {
-          const progress = Math.max(0, Math.min(1, (Date.now() - walkingStartedAt) / DELIVERY_DURATION_MS));
+          const elapsed = Math.max(0, Date.now() - walkingAnimationStartedAt);
+          const progress = isWalkingPreviewActive
+            ? (elapsed % DELIVERY_DURATION_MS) / DELIVERY_DURATION_MS
+            : Math.min(1, elapsed / DELIVERY_DURATION_MS);
           const position = getWalkingRoutePosition(progress, walkingRoutePoints);
           const character = walkingCharacterRef.current;
           setWalkingCharacterPosition(character, position);
@@ -11835,7 +11852,7 @@
         };
         updatePosition();
         return () => window.cancelAnimationFrame(animationFrame);
-      }, [isGpsLocationActive, isWalkingAnimationActive, walkingStartedAt]);
+      }, [isGpsLocationActive, isWalkingAnimationActive, isWalkingPreviewActive, walkingAnimationStartedAt, walkingRoutePoints]);
 
       useEffect(() => {
         if (!gpsLocation) {
@@ -11958,7 +11975,6 @@
                   fill="none"
                   stroke="#4285F4"
                   strokeWidth="0.8"
-                  strokeDasharray="0.2 1.4"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -12826,6 +12842,7 @@
               walkingStartedAt={deliveryPhase === 'tracking' && assignedRider?.vehicle === 'Caminando'
                 ? deliveryStartedAtRef.current
                 : null}
+              walkingPreview={assignedRider?.vehicle === 'Caminando' && deliveryPhase !== 'arrived'}
               mapProvider="openstreetmap"
               className="delivery-map"
               label={`Ruta en vivo del repartidor para el pedido ${liveOrderId || ''}`}
@@ -14719,6 +14736,7 @@
             walkingStartedAt={step === 1 && riderDetails.vehicle === 'Caminando'
               ? activeOrder?.routeStartedAt || activeOrder?.pickedUpAt
               : null}
+            walkingPreview={step === 1 && riderDetails.vehicle === 'Caminando'}
             allowMapInteraction
             walkingRoutePoints={RIDER_WALKING_ROUTE_POINTS}
             gpsLocation={riderDetails.vehicle === 'Caminando' && gps.status === 'active' ? gps : null}

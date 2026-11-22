@@ -1227,6 +1227,7 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.match(html, /getClosestWalkingRoutePosition\(\s*gpsPosition,\s*walkingRoutePoints,\s*bounds\.width,\s*bounds\.height\s*\)/);
   assert.match(html, /style=\{\{ left: `\$\{walkingRoutePoints\[0\]\.x\}%`, top: `\$\{walkingRoutePoints\[0\]\.y\}%` \}\}/);
   assert.match(html, /walkingStartedAt=\{deliveryPhase === 'tracking' && assignedRider\?\.vehicle === 'Caminando'\s*\? deliveryStartedAtRef\.current\s*: null\}/);
+  assert.match(html, /walkingPreview=\{assignedRider\?\.vehicle === 'Caminando' && deliveryPhase !== 'arrived'\}/);
   const customerMapStart = html.indexOf("location={assignedRider?.vehicle === 'Caminando' ? null : riderLocation}");
   const customerMapEnd = html.indexOf('/>', customerMapStart);
   assert.ok(customerMapStart >= 0 && customerMapEnd > customerMapStart, 'the customer map should be rendered in the delivery tracking view');
@@ -1240,6 +1241,7 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.match(html, /\.live-route-map-frame\s*\{[^}]*pointer-events:\s*none;/);
   assert.match(html, /className="live-route-map-layer" style=\{\{ transform: mapTransformStyle \}\}/);
   assert.match(html, /className="walking-route-guide"/);
+  assert.doesNotMatch(html, /strokeDasharray="0\.2 1\.4"/);
   assert.match(html, /className="live-route-map-gesture-layer"/);
   const mapLayerStart = html.indexOf('<div className="live-route-map-layer"');
   const gestureLayerStart = html.indexOf('ref={mapGestureLayerRef}', mapLayerStart);
@@ -1258,7 +1260,7 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.doesNotMatch(html, /isMapInteractionLocked|walking-route-locked/);
   assert.match(html, /Ruta fija a pie · 5 min/);
   assert.match(html, /allowMapInteraction \? 'Ruta a pie · 5 min' : 'Ruta fija a pie · 5 min'/);
-  assert.match(html, /function LiveRouteMap\(\{\s*location,\s*className,\s*label,\s*mapProvider = 'google',\s*walkingStartedAt = null,\s*allowMapInteraction = false,\s*walkingRoutePoints = WALKING_ROUTE_POINTS,\s*gpsLocation = null\s*\}\)/);
+  assert.match(html, /function LiveRouteMap\(\{\s*location,\s*className,\s*label,\s*mapProvider = 'google',\s*walkingStartedAt = null,\s*walkingPreview = false,\s*allowMapInteraction = false,\s*walkingRoutePoints = WALKING_ROUTE_POINTS,\s*gpsLocation = null\s*\}\)/);
   assert.match(html, /walkingStartedAt=\{step === 1 && riderDetails\.vehicle === 'Caminando'\s*\?\s*activeOrder\?\.routeStartedAt \|\| activeOrder\?\.pickedUpAt\s*:\s*null\}/);
   assert.match(html, /label=\{`Ruta en vivo del pedido \$\{activeOrder\?\.id \|\| ''\}`\}\s*walkingStartedAt=\{step === 1 && riderDetails\.vehicle === 'Caminando'/);
   assert.match(html, /\.delivery-map \.walking-route-character\s*\{\s*width:\s*clamp\(56px, 16%, 70px\)/);
@@ -1266,9 +1268,11 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.match(html, /\.rider-map \.walking-route-character\s*\{[^}]*transition:\s*left \.7s linear, top \.7s linear/);
   assert.match(html, /\.walking-route-character\s*\{[\s\S]*?width:\s*clamp\(34px, 12%, 48px\)/);
   assert.match(html, /walkingStartedAt=\{step === 1 && riderDetails\.vehicle === 'Caminando'[\s\S]{0,240}?allowMapInteraction\s*walkingRoutePoints=\{RIDER_WALKING_ROUTE_POINTS\}/);
+  assert.match(html, /walkingPreview=\{step === 1 && riderDetails\.vehicle === 'Caminando'\}/);
   assert.match(html, /gpsLocation=\{riderDetails\.vehicle === 'Caminando' && gps\.status === 'active' \? gps : null\}/);
   assert.match(html, /function getWalkingRoutePosition\(progress, routePoints = WALKING_ROUTE_POINTS\)/);
-  assert.match(html, /Date\.now\(\) - walkingStartedAt\) \/ DELIVERY_DURATION_MS/);
+  assert.match(html, /const elapsed = Math\.max\(0, Date\.now\(\) - walkingAnimationStartedAt\)/);
+  assert.match(html, /\(elapsed % DELIVERY_DURATION_MS\) \/ DELIVERY_DURATION_MS/);
   assert.match(html, /isWalkingAnimationActive\s*\?\s*allowMapInteraction \? 'Ruta a pie · 5 min' : 'Ruta fija a pie · 5 min'/);
 });
 
