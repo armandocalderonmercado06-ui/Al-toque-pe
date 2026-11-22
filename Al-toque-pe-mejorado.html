@@ -13053,10 +13053,9 @@
                   onClick={() => handleConfirmOrder('googlepay')}
                   disabled={isSubmittingOrder || isRedirecting || hasMixedProviders || hasInvalidGorritosMix}
                   aria-label="Continuar con Google Pay (demo)"
-                  className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl border border-gray-200 bg-white px-2 py-2 text-center hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
+                  className="relative aspect-[1.875] min-h-14 overflow-hidden rounded-2xl bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-60"
                 >
-                  <span className="text-[10px] font-bold text-[#3c4043]">Google Pay</span>
-                  <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[7px] font-bold uppercase tracking-wide text-gray-500">Demo</span>
+                  <img src="/google-pay-demo.png?v=1" alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-contain" />
                 </button>
                 <button
                   type="button"
