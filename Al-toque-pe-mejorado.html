@@ -869,6 +869,10 @@
       animation: paymentGlobeFloat 2.8s ease-in-out infinite;
       pointer-events: none;
     }
+    .payment-globe-button--left .payment-globe-art {
+      right: auto;
+      left: -5px;
+    }
     @keyframes paymentGlobeFloat {
       0%, 100% { transform: translateY(0) rotate(-2deg) scale(1); }
       50% { transform: translateY(-5px) rotate(3deg) scale(1.035); }
@@ -13287,13 +13291,13 @@
                     <button
                       key={method.id}
                       onClick={() => setPaymentMethod(method.id)}
-                      className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${['yape', 'plin'].includes(method.id) ? 'payment-globe-button' : ''} ${
+                      className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${['yape', 'plin', 'tarjeta'].includes(method.id) ? 'payment-globe-button' : ''} ${method.id === 'tarjeta' ? 'payment-globe-button--left' : ''} ${
                         paymentMethod === method.id ? 'border-brand bg-brand/5 text-brand font-bold' : 'border-gray-200 bg-white text-gray-600'
                       }`}
                     >
-                      {['yape', 'plin'].includes(method.id) ? (
+                      {['yape', 'plin', 'tarjeta'].includes(method.id) ? (
                         <img
-                          src={method.id === 'yape' ? 'yape-globo.png?v=2' : 'plin-globo.png?v=1'}
+                          src={method.id === 'yape' ? 'yape-globo.png?v=2' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjeta-globo.png?v=1'}
                           alt=""
                           aria-hidden="true"
                           className="payment-globe-art"

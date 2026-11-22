@@ -96,6 +96,8 @@ const PUBLIC_ASSETS = new Set([
   'yape-globo.png',
   'plin-globo.jpg',
   'plin-globo.png',
+  'tarjeta-globo.jpg',
+  'tarjeta-globo.png',
   'al-toque-pe-logo.png',
   'al-toque-pe-emblema.png',
   'al-toque-reel-watermark.png',
