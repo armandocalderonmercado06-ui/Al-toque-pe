@@ -869,13 +869,25 @@
       animation: paymentGlobeFloat 2.8s ease-in-out infinite;
       pointer-events: none;
     }
-    .payment-globe-button--left .payment-globe-art {
-      right: auto;
-      left: -5px;
+    .payment-globe-button--cards {
+      padding-right: 68px !important;
+    }
+    .payment-globe-button--cards .payment-globe-art {
+      top: 50%;
+      width: 84px;
+      height: 72px;
+      transform: translateY(-50%);
+      filter: drop-shadow(0 4px 5px rgba(28, 54, 72, 0.2));
+      mix-blend-mode: multiply;
+      animation: paymentCardsFloat 2.8s ease-in-out infinite;
     }
     @keyframes paymentGlobeFloat {
       0%, 100% { transform: translateY(0) rotate(-2deg) scale(1); }
       50% { transform: translateY(-5px) rotate(3deg) scale(1.035); }
+    }
+    @keyframes paymentCardsFloat {
+      0%, 100% { transform: translateY(-50%) rotate(-2deg) scale(1); }
+      50% { transform: translateY(calc(-50% - 5px)) rotate(3deg) scale(1.035); }
     }
     @media (prefers-reduced-motion: reduce) {
       .payment-globe-button .payment-globe-art { animation: none; }
@@ -13291,13 +13303,13 @@
                     <button
                       key={method.id}
                       onClick={() => setPaymentMethod(method.id)}
-                      className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${['yape', 'plin', 'tarjeta'].includes(method.id) ? 'payment-globe-button' : ''} ${method.id === 'tarjeta' ? 'payment-globe-button--left' : ''} ${
+                      className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${['yape', 'plin', 'tarjeta'].includes(method.id) ? 'payment-globe-button' : ''} ${method.id === 'tarjeta' ? 'payment-globe-button--cards' : ''} ${
                         paymentMethod === method.id ? 'border-brand bg-brand/5 text-brand font-bold' : 'border-gray-200 bg-white text-gray-600'
                       }`}
                     >
                       {['yape', 'plin', 'tarjeta'].includes(method.id) ? (
                         <img
-                          src={method.id === 'yape' ? 'yape-globo.png?v=2' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjetas-bancos.png?v=1'}
+                          src={method.id === 'yape' ? 'yape-globo.png?v=2' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjetas-bancos.png?v=2'}
                           alt=""
                           aria-hidden="true"
                           className="payment-globe-art"
@@ -13305,7 +13317,7 @@
                       ) : (
                         <i data-lucide={method.icon} className="w-4 h-4"></i>
                       )}
-                      <span className="text-xs">{method.name}</span>
+                      <span className={`text-xs ${method.id === 'yape' || method.id === 'plin' ? 'translate-x-1' : ''}`}>{method.name}</span>
                     </button>
                   ))}
                 </div>
