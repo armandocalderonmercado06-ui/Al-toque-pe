@@ -917,6 +917,7 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /paymentMethod === 'tarjeta' && !isBembosDemoOnly[\s\S]*?setIsCardCheckoutOpen\(true\)/);
   assert.match(checkout, /Visa · Mastercard · American Express/);
   assert.match(checkout, /PayPal/);
+  assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('paypal'\)\}/);
   assert.match(checkout, /Google Pay/);
   assert.match(checkout, /Apple Pay/);
   assert.match(checkout, /aria-label="Formulario de tarjeta de demostración"/);
@@ -952,6 +953,9 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /onClick=\{\(event\) => handleDemoCardPayment\(event\.currentTarget\.form\)\}/);
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('transferencia'\)\}/);
   assert.match(checkout, /Continuar con el pedido · pago pendiente/);
+  assert.match(html, /url = 'https:\/\/www\.paypal\.com\/signin'/);
+  assert.match(html, /if \(selectedPaymentMethod === 'paypal'\) \{\s*window\.open\(url, '_blank', 'noopener,noreferrer'\);\s*\}/);
+  assert.match(html, /confirmedPaymentMethod === 'paypal' \? 'PayPal · Pendiente'/);
   assert.match(html, /contentRef\.current\.scrollTop = 0/);
   assert.match(html, /document\.body\.scrollTop = 0/);
   assert.match(html, /document\.documentElement\.scrollTop = 0/);
@@ -1015,6 +1019,22 @@ test('offers animated pickup-point choices at checkout and accepts them for cust
   const { order: transferOrder } = await transferResponse.json();
   assert.equal(transferOrder.paymentMethod, 'transferencia');
   assert.equal(transferOrder.paymentStatus, 'pending');
+
+  const paypalResponse = await fetch(`${baseUrl}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+    body: JSON.stringify({
+      idempotencyKey: `paypal-test-${randomUUID()}`,
+      customer: 'Cliente',
+      items: [{ name: 'Lomo saltado', quantity: 1, price: 12 }],
+      pickupPoint: 'En la puerta principal',
+      paymentMethod: 'paypal'
+    })
+  });
+  assert.equal(paypalResponse.status, 201);
+  const { order: paypalOrder } = await paypalResponse.json();
+  assert.equal(paypalOrder.paymentMethod, 'paypal');
+  assert.equal(paypalOrder.paymentStatus, 'pending');
 
   const oldPickupPointResponse = await fetch(`${baseUrl}/api/orders`, {
     method: 'POST',
