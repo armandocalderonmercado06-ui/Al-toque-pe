@@ -919,6 +919,14 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /PayPal/);
   assert.match(checkout, /Google Pay/);
   assert.match(checkout, /Apple Pay/);
+  assert.match(checkout, /aria-label="Formulario de tarjeta de demostración"/);
+  assert.match(checkout, /Número de tarjeta \(demo\)/);
+  assert.match(checkout, /Vencimiento/);
+  assert.match(checkout, /CVC/);
+  assert.match(checkout, /Nombre del titular/);
+  assert.match(checkout, /Dirección de facturación/);
+  assert.match(checkout, /event\.preventDefault\(\);[\s\S]*?event\.currentTarget\.reset\(\)/);
+  assert.match(checkout, /Demostración: no se guardó ni envió ningún dato/);
   assert.match(checkout, /onClick=\{\(\) => handleConfirmOrder\('transferencia'\)\}/);
   assert.match(checkout, /Continuar con el pedido · pago pendiente/);
   assert.match(html, /contentRef\.current\.scrollTop = 0/);

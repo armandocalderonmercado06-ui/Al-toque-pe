@@ -11686,6 +11686,8 @@
       const [isRedirecting, setIsRedirecting] = useState(false);
       const [redirectUrl, setRedirectUrl] = useState('');
       const [isCardCheckoutOpen, setIsCardCheckoutOpen] = useState(false);
+      const [isDemoCardFormOpen, setIsDemoCardFormOpen] = useState(false);
+      const [demoCardFormNotice, setDemoCardFormNotice] = useState('');
       const [confirmedPaymentMethod, setConfirmedPaymentMethod] = useState('');
       const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
       const [orderSubmitError, setOrderSubmitError] = useState('');
@@ -12917,7 +12919,7 @@
             <section className="space-y-3 rounded-3xl border border-gray-100 bg-white p-4 shadow-sm" aria-label="Opciones de pago de demostración">
               <div>
                 <h3 className="text-sm font-extrabold text-dark">Opciones de pago</h3>
-                <p className="mt-1 text-[10px] text-gray-500">Diseño de demostración · sin cobros ni datos de tarjeta</p>
+                <p className="mt-1 text-[10px] text-gray-500">Solo demostración: usa datos ficticios; no ingreses datos reales.</p>
               </div>
 
               <div className="rounded-2xl border border-brand/20 bg-brand/5 p-3">
@@ -12931,7 +12933,17 @@
                       <p className="text-[9px] text-gray-500">Visa · Mastercard · American Express</p>
                     </div>
                   </div>
-                  <span className="rounded-full bg-amber-100 px-2 py-1 text-[8px] font-extrabold uppercase tracking-wide text-amber-800">Demo</span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-[8px] font-extrabold uppercase tracking-wide text-amber-800">Demo</span>
+                    <button
+                      type="button"
+                      onClick={() => { setDemoCardFormNotice(''); setIsDemoCardFormOpen(true); }}
+                      aria-haspopup="dialog"
+                      className="rounded-xl bg-brand px-3 py-2 text-[10px] font-bold text-white"
+                    >
+                      Agregar
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -12949,9 +12961,120 @@
               </div>
 
               <p className="rounded-xl bg-gray-50 p-3 text-[10px] leading-relaxed text-gray-600" role="note">
-                Estos medios todavía no están conectados a una pasarela. No ingreses datos de tarjeta aquí.
+                PayPal, Google Pay y Apple Pay son opciones de demostración y no están conectadas a una pasarela.
               </p>
             </section>
+
+            {demoCardFormNotice && <p className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-[11px] text-blue-800" role="status">{demoCardFormNotice}</p>}
+
+            {isDemoCardFormOpen && (
+              <div
+                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-3"
+                onClick={(event) => { if (event.target === event.currentTarget) setIsDemoCardFormOpen(false); }}
+              >
+                <section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="demo-card-form-title"
+                  className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[28px] bg-[#eaf0f9] p-5 shadow-2xl sm:p-7"
+                >
+                  <header className="mb-5 flex items-start justify-between gap-3">
+                    <h2 id="demo-card-form-title" className="font-title text-2xl font-bold text-[#222]">Agregar una forma de pago</h2>
+                    <button
+                      type="button"
+                      onClick={() => setIsDemoCardFormOpen(false)}
+                      aria-label="Cerrar formulario de tarjeta"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-2xl leading-none text-gray-700 hover:bg-white/70"
+                    >
+                      ×
+                    </button>
+                  </header>
+                  <form
+                    aria-label="Formulario de tarjeta de demostración"
+                    autoComplete="off"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      event.currentTarget.reset();
+                      setIsDemoCardFormOpen(false);
+                      setDemoCardFormNotice('Demostración: no se guardó ni envió ningún dato.');
+                    }}
+                    className="space-y-5"
+                  >
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_76px_76px]">
+                      <label className="block text-xs font-medium text-blue-600">
+                        Número de tarjeta (demo)
+                        <div className="mt-1 flex items-center gap-2 border-b-2 border-blue-500 pb-1">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            maxLength={23}
+                            placeholder="0000 0000 0000 0000"
+                            className="min-w-0 flex-1 bg-transparent py-1 text-base text-gray-800 outline-none"
+                            required
+                          />
+                          <span className="rounded border border-gray-300 bg-white px-1 text-[8px] font-bold text-red-600">Mastercard</span>
+                          <span className="rounded border border-gray-300 bg-white px-1 text-[9px] font-extrabold text-blue-700">VISA</span>
+                        </div>
+                      </label>
+                      <label className="block text-xs font-medium text-gray-500">
+                        Vencimiento
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          maxLength={5}
+                          placeholder="MM / AA"
+                          className="mt-1 w-full border-b border-gray-300 bg-transparent py-2 text-sm text-gray-800 outline-none focus:border-blue-500"
+                          required
+                        />
+                      </label>
+                      <label className="block text-xs font-medium text-gray-500">
+                        CVC
+                        <input
+                          type="password"
+                          inputMode="numeric"
+                          autoComplete="new-password"
+                          maxLength={4}
+                          placeholder="CVC"
+                          className="mt-1 w-full border-b border-gray-300 bg-transparent py-2 text-sm text-gray-800 outline-none focus:border-blue-500"
+                          required
+                        />
+                      </label>
+                    </div>
+
+                    <label className="block border-b border-gray-300 pb-1 text-xs font-medium text-gray-500">
+                      Nombre del titular
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Nombre para demostración"
+                        className="mt-1 w-full bg-transparent py-1 text-sm text-gray-800 outline-none"
+                        required
+                      />
+                    </label>
+
+                    <label className="flex items-center gap-3 border-b border-gray-300 pb-1 text-xs font-medium text-gray-500">
+                      <i data-lucide="map-pin" className="h-5 w-5 shrink-0"></i>
+                      <input
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Dirección de facturación"
+                        className="min-w-0 flex-1 bg-transparent py-2 text-sm text-gray-800 outline-none"
+                        required
+                      />
+                    </label>
+
+                    <p className="text-xs leading-relaxed text-gray-600">
+                      Formulario solo visual. Usa datos ficticios: Al Toque no guarda ni envía esta información.
+                    </p>
+                    <button type="submit" className="ml-auto block rounded-lg bg-blue-600 px-8 py-3 text-sm font-bold text-white hover:bg-blue-700">
+                      Guardar (demo)
+                    </button>
+                  </form>
+                </section>
+              </div>
+            )}
 
             <section className="space-y-3 rounded-3xl border border-orange-200 bg-[#fff9f1] p-4">
               <div className="flex items-start gap-3">
