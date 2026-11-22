@@ -2629,8 +2629,30 @@
       width: 100%;
       height: 100%;
       border: 0;
+      pointer-events: none;
     }
-    .walking-route-locked .live-route-map-frame {
+    .live-route-map-layer {
+      position: absolute;
+      inset: 0;
+      transform-origin: 50% 50%;
+      will-change: transform;
+    }
+    .live-route-map-gesture-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
+    }
+    .live-route-map-gesture-layer:active { cursor: grabbing; }
+    .walking-route-guide {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
       pointer-events: none;
     }
     .walking-route-character {
@@ -2639,7 +2661,9 @@
       width: clamp(34px, 12%, 48px);
       height: auto;
       pointer-events: none;
-      transform: translate(-50%, -88%);
+      transform: translate(-50%, -50%);
+      transform-origin: 50% 50%;
+      will-change: left, top, transform;
     }
     .delivery-map .walking-route-character {
       width: clamp(56px, 16%, 70px);
@@ -2661,10 +2685,30 @@
       font-size: 9px;
       font-weight: 700;
       box-shadow: 0 2px 8px #251b1b24;
+      pointer-events: none;
+    }
+    .live-route-map-controls {
+      position: absolute;
+      z-index: 6;
+      left: 8px;
+      bottom: 8px;
+      display: flex;
+      gap: 5px;
+    }
+    .live-route-map-controls button {
+      min-width: 30px;
+      height: 30px;
+      border: 1px solid rgba(0,0,0,.12);
+      border-radius: 9px;
+      background: rgba(255,255,255,.96);
+      color: #2b2521;
+      font-size: 15px;
+      font-weight: 800;
+      box-shadow: 0 2px 8px #251b1b24;
     }
     .live-route-map-error {
       position: absolute;
-      z-index: 2;
+      z-index: 5;
       top: 8px;
       left: 8px;
       max-width: calc(100% - 16px);
@@ -11394,6 +11438,10 @@
       { x: 10, y: 20 }
     ];
 
+    function calcularAngulo(desde, hasta) {
+      return Math.atan2(hasta.y - desde.y, hasta.x - desde.x) * (180 / Math.PI);
+    }
+
     function getWalkingRoutePosition(progress, routePoints = WALKING_ROUTE_POINTS) {
       const safeProgress = Math.max(0, Math.min(1, progress));
       const segmentLengths = routePoints.slice(1).map((point, index) => {
@@ -11411,13 +11459,83 @@
           const ratio = segmentLength === 0 ? 0 : Math.min(1, remainingLength / segmentLength);
           return {
             x: start.x + (end.x - start.x) * ratio,
-            y: start.y + (end.y - start.y) * ratio
+            y: start.y + (end.y - start.y) * ratio,
+            angle: calcularAngulo(
+              { x: start.x * (4 / 3), y: start.y },
+              { x: end.x * (4 / 3), y: end.y }
+            )
           };
         }
         remainingLength -= segmentLength;
       }
 
-      return routePoints[routePoints.length - 1];
+      const lastPoint = routePoints[routePoints.length - 1];
+      const previousPoint = routePoints[routePoints.length - 2] || lastPoint;
+      return {
+        ...lastPoint,
+        angle: calcularAngulo(
+          { x: previousPoint.x * (4 / 3), y: previousPoint.y },
+          { x: lastPoint.x * (4 / 3), y: lastPoint.y }
+        )
+      };
+    }
+
+    function getClosestWalkingRoutePosition(position, routePoints, mapWidth, mapHeight) {
+      if (!position
+        || !Number.isFinite(position.x)
+        || !Number.isFinite(position.y)
+        || !Array.isArray(routePoints)
+        || routePoints.length < 2
+        || !Number.isFinite(mapWidth)
+        || !Number.isFinite(mapHeight)
+        || mapWidth <= 0
+        || mapHeight <= 0) return null;
+
+      const targetX = position.x * mapWidth / 100;
+      const targetY = position.y * mapHeight / 100;
+      let closestPosition = null;
+      let closestDistanceSquared = Infinity;
+
+      for (let index = 0; index < routePoints.length - 1; index += 1) {
+        const start = routePoints[index];
+        const end = routePoints[index + 1];
+        const startX = start.x * mapWidth / 100;
+        const startY = start.y * mapHeight / 100;
+        const endX = end.x * mapWidth / 100;
+        const endY = end.y * mapHeight / 100;
+        const segmentX = endX - startX;
+        const segmentY = endY - startY;
+        const segmentLengthSquared = segmentX ** 2 + segmentY ** 2;
+        const ratio = segmentLengthSquared === 0
+          ? 0
+          : Math.max(0, Math.min(1, ((targetX - startX) * segmentX + (targetY - startY) * segmentY) / segmentLengthSquared));
+        const snappedX = start.x + (end.x - start.x) * ratio;
+        const snappedY = start.y + (end.y - start.y) * ratio;
+        const snappedPixelX = snappedX * mapWidth / 100;
+        const snappedPixelY = snappedY * mapHeight / 100;
+        const distanceSquared = (targetX - snappedPixelX) ** 2 + (targetY - snappedPixelY) ** 2;
+
+        if (distanceSquared < closestDistanceSquared) {
+          closestDistanceSquared = distanceSquared;
+          closestPosition = {
+            x: snappedX,
+            y: snappedY,
+            angle: calcularAngulo(
+              { x: startX, y: startY },
+              { x: endX, y: endY }
+            )
+          };
+        }
+      }
+
+      return closestPosition;
+    }
+
+    function setWalkingCharacterPosition(character, position) {
+      if (!character || !position) return;
+      character.style.left = `${position.x}%`;
+      character.style.top = `${position.y}%`;
+      character.style.transform = `translate(-50%, -50%) rotate(${Number.isFinite(position.angle) ? position.angle : 0}deg)`;
     }
 
     function getWalkingGpsPosition(location, routeOrigin, routeDestination, mapWidth, mapHeight) {
@@ -11489,18 +11607,130 @@
     }) {
       const lastMapOriginRef = useRef(null);
       const mapContainerRef = useRef(null);
+      const mapGestureLayerRef = useRef(null);
       const walkingCharacterRef = useRef(null);
+      const activeMapPointersRef = useRef(new Map());
+      const mapGestureRef = useRef(null);
+      const gpsAnimationFrameRef = useRef(0);
+      const gpsPositionRef = useRef(null);
       const [mapOrigin, setMapOrigin] = useState(DELIVERY_ROUTE_START);
+      const [mapTransform, setMapTransform] = useState({ x: 0, y: 0, scale: 1, rotation: 0 });
       const [mapError, setMapError] = useState(false);
       const isGpsLocationActive = Boolean(gpsLocation
         && Number.isFinite(gpsLocation.latitude)
         && Number.isFinite(gpsLocation.longitude));
       const isWalkingAnimationActive = (Number.isFinite(walkingStartedAt) && walkingStartedAt > 0)
         || isGpsLocationActive;
-      const isMapInteractionLocked = isWalkingAnimationActive && !allowMapInteraction;
 
       useEffect(() => {
-        if (isWalkingAnimationActive && !isGpsLocationActive) {
+        const gestureLayer = mapGestureLayerRef.current;
+        if (!gestureLayer) return undefined;
+        const handleWheel = (event) => {
+          event.preventDefault();
+          if (event.shiftKey) {
+            setMapTransform((current) => ({ ...current, rotation: current.rotation + event.deltaY * 0.2 }));
+            return;
+          }
+          const zoomFactor = Math.exp(-event.deltaY * 0.001);
+          setMapTransform((current) => ({
+            ...current,
+            scale: Math.max(0.75, Math.min(3, current.scale * zoomFactor))
+          }));
+        };
+        gestureLayer.addEventListener('wheel', handleWheel, { passive: false });
+        return () => gestureLayer.removeEventListener('wheel', handleWheel);
+      }, []);
+
+      const getPointerMetrics = (first, second) => {
+        const deltaX = second.x - first.x;
+        const deltaY = second.y - first.y;
+        return {
+          center: { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 },
+          distance: Math.max(1, Math.hypot(deltaX, deltaY)),
+          angle: Math.atan2(deltaY, deltaX) * (180 / Math.PI)
+        };
+      };
+
+      const handleMapPointerDown = (event) => {
+        const pointers = activeMapPointersRef.current;
+        if (pointers.size >= 2 && !pointers.has(event.pointerId)) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+        const entries = [...pointers.entries()];
+        if (entries.length === 1) {
+          mapGestureRef.current = {
+            type: 'pan',
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startTransform: mapTransform
+          };
+          return;
+        }
+
+        const [[firstId, first], [secondId, second]] = entries;
+        const metrics = getPointerMetrics(first, second);
+        mapGestureRef.current = {
+          type: 'pinch',
+          pointerIds: [firstId, secondId],
+          startCenter: metrics.center,
+          startDistance: metrics.distance,
+          startAngle: metrics.angle,
+          startTransform: mapTransform
+        };
+      };
+
+      const handleMapPointerMove = (event) => {
+        const pointers = activeMapPointersRef.current;
+        if (!pointers.has(event.pointerId)) return;
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        const gesture = mapGestureRef.current;
+        if (!gesture) return;
+
+        if (gesture.type === 'pan' && gesture.pointerId === event.pointerId) {
+          setMapTransform({
+            ...gesture.startTransform,
+            x: gesture.startTransform.x + event.clientX - gesture.startX,
+            y: gesture.startTransform.y + event.clientY - gesture.startY
+          });
+          return;
+        }
+
+        if (gesture.type !== 'pinch') return;
+        const first = pointers.get(gesture.pointerIds[0]);
+        const second = pointers.get(gesture.pointerIds[1]);
+        if (!first || !second) return;
+        const metrics = getPointerMetrics(first, second);
+        const rotationDelta = ((metrics.angle - gesture.startAngle + 540) % 360) - 180;
+        setMapTransform({
+          x: gesture.startTransform.x + metrics.center.x - gesture.startCenter.x,
+          y: gesture.startTransform.y + metrics.center.y - gesture.startCenter.y,
+          scale: Math.max(0.75, Math.min(3, gesture.startTransform.scale * metrics.distance / gesture.startDistance)),
+          rotation: gesture.startTransform.rotation + rotationDelta
+        });
+      };
+
+      const handleMapPointerUp = (event) => {
+        const pointers = activeMapPointersRef.current;
+        pointers.delete(event.pointerId);
+        const remainingPointer = [...pointers.entries()][0];
+        if (!remainingPointer) {
+          mapGestureRef.current = null;
+          return;
+        }
+        mapGestureRef.current = {
+          type: 'pan',
+          pointerId: remainingPointer[0],
+          startX: remainingPointer[1].x,
+          startY: remainingPointer[1].y,
+          startTransform: mapTransform
+        };
+      };
+
+      useEffect(() => {
+        if (isWalkingAnimationActive) {
           lastMapOriginRef.current = null;
           setMapOrigin(DELIVERY_ROUTE_START);
           return;
@@ -11533,10 +11763,7 @@
           const progress = Math.max(0, Math.min(1, (Date.now() - walkingStartedAt) / DELIVERY_DURATION_MS));
           const position = getWalkingRoutePosition(progress, walkingRoutePoints);
           const character = walkingCharacterRef.current;
-          if (character) {
-            character.style.left = `${position.x}%`;
-            character.style.top = `${position.y}%`;
-          }
+          setWalkingCharacterPosition(character, position);
           if (progress < 1) animationFrame = window.requestAnimationFrame(updatePosition);
         };
         updatePosition();
@@ -11544,27 +11771,63 @@
       }, [isGpsLocationActive, isWalkingAnimationActive, walkingStartedAt]);
 
       useEffect(() => {
-        if (!gpsLocation) return undefined;
+        if (!gpsLocation) {
+          window.cancelAnimationFrame(gpsAnimationFrameRef.current);
+          gpsPositionRef.current = null;
+          return undefined;
+        }
+        const animateToPosition = (targetPosition) => {
+          const character = walkingCharacterRef.current;
+          if (!character) return;
+          window.cancelAnimationFrame(gpsAnimationFrameRef.current);
+          const parsedX = Number.parseFloat(character.style.left);
+          const parsedY = Number.parseFloat(character.style.top);
+          const startPosition = gpsPositionRef.current || {
+            x: Number.isFinite(parsedX) ? parsedX : walkingRoutePoints[0].x,
+            y: Number.isFinite(parsedY) ? parsedY : walkingRoutePoints[0].y,
+            angle: targetPosition.angle
+          };
+          const angleDelta = ((targetPosition.angle - startPosition.angle + 540) % 360) - 180;
+          const startedAt = performance.now();
+          const updatePosition = (now) => {
+            const progress = Math.min(1, (now - startedAt) / 800);
+            const position = {
+              x: startPosition.x + (targetPosition.x - startPosition.x) * progress,
+              y: startPosition.y + (targetPosition.y - startPosition.y) * progress,
+              angle: startPosition.angle + angleDelta * progress
+            };
+            setWalkingCharacterPosition(character, position);
+            gpsPositionRef.current = position;
+            if (progress < 1) gpsAnimationFrameRef.current = window.requestAnimationFrame(updatePosition);
+          };
+          gpsAnimationFrameRef.current = window.requestAnimationFrame(updatePosition);
+        };
         const updateGpsPosition = () => {
           const map = mapContainerRef.current;
-          const character = walkingCharacterRef.current;
-          if (!map || !character) return;
+          if (!map) return;
           const bounds = map.getBoundingClientRect();
-          const position = getWalkingGpsPosition(
+          const gpsPosition = getWalkingGpsPosition(
             gpsLocation,
             mapOrigin,
             DELIVERY_ROUTE_END,
             bounds.width,
             bounds.height
           );
-          if (!position) return;
-          character.style.left = `${position.x}%`;
-          character.style.top = `${position.y}%`;
+          const position = getClosestWalkingRoutePosition(
+            gpsPosition,
+            walkingRoutePoints,
+            bounds.width,
+            bounds.height
+          );
+          if (position) animateToPosition(position);
         };
         updateGpsPosition();
         window.addEventListener('resize', updateGpsPosition);
-        return () => window.removeEventListener('resize', updateGpsPosition);
-      }, [gpsLocation, mapOrigin]);
+        return () => {
+          window.removeEventListener('resize', updateGpsPosition);
+          window.cancelAnimationFrame(gpsAnimationFrameRef.current);
+        };
+      }, [gpsLocation, mapOrigin, walkingRoutePoints]);
 
       const mapUrl = new URL('https://www.google.com/maps');
       mapUrl.searchParams.set('output', 'embed');
@@ -11579,30 +11842,72 @@
       directionsUrl.searchParams.set('origin', `${mapOrigin[0]},${mapOrigin[1]}`);
       directionsUrl.searchParams.set('destination', `${DELIVERY_ROUTE_END[0]},${DELIVERY_ROUTE_END[1]}`);
       directionsUrl.searchParams.set('travelmode', 'walking');
+      const mapTransformStyle = `translate3d(${mapTransform.x}px, ${mapTransform.y}px, 0) scale(${mapTransform.scale}) rotate(${mapTransform.rotation}deg)`;
       return (
-        <div ref={mapContainerRef} className={`live-route-map ${className}${isMapInteractionLocked ? ' walking-route-locked' : ''}`}>
-          <iframe
-            className="live-route-map-frame"
-            src={mapUrl.toString()}
-            title={label}
-            loading="eager"
-            referrerPolicy="strict-origin-when-cross-origin"
-            tabIndex={isMapInteractionLocked ? -1 : undefined}
-            allowFullScreen
-            onError={() => {
-              console.error('Google Maps no pudo cargar el mapa de seguimiento.');
-              setMapError(true);
-            }}
-          />
-          {isWalkingAnimationActive && (
-            <img
-              ref={walkingCharacterRef}
-              className="walking-route-character"
-              src="/caminante-ruta.png"
-              alt="Repartidor caminando por la ruta hacia la entrega"
-              style={{ left: `${walkingRoutePoints[0].x}%`, top: `${walkingRoutePoints[0].y}%` }}
+        <div ref={mapContainerRef} className={`live-route-map ${className}`}>
+          <div className="live-route-map-layer" style={{ transform: mapTransformStyle }}>
+            <iframe
+              className="live-route-map-frame"
+              src={mapUrl.toString()}
+              title={label}
+              loading="eager"
+              referrerPolicy="strict-origin-when-cross-origin"
+              tabIndex={-1}
+              allowFullScreen
+              onError={() => {
+                console.error('Google Maps no pudo cargar el mapa de seguimiento.');
+                setMapError(true);
+              }}
             />
-          )}
+            {isWalkingAnimationActive && (
+              <svg className="walking-route-guide" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <polyline
+                  points={walkingRoutePoints.map((point) => `${point.x},${point.y}`).join(' ')}
+                  fill="none"
+                  stroke="#4285F4"
+                  strokeWidth="0.8"
+                  strokeDasharray="0.2 1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {walkingRoutePoints.map((point, index) => (
+                  <circle key={`${point.x}-${point.y}-${index}`} cx={point.x} cy={point.y} r="0.8" fill="#4285F4" stroke="#fff" strokeWidth="0.25" />
+                ))}
+              </svg>
+            )}
+            {isWalkingAnimationActive && (
+              <video
+                ref={walkingCharacterRef}
+                className="walking-route-character"
+                src="/repartidor-caminando-sticker.mp4"
+                poster="/caminante-ruta.png"
+                role="img"
+                aria-label="Repartidor caminando por la ruta hacia la entrega"
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="metadata"
+                onError={() => console.error('No se pudo cargar el sticker animado del repartidor.')}
+                style={{ left: `${walkingRoutePoints[0].x}%`, top: `${walkingRoutePoints[0].y}%` }}
+              />
+            )}
+          </div>
+          <div
+            ref={mapGestureLayerRef}
+            className="live-route-map-gesture-layer"
+            aria-label="Arrastra para mover el mapa; usa la rueda o dos dedos para acercar y girar"
+            onPointerDown={handleMapPointerDown}
+            onPointerMove={handleMapPointerMove}
+            onPointerUp={handleMapPointerUp}
+            onPointerCancel={handleMapPointerUp}
+          />
+          <div className="live-route-map-controls" role="group" aria-label="Controles del mapa">
+            <button type="button" aria-label="Acercar mapa" onClick={() => setMapTransform((current) => ({ ...current, scale: Math.min(3, current.scale * 1.2) }))}>+</button>
+            <button type="button" aria-label="Alejar mapa" onClick={() => setMapTransform((current) => ({ ...current, scale: Math.max(0.75, current.scale / 1.2) }))}>−</button>
+            <button type="button" aria-label="Girar mapa" onClick={() => setMapTransform((current) => ({ ...current, rotation: current.rotation + 15 }))}>↻</button>
+            <button type="button" aria-label="Restablecer mapa" onClick={() => setMapTransform({ x: 0, y: 0, scale: 1, rotation: 0 })}>↺</button>
+          </div>
           <span className="live-route-map-status" role="status">
             {isGpsLocationActive
               ? `GPS en vivo · ±${Math.round(gpsLocation.accuracy || 0)} m`

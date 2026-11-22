@@ -598,6 +598,22 @@ test('serves the walking order received animation as a public video asset', asyn
   assert.deepEqual(Buffer.from(await response.arrayBuffer()), video.subarray(0, 32));
 });
 
+test('serves the walking map sticker as a public video asset', async (t) => {
+  const testDataDir = await createReelsTestDirectory();
+  const server = await createReelsTestServer(t, testDataDir);
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const video = await readFile(new URL('./repartidor-caminando-sticker.mp4', import.meta.url));
+  const response = await fetch(`${baseUrl}/repartidor-caminando-sticker.mp4`, {
+    headers: { Range: 'bytes=0-31' }
+  });
+
+  assert.equal(response.status, 206);
+  assert.equal(response.headers.get('content-type'), 'video/mp4');
+  assert.equal(response.headers.get('accept-ranges'), 'bytes');
+  assert.equal(response.headers.get('content-range'), `bytes 0-31/${video.length}`);
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), video.subarray(0, 32));
+});
+
 test('serves the transparent looping walking route character as an APNG image', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
@@ -1169,17 +1185,53 @@ test('animates the walking rider from the first blue point through the route to 
     300
   );
   assert.ok(originPosition.y > destinationPosition.y, 'GPS projection should move north as the rider approaches the destination');
+  const routeHelpersStart = html.indexOf('function calcularAngulo(');
+  const routeHelpersEnd = html.indexOf('function getWalkingGpsPosition(', routeHelpersStart);
+  assert.ok(routeHelpersStart >= 0 && routeHelpersEnd > routeHelpersStart, 'walking route helpers should be defined');
+  const routeHelpers = html.slice(routeHelpersStart, routeHelpersEnd);
+  const { getClosestWalkingRoutePosition, getWalkingRoutePosition } = vm.runInNewContext(
+    `(() => { ${routeHelpers}; return { getClosestWalkingRoutePosition, getWalkingRoutePosition }; })()`
+  );
+  assert.deepEqual(
+    { ...getClosestWalkingRoutePosition({ x: 4, y: 3 }, [{ x: 0, y: 0 }, { x: 10, y: 0 }], 100, 100) },
+    { x: 4, y: 0, angle: 0 },
+    'GPS positions should snap to the nearest point on the blue route segment'
+  );
+  assert.deepEqual(
+    { ...getWalkingRoutePosition(0.5, [{ x: 0, y: 0 }, { x: 10, y: 0 }]) },
+    { x: 5, y: 0, angle: 0 },
+    'the simulated sticker should interpolate and face along the active segment'
+  );
   assert.match(html, /if \(isGpsLocationActive\) return undefined;/);
   assert.match(html, /getWalkingGpsPosition\(\s*gpsLocation,\s*mapOrigin,\s*DELIVERY_ROUTE_END,\s*bounds\.width,\s*bounds\.height\s*\)/);
+  assert.match(html, /getClosestWalkingRoutePosition\(\s*gpsPosition,\s*walkingRoutePoints,\s*bounds\.width,\s*bounds\.height\s*\)/);
   assert.match(html, /style=\{\{ left: `\$\{walkingRoutePoints\[0\]\.x\}%`, top: `\$\{walkingRoutePoints\[0\]\.y\}%` \}\}/);
   assert.match(html, /walkingStartedAt=\{deliveryPhase === 'tracking' && assignedRider\?\.vehicle === 'Caminando'\s*\? deliveryStartedAtRef\.current\s*: null\}/);
   assert.match(html, /walking-route-character/);
+  assert.match(html, /src="\/repartidor-caminando-sticker\.mp4"/);
+  assert.match(html, /\{isWalkingAnimationActive && \(\s*<video/);
   assert.match(html, /window\.requestAnimationFrame\(updatePosition\)/);
   assert.match(html, /window\.cancelAnimationFrame\(animationFrame\)/);
   assert.doesNotMatch(html, /setInterval\(updateProgress,\s*1000\)/);
-  assert.match(html, /\.walking-route-locked\s+\.live-route-map-frame\s*\{\s*pointer-events:\s*none;/);
-  assert.match(html, /isMapInteractionLocked\s*\?\s*' walking-route-locked'/);
-  assert.match(html, /tabIndex=\{isMapInteractionLocked \? -1 : undefined\}/);
+  assert.match(html, /\.live-route-map-frame\s*\{[^}]*pointer-events:\s*none;/);
+  assert.match(html, /className="live-route-map-layer" style=\{\{ transform: mapTransformStyle \}\}/);
+  assert.match(html, /className="walking-route-guide"/);
+  assert.match(html, /className="live-route-map-gesture-layer"/);
+  const mapLayerStart = html.indexOf('<div className="live-route-map-layer"');
+  const gestureLayerStart = html.indexOf('ref={mapGestureLayerRef}', mapLayerStart);
+  assert.ok(mapLayerStart >= 0 && gestureLayerStart > mapLayerStart, 'the shared map layer should wrap the map and walking overlay');
+  const synchronizedMapLayer = html.slice(mapLayerStart, gestureLayerStart);
+  for (const element of ['className="live-route-map-frame"', 'className="walking-route-guide"', 'src="/repartidor-caminando-sticker.mp4"']) {
+    assert.ok(synchronizedMapLayer.includes(element), `${element} should transform with the iframe`);
+  }
+  assert.match(html, /addEventListener\('wheel', handleWheel, \{ passive: false \}\)/);
+  assert.match(html, /onPointerDown=\{handleMapPointerDown\}/);
+  assert.match(html, /onPointerMove=\{handleMapPointerMove\}/);
+  assert.match(html, /onPointerUp=\{handleMapPointerUp\}/);
+  assert.match(html, /aria-label="Acercar mapa"/);
+  assert.match(html, /aria-label="Girar mapa"/);
+  assert.match(html, /transform-origin:\s*50% 50%/);
+  assert.doesNotMatch(html, /isMapInteractionLocked|walking-route-locked/);
   assert.match(html, /Ruta fija a pie · 5 min/);
   assert.match(html, /allowMapInteraction \? 'Ruta a pie · 5 min' : 'Ruta fija a pie · 5 min'/);
   assert.match(html, /function LiveRouteMap\(\{\s*location,\s*className,\s*label,\s*walkingStartedAt = null,\s*allowMapInteraction = false,\s*walkingRoutePoints = WALKING_ROUTE_POINTS,\s*gpsLocation = null\s*\}\)/);
