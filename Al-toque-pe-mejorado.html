@@ -2679,8 +2679,6 @@
       z-index: 3;
       width: clamp(34px, 12%, 48px);
       height: auto;
-      background: transparent;
-      object-fit: contain;
       pointer-events: none;
       transform: translate(-50%, -50%);
       transform-origin: 50% 50%;
@@ -2688,6 +2686,8 @@
     }
     .delivery-map .walking-route-character {
       width: clamp(56px, 16%, 70px);
+      background: transparent;
+      object-fit: contain;
     }
     .rider-map .walking-route-character {
       width: clamp(56px, 16%, 70px);
@@ -12075,13 +12075,30 @@
                 ))}
               </svg>
             )}
-            {isWalkingAnimationActive && !isPeruMap && (
+            {isWalkingAnimationActive && !isPeruMap && mapProvider === 'openstreetmap' && (
               <img
                 ref={walkingCharacterRef}
                 className="walking-route-character"
                 src="/caminante-ruta.png"
                 alt="Repartidor caminando por la ruta hacia la entrega"
                 draggable="false"
+                style={{ left: `${walkingRoutePoints[0].x}%`, top: `${walkingRoutePoints[0].y}%` }}
+              />
+            )}
+            {isWalkingAnimationActive && mapProvider !== 'openstreetmap' && (
+              <video
+                ref={walkingCharacterRef}
+                className="walking-route-character"
+                src="/repartidor-caminando-sticker.mp4"
+                poster="/caminante-ruta.png"
+                role="img"
+                aria-label="Repartidor caminando por la ruta hacia la entrega"
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="metadata"
+                onError={() => console.error('No se pudo cargar el sticker animado del repartidor.')}
                 style={{ left: `${walkingRoutePoints[0].x}%`, top: `${walkingRoutePoints[0].y}%` }}
               />
             )}

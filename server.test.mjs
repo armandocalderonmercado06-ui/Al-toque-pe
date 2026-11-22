@@ -1173,8 +1173,8 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.match(html, /href=\{isPeruMap \? OPENSTREETMAP_PERU_URL : OPENSTREETMAP_WAY_URL\}/);
   assert.match(html, /const OPENSTREETMAP_PERU_URL = 'https:\/\/www\.openstreetmap\.org\/#map=4\/-9\.19\/-75\.015'/);
   assert.match(html, /const isWalkingRouteVisible = \(isWalkingAnimationActive \|\| mapProvider === 'openstreetmap'\) && !isPeruMap/);
-  assert.match(html, /isWalkingAnimationActive && !isPeruMap && \(\s*<img/);
-  assert.match(html, /\.walking-route-character\s*\{[\s\S]*?background:\s*transparent;/);
+  assert.match(html, /isWalkingAnimationActive && !isPeruMap && mapProvider === 'openstreetmap' && \(\s*<img/);
+  assert.match(html, /\.delivery-map \.walking-route-character\s*\{[^}]*background:\s*transparent;/);
   assert.match(html, /className="osm-route-tile"/);
   assert.match(html, /className="live-route-map-attribution"/);
   assert.match(html, /className="live-route-map-license"/);
@@ -1254,7 +1254,9 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   assert.match(html.slice(customerMapStart, customerMapEnd), /mapProvider="openstreetmap"/);
   assert.match(html, /walking-route-character/);
   assert.match(html, /src="\/caminante-ruta\.png"/);
-  assert.match(html, /\{isWalkingAnimationActive && !isPeruMap && \(\s*<img/);
+  assert.match(html, /src="\/repartidor-caminando-sticker\.mp4"/);
+  assert.match(html, /\{isWalkingAnimationActive && !isPeruMap && mapProvider === 'openstreetmap' && \(\s*<img/);
+  assert.match(html, /\{isWalkingAnimationActive && mapProvider !== 'openstreetmap' && \(\s*<video/);
   assert.match(html, /window\.requestAnimationFrame\(updatePosition\)/);
   assert.match(html, /window\.cancelAnimationFrame\(animationFrame\)/);
   assert.doesNotMatch(html, /setInterval\(updateProgress,\s*1000\)/);
@@ -1267,7 +1269,7 @@ test('uses the customer OpenStreetMap route and animates the walking rider to th
   const gestureLayerStart = html.indexOf('ref={mapGestureLayerRef}', mapLayerStart);
   assert.ok(mapLayerStart >= 0 && gestureLayerStart > mapLayerStart, 'the shared map layer should wrap the map and walking overlay');
   const synchronizedMapLayer = html.slice(mapLayerStart, gestureLayerStart);
-  for (const element of ['className="osm-route-tiles"', 'className="live-route-map-frame"', 'className="walking-route-guide"', 'src="/caminante-ruta.png"']) {
+  for (const element of ['className="osm-route-tiles"', 'className="live-route-map-frame"', 'className="walking-route-guide"', 'src="/caminante-ruta.png"', 'src="/repartidor-caminando-sticker.mp4"']) {
     assert.ok(synchronizedMapLayer.includes(element), `${element} should transform with the route layer`);
   }
   assert.match(html, /addEventListener\('wheel', handleWheel, \{ passive: false \}\)/);
