@@ -13494,6 +13494,8 @@
               {orderSubmitError && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-left text-[11px] text-red-700" role="alert">{orderSubmitError}</p>}
               <button onClick={paymentMethod === 'tarjeta' && !isBembosDemoOnly ? () => {
                 setOrderSubmitError('');
+                if (contentRef.current) contentRef.current.scrollTop = 0;
+                window.scrollTo(0, 0);
                 setIsCardCheckoutOpen(true);
               } : handleConfirmOrder} disabled={isSubmittingOrder || isRedirecting || hasMixedProviders || hasInvalidGorritosMix} className="w-full bg-brand text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-lg active:scale-98 transition disabled:opacity-60">
                 <span>
