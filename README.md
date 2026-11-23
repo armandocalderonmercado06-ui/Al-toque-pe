@@ -74,14 +74,19 @@ Configura estas variables en el servidor:
   enviar confirmaciones por Gmail OAuth.
 - `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` y `GMAIL_USER`:
   credenciales opcionales para el proveedor Gmail.
-- `DEEPAI_API_KEY`: clave privada de DeepAI. Se envía solo desde el servidor al
-  endpoint de generación de texto y nunca al navegador.
-- ChatGPT, Copilot y Gemini usan DeepAI con sus instrucciones de perfil y el
-  contexto reciente de conversación. La API pública actual de DeepAI no documenta
-  chat, análisis de imágenes ni búsqueda web; la integración de texto usa el
-  endpoint `text-generator` y debe verificarse con la cuenta de Render. Las
-  imágenes y las preguntas que requieren información web actual no se procesan
-  con esas capacidades.
+- `OLLAMA_BASE_URL`: endpoint de Ollama. Para Ollama Cloud usa
+  `https://ollama.com` (el servidor agrega `/api/chat`).
+- `OLLAMA_API_KEY`: clave privada de Ollama Cloud. Por compatibilidad, también
+  se acepta temporalmente el nombre anterior `API_OLLAMA`.
+- `OLLAMA_MODEL` y `OLLAMA_VISION_MODEL`: modelos de texto y visión. Render usa
+  `gemma4:31b` para ambos, un modelo Cloud listado por Ollama con capacidades de
+  texto y visión. Los tags pequeños como `llama3.2:3b` y `qwen3.5:2b` son
+  modelos descargables/locales y no aparecen en el catálogo de la API Cloud.
+- Los perfiles ChatGPT y Gemini usan Ollama. Para preguntas actuales o complejas,
+  Ollama consulta su API oficial de búsqueda web (`/api/web_search`) con la misma
+  `OLLAMA_API_KEY` y presenta las fuentes en el chat. La búsqueda requiere una
+  cuenta y clave API de Ollama Cloud. Copilot puede seguir usando OpenAI para
+  búsquedas web si configuras `OPENAI_API_KEY`.
 
 El plan gratuito de Supabase tiene límites de base de datos y archivos; consulta
 https://supabase.com/pricing. Los videos se limitan a 50 MiB para ajustarse al
@@ -92,9 +97,9 @@ límite del bucket gratuito definido en `supabase/schema.sql`.
 `render.yaml` configura un servicio web Free sin disco persistente y usa
 Supabase para conservar pedidos y Reels. Al crear el Blueprint, Render pedirá
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REELS_DELETE_PASSWORD`,
-`HUBSPOT_ACCESS_TOKEN`, `HUBSPOT_SUBSCRIPTION_ID` y `DEEPAI_API_KEY`; ingresa
+`HUBSPOT_ACCESS_TOKEN`, `HUBSPOT_SUBSCRIPTION_ID` y `OLLAMA_API_KEY`; ingresa
 los valores directamente en Render. No los compartas por chat ni los guardes en
-Git.
+Git. Para el servicio existente, configura `OLLAMA_BASE_URL=https://ollama.com`.
 
 Render Free puede dormir cuando no recibe tráfico y los proyectos gratuitos de
 Supabase pueden pausarse tras una semana sin actividad. Los historiales y
