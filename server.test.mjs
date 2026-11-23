@@ -2130,6 +2130,10 @@ test('uses one OpenAI-backed assistant with three distinct response personas', (
   assert.equal(new Set(personas).size, 3);
   assert.match(getAssistantPersona('Copilot'), /práctico/);
   assert.match(getAssistantPersona('Gemini'), /creativo/);
+  assert.match(getAssistantPersona('ChatGPT'), /criterio de Botpress/);
+  assert.match(getAssistantPersona('Gemini'), /criterio de Botpress/);
+  assert.doesNotMatch(getAssistantPersona('Copilot'), /Botpress/);
+  assert.match(getAssistantPersona('Gemini'), /No inventes stock, horarios, estados de pedidos/);
 
   const response = 'El Jugo de Maracuyá cuesta S/3.50.';
   const styles = ['ChatGPT', 'Copilot', 'Gemini'].map((provider) => styleLocalAnswer(response, provider));

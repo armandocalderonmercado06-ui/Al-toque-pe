@@ -247,6 +247,7 @@ const LOCAL_MENU_INTENT_TERMS = /\b(recomiend\w*|recomend\w*|quiero|busco|antojo
 const WEB_SEARCH_TERMS = /\b(actual|actualmente|ahora|reciente|recientemente|ultimo|ultima|ultimos|ultimas|noticia|noticias|202[4-9]|203\d|fecha de|precio actual|cotizacion|tipo de cambio|clima|pronostico|resultado|resultados|quien gano|quien es el presidente|fuente|fuentes|cita|citas|investiga|investigacion|evidencia|estudio|estudios|paper|papers|ley vigente|reglamento vigente|actualizacion)\b/;
 const COMPLEX_QUESTION_TERMS = /\b(por que|como funciona|explica|explicame|compara|comparacion|diferencia|diferencias|analiza|analisis|evalua|evaluacion|impacto|causa|causas|consecuencia|consecuencias|ventaja|ventajas|desventaja|desventajas|paso a paso|en profundidad|profundiza|argumenta|demuestra|resuelve|calcula|interpreta|relacion entre|que implicaciones|cual es mejor|recomiendame una estrategia|origen|historia|receta|calorias|nutricion|salud|preparacion|significado)\b/;
 const SIMPLE_GREETINGS = /^(hola|buenas|buenos dias|buenas tardes|buenas noches|gracias|muchas gracias|ok|okay|listo|chau|adios)[!.? ]*$/;
+const BOTPRESS_ALTOQUE_GUIDANCE = 'Para preguntas sobre Al Toque, guíate también por el criterio de Botpress: responde con amabilidad y brevedad; recomienda productos reales del menú según la preferencia, presupuesto o tiempo del cliente; usa solo precios, ingredientes y tiempos presentes en el contexto. No inventes stock, horarios, estados de pedidos ni acciones realizadas; si hace falta confirmarlo, deriva al comedor o al equipo de soporte.';
 const ASSISTANT_PERSONAS = {
   ChatGPT: 'Estilo ChatGPT: conversacional, equilibrado y claro. Explica con naturalidad y pregunta solo si falta un dato importante.',
   Copilot: 'Estilo Copilot: práctico y orientado a la acción. Organiza la respuesta en pasos o puntos cuando ayude, y termina con una recomendación concreta.',
@@ -254,7 +255,10 @@ const ASSISTANT_PERSONAS = {
 };
 
 export function getAssistantPersona(provider) {
-  return ASSISTANT_PERSONAS[provider] || ASSISTANT_PERSONAS.ChatGPT;
+  const persona = ASSISTANT_PERSONAS[provider] || ASSISTANT_PERSONAS.ChatGPT;
+  return provider === 'ChatGPT' || provider === 'Gemini'
+    ? `${persona} ${BOTPRESS_ALTOQUE_GUIDANCE}`
+    : persona;
 }
 
 export function styleLocalAnswer(reply, provider) {
