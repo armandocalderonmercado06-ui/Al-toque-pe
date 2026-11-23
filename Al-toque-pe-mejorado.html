@@ -891,6 +891,23 @@
       0%, 100% { transform: translateY(-50%) rotate(-2deg) scale(1); }
       50% { transform: translateY(calc(-50% - 5px)) rotate(3deg) scale(1.035); }
     }
+    .payment-globe-button--yape {
+      justify-content: flex-start !important;
+      padding-left: 50px !important;
+    }
+    .payment-globe-button--yape .payment-globe-art {
+      left: -4px;
+      right: auto;
+      top: 50%;
+      z-index: 2;
+      transform: translateY(-50%);
+      mix-blend-mode: multiply;
+      animation: yapeGloboFloat 2.8s ease-in-out infinite;
+    }
+    @keyframes yapeGloboFloat {
+      0%, 100% { transform: translateY(-50%) rotate(-2deg) scale(1); }
+      50% { transform: translateY(calc(-50% - 5px)) rotate(3deg) scale(1.035); }
+    }
     @media (prefers-reduced-motion: reduce) {
       .payment-globe-button .payment-globe-art { animation: none; }
     }
@@ -13773,13 +13790,13 @@
                     <button
                       key={method.id}
                       onClick={() => setPaymentMethod(method.id)}
-                      className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${['yape', 'plin', 'tarjeta'].includes(method.id) ? 'payment-globe-button' : ''} ${method.id === 'tarjeta' ? 'payment-globe-button--cards' : ''} ${
+                      className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${['yape', 'plin', 'tarjeta'].includes(method.id) ? 'payment-globe-button' : ''} ${method.id === 'yape' ? 'payment-globe-button--yape' : ''} ${method.id === 'tarjeta' ? 'payment-globe-button--cards' : ''} ${
                         paymentMethod === method.id ? 'border-brand bg-brand/5 text-brand font-bold' : 'border-gray-200 bg-white text-gray-600'
                       }`}
                     >
                       {['yape', 'plin', 'tarjeta'].includes(method.id) ? (
                         <img
-                          src={method.id === 'yape' ? 'yape-globo.png?v=2' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjetas-bancos.png?v=3'}
+                          src={method.id === 'yape' ? 'https://raw.githubusercontent.com/armandoteofilocalderonmercado-lgtm/Al-toque-pe-Tablet-/main/yape-globo.jpg' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjetas-bancos.png?v=3'}
                           alt=""
                           aria-hidden="true"
                           className="payment-globe-art"
