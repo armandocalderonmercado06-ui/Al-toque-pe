@@ -10185,9 +10185,12 @@
       const [storageError, setStorageError] = useState(storedChats.error);
       const [historyOpen, setHistoryOpen] = useState(false);
       const [input, setInput] = useState('');
+      const [imageAttachment, setImageAttachment] = useState(null);
+      const [chatImageError, setChatImageError] = useState('');
       const [isTyping, setIsTyping] = useState(false);
       const [foodMode, setFoodMode] = useState(false);
       const chatMessagesRef = useRef(null);
+      const chatImageInputRef = useRef(null);
       const botpressPanelRef = useRef(null);
       const botpressTranscriptSignatureRef = useRef('');
       const botpressRestartInProgressRef = useRef(false);
@@ -10966,15 +10969,58 @@
         return () => clearInterval(timer);
       }, [foodMode]);
 
+      const readImageAsDataUrl = (blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('No se pudo leer la imagen seleccionada.'));
+        reader.readAsDataURL(blob);
+      });
+
+      const handleImageSelection = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+        try {
+          if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+            throw new Error('Selecciona una imagen JPG, PNG o WebP.');
+          }
+          if (file.size > 12_000_000) throw new Error('La imagen original no puede superar 12 MB.');
+          const bitmap = await createImageBitmap(file);
+          let blob;
+          try {
+            const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+            canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('No se pudo preparar la imagen.');
+            context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            blob = await new Promise((resolve, reject) => {
+              canvas.toBlob((result) => result ? resolve(result) : reject(new Error('No se pudo preparar la imagen.')), 'image/jpeg', 0.8);
+            });
+          } finally {
+            bitmap.close();
+          }
+          if (blob.size > 2_000_000) throw new Error('La imagen optimizada supera el límite de 2 MB.');
+          setImageAttachment({ name: file.name, mimeType: 'image/jpeg', data: await readImageAsDataUrl(blob) });
+          setChatImageError('');
+        } catch (error) {
+          setChatImageError(error.message || 'No se pudo preparar la imagen seleccionada.');
+        }
+      };
+
       const handleSend = async (textToSend) => {
-        const text = textToSend || input;
-        if (!text.trim() || isTyping) return;
+        const text = (textToSend || input).trim();
+        const imageToSend = imageAttachment;
+        if ((!text && !imageToSend) || isTyping) return;
 
         const conversationId = activeConversationId;
-        const userMessage = { sender: 'user', text };
+        const userMessage = { sender: 'user', text, ...(imageToSend ? { imageName: imageToSend.name } : {}) };
         const conversationHistory = [...messages, userMessage];
         updateConversationMessages(conversationId, userMessage);
         setInput('');
+        setImageAttachment(null);
+        setChatImageError('');
         setIsTyping(true);
 
         try {
@@ -10985,9 +11031,13 @@
             body: JSON.stringify({
               provider,
               text,
-              history: conversationHistory.slice(-6).map(({ sender, text: messageText }) => ({ sender, text: messageText.slice(-500) })),
+              ...(imageToSend ? { image: imageToSend } : {}),
+              history: conversationHistory.slice(-6).map(({ sender, text: messageText, imageName }) => ({
+                sender,
+                text: (messageText || (imageName ? 'Adjunté una imagen.' : '')).slice(-500)
+              })),
               memory: getLearnedPreferences().slice(-1600),
-              orderHistory: orderHistoryForAI
+              ...(orderHistoryForAI.length > 0 ? { orderHistory: orderHistoryForAI } : {})
             })
           });
           const result = await response.json();
@@ -11025,16 +11075,26 @@
             sources
           });
         } catch (error) {
-          const localFallback = buildLocalFallback(text);
-          updateConversationMessages(conversationId, {
-            sender: 'ai',
-            text: localFallback.text,
-            dish: localFallback.dish,
-            local: true,
-            webSearchUsed: false,
-            persona: provider,
-            engine: 'Al Toque'
-          });
+          if (['ChatGPT', 'Gemini'].includes(provider) || imageToSend) {
+            updateConversationMessages(conversationId, {
+              sender: 'ai',
+              text: error.message || `${provider} no pudo responder. Inténtalo otra vez.`,
+              webSearchUsed: false,
+              persona: provider,
+              engine: 'Error'
+            });
+          } else {
+            const localFallback = buildLocalFallback(text);
+            updateConversationMessages(conversationId, {
+              sender: 'ai',
+              text: localFallback.text,
+              dish: localFallback.dish,
+              local: true,
+              webSearchUsed: false,
+              persona: provider,
+              engine: 'Al Toque'
+            });
+          }
         } finally {
           setIsTyping(false);
         }
@@ -11280,6 +11340,7 @@
                     <div key={idx} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
                       <div className={`p-3 rounded-2xl max-w-[85%] text-xs ${m.sender === 'user' ? 'bg-dark text-white rounded-br-none' : 'bg-cream text-dark rounded-bl-none'}`}>
                         {m.text}
+                        {m.imageName && <span className="mt-1 block text-[10px] opacity-75">Imagen adjunta: {m.imageName}</span>}
                       </div>
                       {m.sender === 'ai' && m.local && (
                         <span className="mt-1 px-1 text-[9px] font-semibold text-green-700">Respuesta basada en el menú local</span>
@@ -11323,13 +11384,36 @@
                   )}
                 </div>
 
+                {imageAttachment && (
+                  <div className="flex items-center gap-2 rounded-xl bg-cream/50 p-2">
+                    <img src={imageAttachment.data} alt="Vista previa de la imagen adjunta" className="h-10 w-10 rounded-lg object-cover" />
+                    <span className="min-w-0 flex-1 truncate text-[10px] text-gray-600">{imageAttachment.name}</span>
+                    <button type="button" onClick={() => setImageAttachment(null)} aria-label="Quitar imagen adjunta" className="rounded-full px-2 py-1 text-xs text-gray-500">×</button>
+                  </div>
+                )}
+                {chatImageError && <p role="alert" className="text-[10px] text-red-600">{chatImageError}</p>}
                 <div className="flex items-center space-x-2 pt-2 border-t border-gray-100">
+                  <input
+                    ref={chatImageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleImageSelection}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => chatImageInputRef.current?.click()}
+                    aria-label="Adjuntar imagen"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cream text-dark"
+                  >
+                    <i data-lucide="image" className="h-4 w-4"></i>
+                  </button>
                   <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                    placeholder="Escribe tu antojo o presupuesto..."
+                    placeholder={imageAttachment ? 'Pregunta sobre la imagen...' : 'Escribe tu antojo o presupuesto...'}
                     className="flex-1 bg-cream/50 border border-cream rounded-2xl px-3.5 py-2 text-xs focus:outline-none focus:border-brand"
                   />
                   <button onClick={() => handleSend()} aria-label="Enviar mensaje" className="w-9 h-9 bg-cream rounded-full flex items-center justify-center text-dark font-bold hover:bg-yellow-accent transition">
