@@ -10189,6 +10189,9 @@
       const [foodMode, setFoodMode] = useState(false);
       const chatMessagesRef = useRef(null);
       const botpressPanelRef = useRef(null);
+      const botpressWebSearchFramesRef = useRef(new Map());
+      const botpressWebSearchPendingRef = useRef(new Map());
+      const botpressWebSearchRequestsRef = useRef(new Map());
       const botpressTranscriptSignatureRef = useRef('');
       const botpressRestartInProgressRef = useRef(false);
       const botpressArchiveSelectionRef = useRef(false);
@@ -10201,6 +10204,12 @@
         && activeConversation.botpressConversationId !== botpressLiveConversationId;
       const botpressArchiveRef = useRef(isBotpressArchive);
       botpressArchiveRef.current = isBotpressArchive;
+
+      useEffect(() => () => {
+        botpressWebSearchRequestsRef.current.forEach((cancel) => cancel(new Error('Se cerró la conversación.')));
+        botpressWebSearchFramesRef.current.forEach((frame) => frame.remove());
+        botpressWebSearchFramesRef.current.clear();
+      }, []);
 
       useEffect(() => {
         if (provider !== 'Botpress') {
@@ -10717,6 +10726,128 @@
         .join('\n')
         .slice(-3500);
 
+      const getBotpressWebSearchFrame = (searchProvider) => {
+        let frame = botpressWebSearchFramesRef.current.get(searchProvider);
+        if (frame) return frame;
+
+        frame = document.createElement('iframe');
+        frame.title = `Búsqueda web aislada para ${searchProvider}`;
+        frame.setAttribute('aria-hidden', 'true');
+        frame.tabIndex = -1;
+        frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:390px;height:700px;border:0;opacity:0;pointer-events:none;';
+        frame.srcdoc = `<!doctype html>
+          <html lang="es">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width,initial-scale=1">
+              <script src="https://cdn.botpress.cloud/webchat/v5.0/inject.js"><\/script>
+              <script>
+                window.botpress.init({
+                  botId: '05d38ce8-6b72-4b24-9fef-1df5c1e04631',
+                  clientId: '57d0986f-3d99-4c76-aed2-18ada88a6d30',
+                  storageKey: 'altoque-${searchProvider.toLowerCase()}-web-search-v1',
+                  configuration: {
+                    version: 'v2',
+                    botName: 'Al toque pe',
+                    conversationHistory: true,
+                    feedbackEnabled: false,
+                    soundEnabled: false,
+                    allowFileUpload: false,
+                    citationsEnabled: true
+                  }
+                });
+              <\/script>
+            </head>
+            <body></body>
+          </html>`;
+        document.body.appendChild(frame);
+        botpressWebSearchFramesRef.current.set(searchProvider, frame);
+        return frame;
+      };
+
+      const askBotpressWebSearch = (question, searchProvider) => new Promise((resolve, reject) => {
+        const frame = getBotpressWebSearchFrame(searchProvider);
+        let pollTimer;
+        let initializeTimer;
+        let responseTimer;
+        let settleTimer;
+        let settled = false;
+        const finish = (error, answer = '') => {
+          if (settled) return;
+          settled = true;
+          window.clearInterval(pollTimer);
+          window.clearTimeout(initializeTimer);
+          window.clearTimeout(responseTimer);
+          window.clearTimeout(settleTimer);
+          if (botpressWebSearchPendingRef.current.get(searchProvider)?.finish === finish) {
+            botpressWebSearchPendingRef.current.delete(searchProvider);
+          }
+          if (botpressWebSearchRequestsRef.current.get(searchProvider) === cancel) {
+            botpressWebSearchRequestsRef.current.delete(searchProvider);
+          }
+          if (error) {
+            reject(error);
+            return;
+          }
+          const reply = answer.trim();
+          if (!reply) {
+            reject(new Error('Botpress no devolvió una respuesta de búsqueda.'));
+            return;
+          }
+          const sources = [...new Set([...reply.matchAll(/https?:\/\/[^\s<>"'`]+/g)]
+            .map(([url]) => url.replace(/[),.;!?]+$/, ''))
+            .filter((url) => {
+              try {
+                return ['http:', 'https:'].includes(new URL(url).protocol);
+              } catch {
+                return false;
+              }
+            }))]
+            .slice(0, 5)
+            .map((url) => ({ title: new URL(url).hostname, url }));
+          resolve({ reply, sources });
+        };
+        const cancel = (error) => finish(error);
+        botpressWebSearchRequestsRef.current.set(searchProvider, cancel);
+
+        initializeTimer = window.setTimeout(() => {
+          finish(new Error('No se pudo conectar con el asistente de búsqueda de Botpress.'));
+        }, 20000);
+
+        pollTimer = window.setInterval(() => {
+          try {
+            const botpress = frame.contentWindow?.botpress;
+            if (!botpress?.initialized) return;
+            botpress.open?.();
+            if (!botpress.conversationId || typeof botpress.sendMessage !== 'function') return;
+            window.clearInterval(pollTimer);
+            window.clearTimeout(initializeTimer);
+            if (!frame.__altoqueWebSearchMessageListener) {
+              botpress.on('message', (message) => {
+                const pending = botpressWebSearchPendingRef.current.get(searchProvider);
+                if (!pending || message.authorId === botpress.user?.id) return;
+                const text = typeof message.block?.text === 'string' ? message.block.text.trim() : '';
+                if (!text) return;
+                pending.messages.push(text);
+                window.clearTimeout(settleTimer);
+                settleTimer = window.setTimeout(
+                  () => pending.finish(null, pending.messages.join('\n\n')),
+                  2500
+                );
+              });
+              frame.__altoqueWebSearchMessageListener = true;
+            }
+            responseTimer = window.setTimeout(() => {
+              finish(new Error('Botpress no respondió a tiempo.'));
+            }, 45000);
+            botpressWebSearchPendingRef.current.set(searchProvider, { messages: [], finish });
+            Promise.resolve(botpress.sendMessage(question)).catch((error) => finish(error));
+          } catch (error) {
+            finish(error);
+          }
+        }, 250);
+      });
+
       const restartBotpressConversation = async () => {
         const botpress = window.botpress;
         if (!botpress?.initialized) {
@@ -10976,6 +11107,7 @@
         updateConversationMessages(conversationId, userMessage);
         setInput('');
         setIsTyping(true);
+        let botpressSearchRequested = false;
 
         try {
           const response = await fetch('/api/chat', {
@@ -10992,6 +11124,13 @@
           });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || `${provider} no pudo responder. Inténtalo otra vez.`);
+          if (result.handoffToBotpress === true) {
+            botpressSearchRequested = true;
+            const searchAnswer = await askBotpressWebSearch(text, provider);
+            result.reply = searchAnswer.reply;
+            result.sources = searchAnswer.sources;
+            result.engine = 'Botpress Web Search';
+          }
 
           const recommendedDish = INITIAL_MENU.find((item) => item.id === result.dishId);
           const dishMatchesIntent = result.intent === 'ninguna'
@@ -11025,6 +11164,18 @@
             sources
           });
         } catch (error) {
+          if (botpressSearchRequested) {
+            console.error('No se pudo completar la búsqueda web con Botpress:', error);
+            updateConversationMessages(conversationId, {
+              sender: 'ai',
+              text: 'No pude consultar internet en este momento porque Botpress no respondió. Inténtalo nuevamente más tarde.',
+              webSearchUsed: false,
+              engine: 'Botpress Web Search',
+              persona: provider,
+              error: true
+            });
+            return;
+          }
           const localFallback = buildLocalFallback(text);
           updateConversationMessages(conversationId, {
             sender: 'ai',
@@ -11278,9 +11429,12 @@
                   )}
                   {messages.map((m, idx) => (
                     <div key={idx} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                      <div className={`p-3 rounded-2xl max-w-[85%] text-xs ${m.sender === 'user' ? 'bg-dark text-white rounded-br-none' : 'bg-cream text-dark rounded-bl-none'}`}>
+                      <div className={`p-3 rounded-2xl max-w-[85%] text-xs ${m.sender === 'user' ? 'bg-dark text-white rounded-br-none' : m.error ? 'border border-red-200 bg-red-50 text-red-800 rounded-bl-none' : 'bg-cream text-dark rounded-bl-none'}`}>
                         {m.text}
                       </div>
+                      {m.sender === 'ai' && m.error && (
+                        <span className="mt-1 px-1 text-[9px] font-semibold text-red-700">Búsqueda web no disponible</span>
+                      )}
                       {m.sender === 'ai' && m.local && (
                         <span className="mt-1 px-1 text-[9px] font-semibold text-green-700">Respuesta basada en el menú local</span>
                       )}
