@@ -455,6 +455,9 @@ async function upstreamJson(url, options, providerName, fetchImpl = fetch, timeo
     if (response.status === 429) {
       throw new Error(`${providerName} rechazó la solicitud por límite de uso o cuota. Revisa los límites, el saldo y la facturación de tu cuenta API; si solo es un límite temporal, espera un momento y vuelve a intentarlo.`);
     }
+    if (response.status === 402) {
+      throw new Error(`${providerName} respondió 402: se requiere pago o saldo disponible. Revisa el plan, el saldo y el estado de facturación de tu cuenta.`);
+    }
     throw new Error(message ? `${providerName}: ${message}` : `${providerName} respondió con el error ${response.status}.`);
   }
   return payload;
