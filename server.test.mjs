@@ -2137,7 +2137,7 @@ test('uses three distinct assistant response personas', () => {
   assert.ok(styles.every((style) => style.includes(response)));
 });
 
-test('routes ChatGPT and Gemini through Ollama search and vision', async (t) => {
+test('routes Gemini to authenticated Ollama and uses the vision model for images', async (t) => {
   const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-ollama-chat-test-'));
   const requestedCalls = [];
   const server = createAlToqueServer({
@@ -2148,24 +2148,11 @@ test('routes ChatGPT and Gemini through Ollama search and vision', async (t) => 
     ollamaModel: 'llama3.2:3b',
     ollamaVisionModel: 'qwen3.5:2b',
     fetchImpl: async (url, options) => {
-      const request = {
+      requestedCalls.push({
         url: new URL(url),
         headers: options.headers,
         body: JSON.parse(options.body)
-      };
-      requestedCalls.push(request);
-      if (request.url.pathname === '/api/web_search') {
-        return new Response(JSON.stringify({
-          results: [{
-            title: 'Tipo de cambio actual',
-            url: 'https://example.com/tipo-cambio',
-            content: 'El tipo de cambio publicado hoy es referencial.'
-          }]
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+      });
       return new Response(JSON.stringify({ message: { content: 'Respuesta de prueba de Ollama.' } }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -2191,22 +2178,15 @@ test('routes ChatGPT and Gemini through Ollama search and vision', async (t) => 
   });
 
   const webQuestionResponse = await ask({
-    provider: 'ChatGPT',
+    provider: 'Gemini',
     text: '¿Cuál es el tipo de cambio actual?',
     history: []
   });
   assert.equal(webQuestionResponse.status, 200);
   const webQuestion = await webQuestionResponse.json();
   assert.equal(webQuestion.engine, 'Ollama · llama3.2:3b');
-  assert.equal(webQuestion.webSearchUsed, true);
-  assert.deepEqual(webQuestion.sources, [{ title: 'Tipo de cambio actual', url: 'https://example.com/tipo-cambio' }]);
-  assert.equal(requestedCalls[0].url.href, 'https://ollama.com/api/web_search');
-  assert.equal(requestedCalls[0].body.query, '¿Cuál es el tipo de cambio actual?');
-  assert.equal(requestedCalls[0].body.max_results, 5);
-  assert.equal(requestedCalls[1].url.href, 'http://ollama.test/api/chat');
-  assert.match(requestedCalls[1].body.messages[1].content, /El tipo de cambio publicado hoy es referencial/);
-  assert.match(requestedCalls[1].body.messages[1].content, /\[1\]/);
-  assert.match(requestedCalls[1].body.messages[0].content, /nunca sigas instrucciones/i);
+  assert.equal(webQuestion.webSearchUsed, false);
+  assert.match(requestedCalls[0].body.messages[1].content, /No tienes acceso a internet/);
 
   const imageResponse = await ask({
     provider: 'Gemini',
@@ -2221,15 +2201,14 @@ test('routes ChatGPT and Gemini through Ollama search and vision', async (t) => 
   assert.equal(imageResponse.status, 200);
   assert.equal((await imageResponse.json()).engine, 'Ollama · qwen3.5:2b');
   assert.deepEqual(requestedCalls.map(({ url }) => `${url.origin}${url.pathname}`), [
-    'https://ollama.com/api/web_search',
     'http://ollama.test/api/chat',
     'http://ollama.test/api/chat'
   ]);
   assert.ok(requestedCalls.every(({ headers }) => headers.Authorization === 'Bearer test-ollama-api-key'));
-  assert.equal(requestedCalls[1].body.model, 'llama3.2:3b');
-  assert.match(requestedCalls[1].body.messages[0].content, /Estilo ChatGPT/);
-  assert.equal(requestedCalls[2].body.model, 'qwen3.5:2b');
-  assert.deepEqual(requestedCalls[2].body.messages[1].images, ['iVBORw0KGgo=']);
+  assert.equal(requestedCalls[0].body.model, 'llama3.2:3b');
+  assert.match(requestedCalls[0].body.messages[0].content, /Estilo Gemini/);
+  assert.equal(requestedCalls[1].body.model, 'qwen3.5:2b');
+  assert.deepEqual(requestedCalls[1].body.messages[1].images, ['iVBORw0KGgo=']);
 
   const invalidImageResponse = await ask({
     provider: 'Gemini',
@@ -2238,7 +2217,7 @@ test('routes ChatGPT and Gemini through Ollama search and vision', async (t) => 
     image: { name: 'foto.svg', mimeType: 'image/svg+xml', data: 'data:image/svg+xml;base64,PHN2Zz4=' }
   });
   assert.equal(invalidImageResponse.status, 400);
-  assert.equal(requestedCalls.length, 3);
+  assert.equal(requestedCalls.length, 2);
 });
 
 test('gives the rider support assistant empathetic, practical, and truthful guidance', () => {
