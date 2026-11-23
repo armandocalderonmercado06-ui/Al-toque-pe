@@ -469,6 +469,25 @@ function citationsFromOpenAI(payload) {
   return uniqueSources(citations);
 }
 
+function citationsFromGemini(payload) {
+  const citations = (payload.steps || []).filter((step) => step.type === 'model_output')
+    .flatMap((step) => step.content || [])
+    .flatMap((content) => content.annotations || [])
+    .filter((annotation) => annotation.type === 'url_citation' && annotation.url)
+    .map((annotation) => ({ title: annotation.title || annotation.url, url: annotation.url }));
+  return uniqueSources(citations);
+}
+
+function textFromGemini(payload) {
+  if (typeof payload.output_text === 'string') return payload.output_text.trim();
+  return (payload.steps || []).filter((step) => step.type === 'model_output')
+    .flatMap((step) => step.content || [])
+    .filter((content) => content.type === 'text' && typeof content.text === 'string')
+    .map((content) => content.text)
+    .join('\n')
+    .trim();
+}
+
 function uniqueSources(sources) {
   return [...new Map(sources.map((source) => [source.url, source])).values()].slice(0, 5);
 }
@@ -523,6 +542,33 @@ async function askOpenAI(text, history, memory, item, webSearch, provider, order
   }, `OpenAI (${provider})`, fetchImpl);
   if (!result.output_text) throw new Error(`OpenAI no devolvió una respuesta para el perfil ${provider}.`);
   return { reply: result.output_text, sources: citationsFromOpenAI(result) };
+}
+
+async function askGeminiWebSearch(text, history, memory, item, orderHistory, apiKey = process.env.GEMINI_API_KEY, fetchImpl = fetch) {
+  if (!apiKey) {
+    const error = new Error('La API de Gemini para búsquedas web no está configurada. Agrega GEMINI_API_KEY a las variables de Render.');
+    error.status = 503;
+    throw error;
+  }
+  const prompt = composePrompt(makeSystemInstructions(item, true, 'Gemini', orderHistory), history, memory, text, item, orderHistory);
+  const result = await upstreamJson('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    method: 'POST',
+    headers: {
+      'x-goog-api-key': apiKey,
+      'Content-Type': 'application/json',
+      'Api-Revision': '2026-05-20'
+    },
+    body: JSON.stringify({
+      model: process.env.GEMINI_MODEL || 'gemini-4-hydrogen',
+      system_instruction: prompt[0].content,
+      input: prompt[1].content,
+      tools: [{ type: 'google_search' }],
+      store: false
+    })
+  }, 'Gemini API', fetchImpl);
+  const reply = textFromGemini(result);
+  if (!reply) throw new Error('Gemini no devolvió una respuesta para la consulta web.');
+  return { reply, sources: citationsFromGemini(result) };
 }
 
 async function askKeras(text, history, memory, fetchImpl = fetch) {
@@ -1179,7 +1225,7 @@ async function addHubSpotMarketingSubscriber(email, accessToken, listId, subscri
   await hubspotRequest(`/crm/v3/lists/${encodeURIComponent(listId)}/memberships/add`, 'PUT', [contact.id]);
 }
 
-async function handleRequest(request, response, orders, riderLocations, idempotencyKeys, callSessions, orderChats, riderProfiles, persistRiderProfiles, persistOrders, notifyOrderChange, youtubeApiKey, openAIApiKey, gmailClientId, gmailClientSecret, gmailRefreshToken, gmailUser, marketingProvider, hubspotAccessToken, hubspotListId, hubspotSubscriptionId, fetchImpl, reels, persistReels, reelsVideosDir, reelsDeletePassword, videoStorage, maxVideoBytes, complaints, persistComplaints, now = Date.now) {
+async function handleRequest(request, response, orders, riderLocations, idempotencyKeys, callSessions, orderChats, riderProfiles, persistRiderProfiles, persistOrders, notifyOrderChange, youtubeApiKey, openAIApiKey, geminiApiKey, gmailClientId, gmailClientSecret, gmailRefreshToken, gmailUser, marketingProvider, hubspotAccessToken, hubspotListId, hubspotSubscriptionId, fetchImpl, reels, persistReels, reelsVideosDir, reelsDeletePassword, videoStorage, maxVideoBytes, complaints, persistComplaints, now = Date.now) {
   const requestUrl = new URL(request.url || '/', `http://${request.headers.host}`);
 
   if (requestUrl.pathname === '/api/reels' || requestUrl.pathname.startsWith('/api/reels/')) {
@@ -1553,15 +1599,19 @@ async function handleRequest(request, response, orders, riderLocations, idempote
 
   if (request.method === 'GET' && requestUrl.pathname === '/api/status') {
     const openAIAvailable = Boolean(openAIApiKey);
+    const geminiApiAvailable = Boolean(geminiApiKey);
     return json(response, 200, {
       providers: {
         chatgpt: openAIAvailable,
         copilot: openAIAvailable,
-        gemini: openAIAvailable,
+        gemini: openAIAvailable || geminiApiAvailable,
         sharedOpenAI: openAIAvailable
       },
+      capabilities: {
+        geminiWebSearch: geminiApiAvailable
+      },
       personas: Object.keys(ASSISTANT_PERSONAS),
-      engine: 'OpenAI API'
+      engine: geminiApiAvailable ? 'OpenAI API + Gemini API para búsquedas web' : 'OpenAI API'
     });
   }
 
@@ -2141,16 +2191,19 @@ async function handleRequest(request, response, orders, riderLocations, idempote
       : null;
     const dish = assistantMode === 'menu' && !asksForOrderHistory ? previousFavorite || selectMenuItem(intent, text) : null;
     const webSearch = assistantMode === 'menu' && shouldUseWebSearch(text);
+    const useGeminiWebSearch = provider === 'Gemini' && webSearch;
     const memory = typeof body.memory === 'string' ? body.memory : '';
     try {
-      const answer = await askOpenAI(text, body.history, memory, dish, webSearch, provider, orderHistory, assistantMode, openAIApiKey, fetchImpl);
+      const answer = useGeminiWebSearch
+        ? await askGeminiWebSearch(text, body.history, memory, dish, orderHistory, geminiApiKey, fetchImpl)
+        : await askOpenAI(text, body.history, memory, dish, webSearch, provider, orderHistory, assistantMode, openAIApiKey, fetchImpl);
       return json(response, 200, {
         reply: answer.reply,
         sources: answer.sources,
         intent,
         dishId: dish?.id || null,
         webSearchUsed: webSearch,
-        engine: 'OpenAI API'
+        engine: useGeminiWebSearch ? 'Gemini API (Google Search)' : 'OpenAI API'
       });
     } catch (error) {
       if (assistantMode === 'rider-support') {
@@ -2298,6 +2351,7 @@ export function createAlToqueServer({
   reelsDeletePassword = REELS_DELETE_PASSWORD,
   youtubeApiKey = YOUTUBE_API_KEY,
   openAIApiKey = process.env.OPENAI_API_KEY,
+  geminiApiKey = process.env.GEMINI_API_KEY,
   gmailClientId = GMAIL_CLIENT_ID,
   gmailClientSecret = GMAIL_CLIENT_SECRET,
   gmailRefreshToken = GMAIL_REFRESH_TOKEN,
@@ -2524,6 +2578,7 @@ export function createAlToqueServer({
       notifyOrderChange,
       youtubeApiKey,
       openAIApiKey,
+      geminiApiKey,
       gmailClientId,
       gmailClientSecret,
       gmailRefreshToken,

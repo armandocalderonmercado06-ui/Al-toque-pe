@@ -2125,6 +2125,105 @@ test('reserves web search for current or complex questions', () => {
   assert.equal(shouldUseWebSearch('¿Cuál es el origen histórico del ceviche?'), true);
 });
 
+test('uses Gemini Google Search only for internet-needed Gemini questions', async (t) => {
+  const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-gemini-search-test-'));
+  const requestedCalls = [];
+  const server = createAlToqueServer({
+    ordersFile: join(testDataDir, 'orders.json'),
+    openAIApiKey: 'test-openai-api-key',
+    geminiApiKey: 'test-gemini-api-key',
+    fetchImpl: async (url, options) => {
+      const requestedUrl = new URL(url);
+      requestedCalls.push({ requestedUrl, options });
+      if (requestedUrl.origin === 'https://api.openai.com') {
+        return new Response(JSON.stringify({ output_text: 'Respuesta actual desde OpenAI.' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      return new Response(JSON.stringify({
+        steps: [{
+          type: 'model_output',
+          content: [{
+            type: 'text',
+            text: 'Según información actual, el dato consultado es este.',
+            annotations: [{
+              type: 'url_citation',
+              title: 'Fuente oficial',
+              url: 'https://example.com/actualidad'
+            }]
+          }]
+        }]
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(async () => {
+    await new Promise((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+    await rm(testDataDir, { recursive: true, force: true });
+  });
+
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+    body: JSON.stringify({
+      provider: 'Gemini',
+      text: '¿Cuál es el tipo de cambio actual?',
+      history: [],
+      memory: ''
+    })
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.reply, 'Según información actual, el dato consultado es este.');
+  assert.equal(payload.engine, 'Gemini API (Google Search)');
+  assert.equal(payload.webSearchUsed, true);
+  assert.deepEqual(payload.sources, [{ title: 'Fuente oficial', url: 'https://example.com/actualidad' }]);
+  const geminiCall = requestedCalls[0];
+  assert.equal(geminiCall.requestedUrl.href, 'https://generativelanguage.googleapis.com/v1beta/interactions');
+  assert.equal(geminiCall.options.headers['x-goog-api-key'], 'test-gemini-api-key');
+  const geminiBody = JSON.parse(geminiCall.options.body);
+  assert.equal(geminiBody.model, process.env.GEMINI_MODEL || 'gemini-4-hydrogen');
+  assert.equal(geminiBody.store, false);
+  assert.deepEqual(geminiBody.tools, [{ type: 'google_search' }]);
+  assert.match(geminiBody.system_instruction, /Google Search|búsqueda web/i);
+  assert.match(geminiBody.input, /tipo de cambio actual/);
+
+  const chatGptResponse = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+    body: JSON.stringify({
+      provider: 'ChatGPT',
+      text: '¿Cuál es el tipo de cambio actual?',
+      history: [],
+      memory: ''
+    })
+  });
+  assert.equal(chatGptResponse.status, 200);
+  const chatGptPayload = await chatGptResponse.json();
+  assert.equal(chatGptPayload.engine, 'OpenAI API');
+  assert.equal(chatGptPayload.webSearchUsed, true);
+  const openAICall = requestedCalls[1];
+  assert.equal(openAICall.requestedUrl.origin, 'https://api.openai.com');
+  assert.deepEqual(JSON.parse(openAICall.options.body).tools, [{ type: 'web_search' }]);
+
+  const statusResponse = await fetch(`${baseUrl}/api/status`);
+  const status = await statusResponse.json();
+  assert.equal(status.providers.gemini, true);
+  assert.equal(status.capabilities.geminiWebSearch, true);
+  assert.equal(status.engine, 'OpenAI API + Gemini API para búsquedas web');
+  assert.equal(requestedCalls.length, 2);
+});
+
 test('uses one OpenAI-backed assistant with three distinct response personas', () => {
   const personas = ['ChatGPT', 'Copilot', 'Gemini'].map(getAssistantPersona);
   assert.equal(new Set(personas).size, 3);

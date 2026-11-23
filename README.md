@@ -8,6 +8,9 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
 - Requiere Node.js 20.6 o posterior.
 - Ejecuta `npm start` y abre `http://localhost:4173`.
 - Copia `.env.example` a `.env` para configurar integraciones opcionales.
+- Las consultas de Gemini que necesitan información web usan Gemini API con
+  Google Search grounding; configura `GEMINI_API_KEY` en Render. Las consultas
+  normales de Gemini y los demás perfiles siguen usando OpenAI.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade

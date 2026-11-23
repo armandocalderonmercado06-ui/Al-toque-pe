@@ -37,3 +37,5 @@ services:
         value: "9"
       - key: HUBSPOT_SUBSCRIPTION_ID
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
