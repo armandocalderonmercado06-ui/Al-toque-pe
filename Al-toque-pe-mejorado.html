@@ -10789,12 +10789,12 @@
             reject(error);
             return;
           }
-          const reply = answer.trim();
-          if (!reply) {
+          const rawReply = answer.trim();
+          if (!rawReply) {
             reject(new Error('Botpress no devolvió una respuesta de búsqueda.'));
             return;
           }
-          const sources = [...new Set([...reply.matchAll(/https?:\/\/[^\s<>"'`]+/g)]
+          const sources = [...new Set([...rawReply.matchAll(/https?:\/\/[^\s<>"'`]+/g)]
             .map(([url]) => url.replace(/[),.;!?]+$/, ''))
             .filter((url) => {
               try {
@@ -10805,6 +10805,9 @@
             }))]
             .slice(0, 5)
             .map((url) => ({ title: new URL(url).hostname, url }));
+          const reply = rawReply
+            .replace(/\*\*(.+?)\*\*/g, '$1')
+            .replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1');
           resolve({ reply, sources });
         };
         const cancel = (error) => finish(error);
