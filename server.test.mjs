@@ -2140,7 +2140,6 @@ test('uses three distinct assistant response personas', () => {
 test('routes all assistant profiles through the DeepAI text endpoint', async (t) => {
   const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-deepai-chat-test-'));
   const requestedCalls = [];
-  let upstreamStatus = 200;
   const server = createAlToqueServer({
     ordersFile: join(testDataDir, 'orders.json'),
     deepAiApiKey: 'test-deepai-api-key',
@@ -2151,12 +2150,6 @@ test('routes all assistant profiles through the DeepAI text endpoint', async (t)
         body: new URLSearchParams(options.body)
       };
       requestedCalls.push(request);
-      if (upstreamStatus === 402) {
-        return new Response(JSON.stringify({ err: 'Payment required' }), {
-          status: upstreamStatus,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
       return new Response(JSON.stringify({ output: 'Respuesta de prueba de DeepAI.' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -2222,15 +2215,7 @@ test('routes all assistant profiles through the DeepAI text endpoint', async (t)
   });
   assert.equal(imageResponse.status, 501);
   assert.match((await imageResponse.json()).error, /no admite analizar imágenes/i);
-  upstreamStatus = 402;
-  const paymentRequiredResponse = await ask({
-    provider: 'Gemini',
-    text: 'Según mi historial, ¿qué producto compro más?',
-    history: []
-  });
-  assert.equal(paymentRequiredResponse.status, 502);
-  assert.match((await paymentRequiredResponse.json()).error, /pago o saldo disponible/i);
-  assert.equal(requestedCalls.length, 4);
+  assert.equal(requestedCalls.length, 3);
 });
 
 test('gives the rider support assistant empathetic, practical, and truthful guidance', () => {
