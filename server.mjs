@@ -244,7 +244,7 @@ export function selectMenuItem(intent, text) {
 
 const MENU_QUESTION_TERMS = /\b(menu|carta|comedor|plato|platos|comida|comidas|bebida|bebidas|combo|combos|lomo saltado|quinua|ceviche|chicha morada|maracuya|precios|precio|cuesta|cuestan|disponible|disponibles|ofrecen|tienen|hay|ingrediente|ingredientes|incluye|incluyen|demora|rapido|rapida)\b/;
 const LOCAL_MENU_INTENT_TERMS = /\b(recomiend\w*|recomend\w*|quiero|busco|antojo|hambre|sed|tomar|beber|comer|almorz\w*|cen\w*|precio|cuesta|cuestan|disponible|disponibles|ofrecen|tienen|hay|ingrediente|ingredientes|incluye|incluyen|demora|rapido|rapida|presupuesto|ligero|fresco|menu|carta|que opciones|cuales opciones|que bebidas|que platos|que combos)\b/;
-const WEB_SEARCH_TERMS = /\b(actual|actualmente|ahora|reciente|recientemente|ultimo|ultima|ultimos|ultimas|noticia|noticias|202[4-9]|203\d|fecha de|precio actual|cotizacion|tipo de cambio|clima|pronostico|resultado|resultados|quien gano|quien es el presidente|fuente|fuentes|cita|citas|investiga|investigacion|evidencia|estudio|estudios|paper|papers|ley vigente|reglamento vigente|actualizacion)\b/;
+const WEB_SEARCH_TERMS = /\b(hoy|actual|actualmente|ahora|reciente|recientemente|ultimo|ultima|ultimos|ultimas|noticia|noticias|202[4-9]|203\d|fecha de|precio actual|dolar(?:es)?|soles|cotizacion|inflacion|tipo de cambio|clima|pronostico|resultado|resultados|quien gano|quien es el presidente|fuente|fuentes|cita|citas|investiga|investigacion|evidencia|estudio|estudios|paper|papers|ley vigente|reglamento vigente|actualizacion)\b/;
 const COMPLEX_QUESTION_TERMS = /\b(por que|como funciona|explica|explicame|compara|comparacion|diferencia|diferencias|analiza|analisis|evalua|evaluacion|impacto|causa|causas|consecuencia|consecuencias|ventaja|ventajas|desventaja|desventajas|paso a paso|en profundidad|profundiza|argumenta|demuestra|resuelve|calcula|interpreta|relacion entre|que implicaciones|cual es mejor|recomiendame una estrategia|origen|historia|receta|calorias|nutricion|salud|preparacion|significado)\b/;
 const SIMPLE_GREETINGS = /^(hola|buenas|buenos dias|buenas tardes|buenas noches|gracias|muchas gracias|ok|okay|listo|chau|adios)[!.? ]*$/;
 const BOTPRESS_ALTOQUE_GUIDANCE = 'Para preguntas sobre Al Toque, guíate también por el criterio de Botpress: responde con amabilidad y brevedad; recomienda productos reales del menú según la preferencia, presupuesto o tiempo del cliente; usa solo precios, ingredientes y tiempos presentes en el contexto. No inventes stock, horarios, estados de pedidos ni acciones realizadas; si hace falta confirmarlo, deriva al comedor o al equipo de soporte.';
@@ -303,7 +303,7 @@ export function getLocalMenuAnswer(text) {
       intent: 'ninguna'
     };
   }
-  if (WEB_SEARCH_TERMS.test(query) || COMPLEX_QUESTION_TERMS.test(query)) return null;
+  if (COMPLEX_QUESTION_TERMS.test(query) || (WEB_SEARCH_TERMS.test(query) && !MENU_QUESTION_TERMS.test(query))) return null;
   const intent = detectMenuIntent(text);
   const product = MENU.find((item) => query.includes(normalize(item.name)))
     || MENU_ALIASES.map((alias) => ({

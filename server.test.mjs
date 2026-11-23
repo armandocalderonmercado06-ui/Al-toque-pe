@@ -2118,9 +2118,12 @@ test('answers simple menu questions locally without requesting web search', () =
 
 test('reserves web search for current or complex questions', () => {
   assert.equal(shouldUseWebSearch('¿Cuál es el tipo de cambio actual?'), true);
+  assert.equal(shouldUseWebSearch('¿Cuál es el precio del dólar hoy en Perú?'), true);
   assert.equal(shouldUseWebSearch('Explica por qué cambia el clima y compara las causas principales'), true);
   assert.equal(shouldUseWebSearch('Hola, ¿cómo estás?'), false);
   assert.equal(shouldUseWebSearch('¿Qué incluye el Combo Fitness?'), false);
+  assert.equal(shouldUseWebSearch('¿Qué bebidas ofrecen hoy?'), false);
+  assert.equal(shouldUseWebSearch('¿Cuánto cuesta el lomo saltado hoy?'), false);
   assert.equal(getLocalMenuAnswer('¿Cuál es el origen histórico del ceviche?'), null);
   assert.equal(shouldUseWebSearch('¿Cuál es el origen histórico del ceviche?'), true);
 });
@@ -2136,7 +2139,7 @@ test('routes ChatGPT and Gemini web-search questions through Botpress', () => {
     engine: 'Botpress Web Search'
   };
   for (const provider of ['ChatGPT', 'Gemini']) {
-    const plan = createWebSearchPlan(provider, 'menu', '¿Cuál es el tipo de cambio actual?');
+    const plan = createWebSearchPlan(provider, 'menu', '¿Cuál es el precio del dólar hoy en Perú?');
     assert.equal(plan.webSearch, true);
     assert.equal(plan.openAIWebSearch, false);
     assert.deepEqual(plan.handoff, expectedHandoff);
