@@ -1015,6 +1015,10 @@ test('normalizes React DOM values before order serialization', async () => {
   assert.match(orderSubmission, /name: normalizeOrderText\(item\.name/);
   assert.match(orderSubmission, /pickupPoint: normalizeOrderText\(pickupPoint/);
   assert.match(orderSubmission, /paymentMethod: normalizeOrderText\(selectedPaymentMethod/);
+  assert.match(html, /onClick=\{\(\) => completeOrderConfirmation\(\)\}/);
+  assert.match(html, /: \(\) => handleConfirmOrder\(\)\}/);
+  assert.doesNotMatch(html, /onClick=\{completeOrderConfirmation\}/);
+  assert.doesNotMatch(html, /: handleConfirmOrder\}/);
 });
 
 test('offers animated pickup-point choices at checkout and accepts them for customer orders', async (t) => {
