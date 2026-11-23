@@ -42,6 +42,6 @@ services:
       - key: OLLAMA_API_KEY
         sync: false
       - key: OLLAMA_MODEL
-        value: llama3.2:3b
+        value: gemma4:31b
       - key: OLLAMA_VISION_MODEL
-        value: qwen3.5:2b
+        value: gemma4:31b

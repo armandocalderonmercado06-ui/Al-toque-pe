@@ -78,12 +78,15 @@ Configura estas variables en el servidor:
   `https://ollama.com` (el servidor agrega `/api/chat`).
 - `OLLAMA_API_KEY`: clave privada de Ollama Cloud. Por compatibilidad, también
   se acepta temporalmente el nombre anterior `API_OLLAMA`.
-- `OLLAMA_MODEL` y `OLLAMA_VISION_MODEL`: modelos de texto y visión; por defecto
-  son `llama3.2:3b` y `qwen3.5:2b`.
-- Los perfiles ChatGPT y Gemini usan Ollama. Gemini no cambia a OpenAI para
-  preguntas actuales; Ollama avisará cuando no tenga acceso a internet. Copilot
-  y las búsquedas web de ChatGPT pueden seguir usando OpenAI si configuras
-  `OPENAI_API_KEY`.
+- `OLLAMA_MODEL` y `OLLAMA_VISION_MODEL`: modelos de texto y visión. Render usa
+  `gemma4:31b` para ambos, un modelo Cloud listado por Ollama con capacidades de
+  texto y visión. Los tags pequeños como `llama3.2:3b` y `qwen3.5:2b` son
+  modelos descargables/locales y no aparecen en el catálogo de la API Cloud.
+- Los perfiles ChatGPT y Gemini usan Ollama. Para preguntas actuales o complejas,
+  Ollama consulta su API oficial de búsqueda web (`/api/web_search`) con la misma
+  `OLLAMA_API_KEY` y presenta las fuentes en el chat. La búsqueda requiere una
+  cuenta y clave API de Ollama Cloud. Copilot puede seguir usando OpenAI para
+  búsquedas web si configuras `OPENAI_API_KEY`.
 
 El plan gratuito de Supabase tiene límites de base de datos y archivos; consulta
 https://supabase.com/pricing. Los videos se limitan a 50 MiB para ajustarse al
