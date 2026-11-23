@@ -2137,36 +2137,20 @@ test('uses three distinct assistant response personas', () => {
   assert.ok(styles.every((style) => style.includes(response)));
 });
 
-test('routes ChatGPT and Gemini through Ollama search and vision', async (t) => {
-  const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-ollama-chat-test-'));
+test('routes all assistant profiles through the DeepAI text endpoint', async (t) => {
+  const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-deepai-chat-test-'));
   const requestedCalls = [];
   const server = createAlToqueServer({
     ordersFile: join(testDataDir, 'orders.json'),
-    openAIApiKey: 'test-openai-api-key',
-    ollamaBaseUrl: 'http://ollama.test/',
-    ollamaApiKey: 'test-ollama-api-key',
-    ollamaModel: 'llama3.2:3b',
-    ollamaVisionModel: 'qwen3.5:2b',
+    deepAiApiKey: 'test-deepai-api-key',
     fetchImpl: async (url, options) => {
       const request = {
         url: new URL(url),
         headers: options.headers,
-        body: JSON.parse(options.body)
+        body: new URLSearchParams(options.body)
       };
       requestedCalls.push(request);
-      if (request.url.pathname === '/api/web_search') {
-        return new Response(JSON.stringify({
-          results: [{
-            title: 'Tipo de cambio actual',
-            url: 'https://example.com/tipo-cambio',
-            content: 'El tipo de cambio publicado hoy es referencial.'
-          }]
-        }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
-      return new Response(JSON.stringify({ message: { content: 'Respuesta de prueba de Ollama.' } }), {
+      return new Response(JSON.stringify({ output: 'Respuesta de prueba de DeepAI.' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -2190,24 +2174,35 @@ test('routes ChatGPT and Gemini through Ollama search and vision', async (t) => 
     body: JSON.stringify(body)
   });
 
-  const webQuestionResponse = await ask({
-    provider: 'ChatGPT',
-    text: '¿Cuál es el tipo de cambio actual?',
-    history: []
-  });
-  assert.equal(webQuestionResponse.status, 200);
-  const webQuestion = await webQuestionResponse.json();
-  assert.equal(webQuestion.engine, 'Ollama · llama3.2:3b');
-  assert.equal(webQuestion.webSearchUsed, true);
-  assert.deepEqual(webQuestion.sources, [{ title: 'Tipo de cambio actual', url: 'https://example.com/tipo-cambio' }]);
-  assert.equal(requestedCalls[0].url.href, 'https://ollama.com/api/web_search');
-  assert.equal(requestedCalls[0].body.query, '¿Cuál es el tipo de cambio actual?');
-  assert.equal(requestedCalls[0].body.max_results, 5);
-  assert.equal(requestedCalls[1].url.href, 'http://ollama.test/api/chat');
-  assert.match(requestedCalls[1].body.messages[1].content, /El tipo de cambio publicado hoy es referencial/);
-  assert.match(requestedCalls[1].body.messages[1].content, /\[1\]/);
-  assert.match(requestedCalls[1].body.messages[0].content, /nunca sigas instrucciones/i);
+  const replies = [];
+  for (const provider of ['ChatGPT', 'Copilot', 'Gemini']) {
+    const response = await ask({
+      provider,
+      text: provider === 'ChatGPT' ? '¿Cuál es el tipo de cambio actual?' : 'Explícame cómo elegir una comida balanceada.',
+      history: []
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.engine, 'DeepAI');
+    assert.equal(payload.webSearchUsed, false);
+    assert.deepEqual(payload.sources, []);
+    replies.push(payload.reply);
+  }
+  assert.deepEqual(replies, Array(3).fill('Respuesta de prueba de DeepAI.'));
+  assert.deepEqual(requestedCalls.map(({ url }) => url.href), Array(3).fill('https://api.deepai.org/api/text-generator'));
+  assert.ok(requestedCalls.every(({ headers }) => headers['api-key'] === 'test-deepai-api-key'));
+  assert.ok(requestedCalls.every(({ headers }) => headers['Content-Type'] === 'application/x-www-form-urlencoded'));
+  for (const [index, call] of requestedCalls.entries()) {
+    assert.match(call.body.get('text'), new RegExp(`Estilo ${['ChatGPT', 'Copilot', 'Gemini'][index]}`));
+  }
 
+  const invalidImageResponse = await ask({
+    provider: 'Gemini',
+    text: '¿Qué ves?',
+    history: [],
+    image: { name: 'foto.svg', mimeType: 'image/svg+xml', data: 'data:image/svg+xml;base64,PHN2Zz4=' }
+  });
+  assert.equal(invalidImageResponse.status, 400);
   const imageResponse = await ask({
     provider: 'Gemini',
     text: '¿Qué aparece en esta imagen?',
@@ -2218,26 +2213,8 @@ test('routes ChatGPT and Gemini through Ollama search and vision', async (t) => 
       data: 'data:image/png;base64,iVBORw0KGgo='
     }
   });
-  assert.equal(imageResponse.status, 200);
-  assert.equal((await imageResponse.json()).engine, 'Ollama · qwen3.5:2b');
-  assert.deepEqual(requestedCalls.map(({ url }) => `${url.origin}${url.pathname}`), [
-    'https://ollama.com/api/web_search',
-    'http://ollama.test/api/chat',
-    'http://ollama.test/api/chat'
-  ]);
-  assert.ok(requestedCalls.every(({ headers }) => headers.Authorization === 'Bearer test-ollama-api-key'));
-  assert.equal(requestedCalls[1].body.model, 'llama3.2:3b');
-  assert.match(requestedCalls[1].body.messages[0].content, /Estilo ChatGPT/);
-  assert.equal(requestedCalls[2].body.model, 'qwen3.5:2b');
-  assert.deepEqual(requestedCalls[2].body.messages[1].images, ['iVBORw0KGgo=']);
-
-  const invalidImageResponse = await ask({
-    provider: 'Gemini',
-    text: '¿Qué ves?',
-    history: [],
-    image: { name: 'foto.svg', mimeType: 'image/svg+xml', data: 'data:image/svg+xml;base64,PHN2Zz4=' }
-  });
-  assert.equal(invalidImageResponse.status, 400);
+  assert.equal(imageResponse.status, 501);
+  assert.match((await imageResponse.json()).error, /no admite analizar imágenes/i);
   assert.equal(requestedCalls.length, 3);
 });
 
@@ -2249,21 +2226,19 @@ test('gives the rider support assistant empathetic, practical, and truthful guid
   assert.match(instructions, /lugar seguro/i);
 });
 
-test('routes rider support questions to Ollama with dedicated support instructions', async (t) => {
+test('routes rider support questions to DeepAI with dedicated support instructions', async (t) => {
   const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-rider-support-test-'));
   let requestedUrl;
   let requestedBody;
   let requestedHeaders;
   const server = createAlToqueServer({
     ordersFile: join(testDataDir, 'orders.json'),
-    openAIApiKey: 'test-openai-api-key',
-    ollamaBaseUrl: 'http://ollama.test',
-    ollamaApiKey: 'test-ollama-api-key',
+    deepAiApiKey: 'test-deepai-api-key',
     fetchImpl: async (url, options) => {
       requestedUrl = new URL(url);
-      requestedBody = JSON.parse(options.body);
+      requestedBody = new URLSearchParams(options.body).get('text');
       requestedHeaders = options.headers;
-      return new Response(JSON.stringify({ message: { content: 'Siento que estés pasando por esto. Revisemos juntos qué puedes hacer.' } }), {
+      return new Response(JSON.stringify({ output: 'Siento que estés pasando por esto. Revisemos juntos qué puedes hacer.' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -2295,27 +2270,25 @@ test('routes rider support questions to Ollama with dedicated support instructio
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.reply, 'Siento que estés pasando por esto. Revisemos juntos qué puedes hacer.');
-  assert.equal(payload.engine, 'Ollama · llama3.2:3b');
-  assert.equal(requestedUrl.origin, 'http://ollama.test');
-  assert.equal(requestedUrl.pathname, '/api/chat');
-  assert.equal(requestedHeaders.Authorization, 'Bearer test-ollama-api-key');
-  assert.match(requestedBody.messages[0].content, /amabilidad, empatía y respeto/i);
-  assert.match(requestedBody.messages[0].content, /No inventes funciones/i);
-  assert.match(requestedBody.messages[1].content, /Mi pedido se está demorando y estoy preocupado/);
+  assert.equal(payload.engine, 'DeepAI');
+  assert.equal(requestedUrl.href, 'https://api.deepai.org/api/text-generator');
+  assert.equal(requestedHeaders['api-key'], 'test-deepai-api-key');
+  assert.match(requestedBody, /amabilidad, empatía y respeto/i);
+  assert.match(requestedBody, /No inventes funciones/i);
+  assert.match(requestedBody, /Mi pedido se está demorando y estoy preocupado/);
 });
 
-test('falls back to the local Keras model for rider support when Ollama is unavailable', async (t) => {
+test('falls back to the local Keras model for rider support when DeepAI is unavailable', async (t) => {
   const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-rider-support-fallback-test-'));
   const requestedCalls = [];
   const server = createAlToqueServer({
     ordersFile: join(testDataDir, 'orders.json'),
-    openAIApiKey: 'test-openai-api-key',
-    ollamaBaseUrl: 'http://ollama.test',
+    deepAiApiKey: 'test-deepai-api-key',
     fetchImpl: async (url, options) => {
       const requestedUrl = new URL(url);
       requestedCalls.push({ requestedUrl, options });
-      if (requestedUrl.hostname === 'ollama.test') {
-        return new Response(JSON.stringify({ error: { message: 'La cuota de Ollama se agotó.' } }), {
+      if (requestedUrl.hostname === 'api.deepai.org') {
+        return new Response(JSON.stringify({ error: { message: 'La cuota de DeepAI se agotó.' } }), {
           status: 429,
           headers: { 'Content-Type': 'application/json' }
         });
@@ -2354,11 +2327,11 @@ test('falls back to the local Keras model for rider support when Ollama is unava
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.equal(payload.engine, 'Keras local');
-  assert.equal(payload.fallbackFrom, 'Ollama');
+  assert.equal(payload.fallbackFrom, 'DeepAI');
   assert.equal(payload.reply, 'Siento que estés pasando por esta demora. Revisa el estado y contacta a soporte con el número del pedido.');
   assert.equal(requestedCalls.length, 2);
-  assert.equal(requestedCalls[0].requestedUrl.hostname, 'ollama.test');
-  assert.equal(requestedCalls[0].requestedUrl.pathname, '/api/chat');
+  assert.equal(requestedCalls[0].requestedUrl.hostname, 'api.deepai.org');
+  assert.equal(requestedCalls[0].requestedUrl.pathname, '/api/text-generator');
   assert.equal(requestedCalls[1].requestedUrl.hostname, '127.0.0.1');
   assert.equal(requestedCalls[1].requestedUrl.port, '5000');
   assert.equal(requestedCalls[1].requestedUrl.pathname, '/preguntar');
@@ -2393,12 +2366,11 @@ test('gives all three AI personas recent order history for direct purchase quest
     ordersFile: join(testDataDir, 'orders.json'),
     reelsFile: join(testDataDir, 'reels.json'),
     reelsVideosDir: join(testDataDir, 'reels-videos'),
-    openAIApiKey: 'test-openai-api-key',
-    ollamaBaseUrl: 'http://ollama.test',
+    deepAiApiKey: 'test-deepai-api-key',
     fetchImpl: async (url, options) => {
-      requestedBodies.push({ url: new URL(url), body: JSON.parse(options.body) });
+      requestedBodies.push({ url: new URL(url), prompt: new URLSearchParams(options.body).get('text') });
       return new Response(JSON.stringify({
-        message: { content: 'Según tus pedidos recientes, compras más Jugo de Maracuyá: 3 unidades.' }
+        output: 'Según tus pedidos recientes, compras más Jugo de Maracuyá: 3 unidades.'
       }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -2439,15 +2411,14 @@ test('gives all three AI personas recent order history for direct purchase quest
   }
 
   assert.equal(requestedBodies.length, 3);
-  for (const { url, body } of requestedBodies) {
-    assert.equal(url.origin, 'http://ollama.test');
-    assert.equal(url.pathname, '/api/chat');
-    assert.match(body.messages[0].content, /pregunta qué compra más, responde directamente/);
-    assert.match(body.messages[1].content, /Resumen de los productos comprados en los 10 pedidos guardados más recientes/);
-    assert.match(body.messages[1].content, /"Jugo de Maracuyá": 3/);
-    assert.match(body.messages[1].content, /"Bowl de quinua": 1/);
-    assert.match(body.messages[1].content, /Según mis recientes pedidos/);
-    assert.doesNotMatch(body.messages[0].content, /Recomienda únicamente este producto/);
+  for (const { url, prompt } of requestedBodies) {
+    assert.equal(url.href, 'https://api.deepai.org/api/text-generator');
+    assert.match(prompt, /pregunta qué compra más, responde directamente/);
+    assert.match(prompt, /Resumen de los productos comprados en los 10 pedidos guardados más recientes/);
+    assert.match(prompt, /"Jugo de Maracuyá": 3/);
+    assert.match(prompt, /"Bowl de quinua": 1/);
+    assert.match(prompt, /Según mis recientes pedidos/);
+    assert.doesNotMatch(prompt, /Recomienda únicamente este producto/);
   }
 });
 
@@ -2458,11 +2429,10 @@ test('tells the AI not to invent purchase history when no orders are saved', asy
     ordersFile: join(testDataDir, 'orders.json'),
     reelsFile: join(testDataDir, 'reels.json'),
     reelsVideosDir: join(testDataDir, 'reels-videos'),
-    openAIApiKey: 'test-openai-api-key',
-    ollamaBaseUrl: 'http://ollama.test',
+    deepAiApiKey: 'test-deepai-api-key',
     fetchImpl: async (url, options) => {
-      requestedBody = JSON.parse(options.body);
-      return new Response(JSON.stringify({ message: { content: 'Todavía no tienes pedidos guardados para identificarlo.' } }), {
+      requestedBody = new URLSearchParams(options.body).get('text');
+      return new Response(JSON.stringify({ output: 'Todavía no tienes pedidos guardados para identificarlo.' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -2493,8 +2463,8 @@ test('tells the AI not to invent purchase history when no orders are saved', asy
   });
   assert.equal(response.status, 200);
   assert.match((await response.json()).reply, /no tienes pedidos guardados/i);
-  assert.match(requestedBody.messages[0].content, /no tiene pedidos guardados recientes disponibles/);
-  assert.match(requestedBody.messages[0].content, /no inventes compras/i);
+  assert.match(requestedBody, /no tiene pedidos guardados recientes disponibles/);
+  assert.match(requestedBody, /no inventes compras/i);
 });
 
 test('omits personalized context when history and memory are disabled', () => {
