@@ -37,11 +37,3 @@ services:
         value: "9"
       - key: HUBSPOT_SUBSCRIPTION_ID
         sync: false
-      - key: OLLAMA_BASE_URL
-        value: https://ollama.com
-      - key: OLLAMA_API_KEY
-        sync: false
-      - key: OLLAMA_MODEL
-        value: llama3.2:3b
-      - key: OLLAMA_VISION_MODEL
-        value: qwen3.5:2b

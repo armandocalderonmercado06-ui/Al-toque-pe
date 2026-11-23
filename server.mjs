@@ -30,10 +30,6 @@ const HUBSPOT_ACCESS_TOKEN = process.env.HUBSPOT_ACCESS_TOKEN || '';
 const HUBSPOT_LIST_ID = process.env.HUBSPOT_LIST_ID || '';
 const HUBSPOT_SUBSCRIPTION_ID = process.env.HUBSPOT_SUBSCRIPTION_ID || '';
 const KERAS_API_URL = process.env.KERAS_API_URL || 'http://127.0.0.1:5000/preguntar';
-const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/+$/, '');
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:3b';
-const OLLAMA_VISION_MODEL = process.env.OLLAMA_VISION_MODEL || 'qwen3.5:2b';
-const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || process.env.API_OLLAMA || '';
 const DATA_DIR = resolve(APP_DIR, process.env.DATA_DIR || 'data');
 const ORDERS_FILE = join(DATA_DIR, 'orders.json');
 const REELS_FILE = join(DATA_DIR, 'reels.json');
@@ -437,10 +433,10 @@ async function readJson(request, maxBytes = MAX_BODY_BYTES) {
   }
 }
 
-async function upstreamJson(url, options, providerName, fetchImpl = fetch, timeoutMs = 45_000) {
+async function upstreamJson(url, options, providerName, fetchImpl = fetch) {
   let response;
   try {
-    response = await fetchImpl(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
+    response = await fetchImpl(url, { ...options, signal: AbortSignal.timeout(45_000) });
   } catch {
     throw new Error(`No se pudo conectar con ${providerName}. Verifica tu conexión a internet e inténtalo otra vez.`);
   }
@@ -523,40 +519,6 @@ async function askOpenAI(text, history, memory, item, webSearch, provider, order
   }, `OpenAI (${provider})`, fetchImpl);
   if (!result.output_text) throw new Error(`OpenAI no devolvió una respuesta para el perfil ${provider}.`);
   return { reply: result.output_text, sources: citationsFromOpenAI(result) };
-}
-
-async function askOllama(text, history, memory, item, webSearch, provider, orderHistory, assistantMode, image, ollamaBaseUrl, ollamaModel, ollamaVisionModel, ollamaApiKey, fetchImpl = fetch) {
-  const instructions = assistantMode === 'rider-support'
-    ? makeRiderSupportInstructions()
-    : makeSystemInstructions(item, false, provider, orderHistory);
-  const prompt = composePrompt(instructions, history, memory, text || 'Describe la imagen adjunta.', item, orderHistory);
-  const model = image ? ollamaVisionModel : ollamaModel;
-  const userMessage = {
-    role: 'user',
-    content: prompt[1].content,
-    ...(image ? { images: [image.data.slice(image.data.indexOf(',') + 1)] } : {})
-  };
-  if (webSearch) {
-    userMessage.content += '\n\nNo tienes acceso a internet en esta respuesta. No presentes datos actuales ni afirmes haber consultado fuentes; indícalo si es relevante.';
-  }
-  const result = await upstreamJson(`${ollamaBaseUrl}/api/chat`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(ollamaApiKey ? { Authorization: `Bearer ${ollamaApiKey}` } : {})
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: prompt[0].content },
-        userMessage
-      ],
-      stream: false
-    })
-  }, 'Ollama', fetchImpl, 120_000);
-  const reply = typeof result.message?.content === 'string' ? result.message.content.trim() : '';
-  if (!reply) throw new Error(`Ollama no devolvió una respuesta para el perfil ${provider}.`);
-  return { reply, model };
 }
 
 async function askKeras(text, history, memory, fetchImpl = fetch) {
@@ -1213,7 +1175,7 @@ async function addHubSpotMarketingSubscriber(email, accessToken, listId, subscri
   await hubspotRequest(`/crm/v3/lists/${encodeURIComponent(listId)}/memberships/add`, 'PUT', [contact.id]);
 }
 
-async function handleRequest(request, response, orders, riderLocations, idempotencyKeys, callSessions, orderChats, riderProfiles, persistRiderProfiles, persistOrders, notifyOrderChange, youtubeApiKey, openAIApiKey, ollamaBaseUrl, ollamaModel, ollamaVisionModel, ollamaApiKey, gmailClientId, gmailClientSecret, gmailRefreshToken, gmailUser, marketingProvider, hubspotAccessToken, hubspotListId, hubspotSubscriptionId, fetchImpl, reels, persistReels, reelsVideosDir, reelsDeletePassword, videoStorage, maxVideoBytes, complaints, persistComplaints, now = Date.now) {
+async function handleRequest(request, response, orders, riderLocations, idempotencyKeys, callSessions, orderChats, riderProfiles, persistRiderProfiles, persistOrders, notifyOrderChange, youtubeApiKey, openAIApiKey, gmailClientId, gmailClientSecret, gmailRefreshToken, gmailUser, marketingProvider, hubspotAccessToken, hubspotListId, hubspotSubscriptionId, fetchImpl, reels, persistReels, reelsVideosDir, reelsDeletePassword, videoStorage, maxVideoBytes, complaints, persistComplaints, now = Date.now) {
   const requestUrl = new URL(request.url || '/', `http://${request.headers.host}`);
 
   if (requestUrl.pathname === '/api/reels' || requestUrl.pathname.startsWith('/api/reels/')) {
@@ -2114,38 +2076,15 @@ async function handleRequest(request, response, orders, riderLocations, idempote
     if (!rateLimit(request)) return json(response, 429, { error: 'Has enviado varios mensajes seguidos. Espera un minuto y vuelve a intentarlo.' });
     let body;
     try {
-      body = await readJson(request, MAX_CHAT_BODY_BYTES);
+      body = await readJson(request);
     } catch (error) {
       return json(response, error.status || 400, { error: error.message });
     }
 
     const text = typeof body.text === 'string' ? body.text.trim() : '';
     const provider = body.provider;
-    let image;
-    if (body.image !== undefined) {
-      const { name, mimeType, data } = body.image || {};
-      const match = typeof data === 'string'
-        ? /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(data)
-        : null;
-      const bytes = match ? Buffer.from(match[2], 'base64') : null;
-      const validSignature = match?.[1] === 'image/png'
-        ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-        : match?.[1] === 'image/jpeg'
-          ? bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
-          : match?.[1] === 'image/webp'
-            ? bytes.length >= 12 && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP'
-            : false;
-      if (typeof name !== 'string' || !name.trim() || name.length > 120
-        || !['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)
-        || !match || match[1] !== mimeType || !bytes?.length
-        || bytes.length > MAX_CHAT_ATTACHMENT_BYTES || bytes.toString('base64') !== match[2]
-        || !validSignature) {
-        return json(response, 400, { error: 'La imagen adjunta no es válida o supera el tamaño permitido.' });
-      }
-      image = { name, mimeType, data };
-    }
-    if ((!text && !image) || text.length > MAX_MESSAGE_LENGTH) {
-      return json(response, 400, { error: `Escribe un mensaje de 1 a ${MAX_MESSAGE_LENGTH} caracteres o adjunta una imagen.` });
+    if (!text || text.length > MAX_MESSAGE_LENGTH) {
+      return json(response, 400, { error: `Escribe un mensaje de 1 a ${MAX_MESSAGE_LENGTH} caracteres.` });
     }
     if (!['ChatGPT', 'Copilot', 'Gemini'].includes(provider)) {
       return json(response, 400, { error: 'Selecciona ChatGPT, Copilot o Gemini.' });
@@ -2168,7 +2107,7 @@ async function handleRequest(request, response, orders, riderLocations, idempote
       && !asksForOrderHistory
       && /\b(recomiend|recomend|favorit|suel(?:o|es)|como siempre|basado|historial|pedir|pide|segun (?:mis )?(?:compras|pedidos))\b/.test(normalizedText);
     const localAnswer = assistantMode === 'menu' ? getLocalMenuAnswer(text) : null;
-    if (localAnswer && !image && !asksForPersonalizedRecommendation && !asksForOrderHistory) {
+    if (localAnswer && !asksForPersonalizedRecommendation && !asksForOrderHistory) {
       return json(response, 200, {
         reply: styleLocalAnswer(localAnswer.reply, provider),
         sources: [],
@@ -2200,17 +2139,14 @@ async function handleRequest(request, response, orders, riderLocations, idempote
     const webSearch = assistantMode === 'menu' && shouldUseWebSearch(text);
     const memory = typeof body.memory === 'string' ? body.memory : '';
     try {
-      const useOpenAIWebSearch = webSearch && Boolean(openAIApiKey) && !image && provider !== 'Gemini';
-      const answer = useOpenAIWebSearch
-        ? await askOpenAI(text, body.history, memory, dish, true, provider, orderHistory, assistantMode, openAIApiKey, fetchImpl)
-        : await askOllama(text, body.history, memory, dish, webSearch, provider, orderHistory, assistantMode, image, ollamaBaseUrl, ollamaModel, ollamaVisionModel, ollamaApiKey, fetchImpl);
+      const answer = await askOpenAI(text, body.history, memory, dish, webSearch, provider, orderHistory, assistantMode, openAIApiKey, fetchImpl);
       return json(response, 200, {
         reply: answer.reply,
-        sources: answer.sources || [],
+        sources: answer.sources,
         intent,
         dishId: dish?.id || null,
-        webSearchUsed: useOpenAIWebSearch && webSearch,
-        engine: answer.model ? `Ollama · ${answer.model}` : 'OpenAI API'
+        webSearchUsed: webSearch,
+        engine: 'OpenAI API'
       });
     } catch (error) {
       if (assistantMode === 'rider-support') {
@@ -2223,11 +2159,11 @@ async function handleRequest(request, response, orders, riderLocations, idempote
             dishId: null,
             webSearchUsed: false,
             engine: 'Keras local',
-            fallbackFrom: 'Ollama'
+            fallbackFrom: 'OpenAI API'
           });
         } catch (fallbackError) {
           return json(response, 502, {
-            error: `Ollama no está disponible (${error.message}). El modelo local tampoco pudo responder: ${fallbackError.message}`
+            error: `OpenAI no está disponible (${error.message}). El modelo local tampoco pudo responder: ${fallbackError.message}`
           });
         }
       }
@@ -2358,10 +2294,6 @@ export function createAlToqueServer({
   reelsDeletePassword = REELS_DELETE_PASSWORD,
   youtubeApiKey = YOUTUBE_API_KEY,
   openAIApiKey = process.env.OPENAI_API_KEY,
-  ollamaBaseUrl = OLLAMA_BASE_URL,
-  ollamaModel = OLLAMA_MODEL,
-  ollamaVisionModel = OLLAMA_VISION_MODEL,
-  ollamaApiKey = OLLAMA_API_KEY,
   gmailClientId = GMAIL_CLIENT_ID,
   gmailClientSecret = GMAIL_CLIENT_SECRET,
   gmailRefreshToken = GMAIL_REFRESH_TOKEN,
@@ -2588,10 +2520,6 @@ export function createAlToqueServer({
       notifyOrderChange,
       youtubeApiKey,
       openAIApiKey,
-      ollamaBaseUrl.replace(/\/+$/, ''),
-      ollamaModel,
-      ollamaVisionModel,
-      ollamaApiKey,
       gmailClientId,
       gmailClientSecret,
       gmailRefreshToken,

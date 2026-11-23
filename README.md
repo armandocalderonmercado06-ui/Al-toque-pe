@@ -74,16 +74,6 @@ Configura estas variables en el servidor:
   enviar confirmaciones por Gmail OAuth.
 - `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` y `GMAIL_USER`:
   credenciales opcionales para el proveedor Gmail.
-- `OLLAMA_BASE_URL`: endpoint de Ollama. Para Ollama Cloud usa
-  `https://ollama.com` (el servidor agrega `/api/chat`).
-- `OLLAMA_API_KEY`: clave privada de Ollama Cloud. Por compatibilidad, también
-  se acepta temporalmente el nombre anterior `API_OLLAMA`.
-- `OLLAMA_MODEL` y `OLLAMA_VISION_MODEL`: modelos de texto y visión; por defecto
-  son `llama3.2:3b` y `qwen3.5:2b`.
-- Los perfiles ChatGPT y Gemini usan Ollama. Gemini no cambia a OpenAI para
-  preguntas actuales; Ollama avisará cuando no tenga acceso a internet. Copilot
-  y las búsquedas web de ChatGPT pueden seguir usando OpenAI si configuras
-  `OPENAI_API_KEY`.
 
 El plan gratuito de Supabase tiene límites de base de datos y archivos; consulta
 https://supabase.com/pricing. Los videos se limitan a 50 MiB para ajustarse al
@@ -94,9 +84,8 @@ límite del bucket gratuito definido en `supabase/schema.sql`.
 `render.yaml` configura un servicio web Free sin disco persistente y usa
 Supabase para conservar pedidos y Reels. Al crear el Blueprint, Render pedirá
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REELS_DELETE_PASSWORD`,
-`HUBSPOT_ACCESS_TOKEN`, `HUBSPOT_SUBSCRIPTION_ID` y `OLLAMA_API_KEY`; ingresa
-los valores directamente en Render. No los compartas por chat ni los guardes en
-Git. Para el servicio existente, configura `OLLAMA_BASE_URL=https://ollama.com`.
+`HUBSPOT_ACCESS_TOKEN` y `HUBSPOT_SUBSCRIPTION_ID`; ingresa los valores
+directamente en Render. No los compartas por chat ni los guardes en Git.
 
 Render Free puede dormir cuando no recibe tráfico y los proyectos gratuitos de
 Supabase pueden pausarse tras una semana sin actividad. Los historiales y
