@@ -2167,6 +2167,9 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /getAIReplyWithoutSourceList/);
   assert.match(page, /fuentes utilizadas/);
   assert.match(page, /data-lucide="external-link"/);
+  assert.match(page, /w-60 max-w-full space-y-0\.5 rounded-lg border border-brand\/20 bg-cream\/60 p-1\.5 shadow-md/);
+  assert.match(page, /text-\[8px\] leading-tight text-gray-600/);
+  assert.match(page, /bg-brand\/5 text-\[8px\] font-bold text-brand/);
   assert.doesNotMatch(page, /fetch\('\/api\/chat'/);
   assert.doesNotMatch(page, /buildLocalFallback/);
 });

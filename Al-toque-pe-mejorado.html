@@ -11376,26 +11376,27 @@
                             <>
                               {' '}
                               <details className="mt-1 inline-block max-w-full align-middle">
-                                <summary className="inline-flex max-w-full cursor-pointer list-none items-center gap-1 rounded-full bg-[#e8f0ff] px-2 py-1 text-[10px] font-medium text-[#31528a]">
-                                  <i data-lucide="globe" className="h-3 w-3 shrink-0"></i>
-                                  <span className="max-w-[150px] truncate">{firstSourceLabel}</span>
+                                <summary className="inline-flex max-w-full cursor-pointer list-none items-center gap-1 rounded-full border border-brand/20 bg-brand/5 px-1.5 py-0.5 text-[9px] font-semibold text-brand">
+                                  <i data-lucide="globe" className="h-2.5 w-2.5 shrink-0"></i>
+                                  <span className="max-w-[130px] truncate">{firstSourceLabel}</span>
                                   {sources.length > 1 && <span className="shrink-0">+{sources.length - 1}</span>}
                                 </summary>
-                                <div className="mt-2 max-w-full space-y-1 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+                                <div className="mt-1.5 w-60 max-w-full space-y-0.5 rounded-lg border border-brand/20 bg-cream/60 p-1.5 shadow-md">
                                   {sources.map((source, sourceIndex) => (
                                     <a
                                       key={source.url}
                                       href={source.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="flex min-w-0 items-center gap-2 rounded-lg p-2 text-left no-underline transition hover:bg-gray-50"
+                                      title={source.url}
+                                      className="flex min-w-0 items-center gap-1.5 rounded-md p-1 text-left no-underline transition hover:bg-cream"
                                     >
-                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e8f0ff] text-[9px] font-bold text-[#31528a]">{sourceIndex + 1}</span>
+                                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/5 text-[8px] font-bold text-brand">{sourceIndex + 1}</span>
                                       <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-[10px] font-semibold text-dark">{getAISourceLabel(source)}</span>
-                                        <span className="block break-all text-[9px] text-gray-500">{source.url}</span>
+                                        <span className="block truncate text-[9px] font-semibold leading-tight text-dark">{getAISourceLabel(source)}</span>
+                                        <span className="block truncate text-[8px] leading-tight text-gray-600">{source.url}</span>
                                       </span>
-                                      <i data-lucide="external-link" className="h-3 w-3 shrink-0 text-gray-400"></i>
+                                      <i data-lucide="external-link" className="h-2.5 w-2.5 shrink-0 text-brand"></i>
                                     </a>
                                   ))}
                                 </div>
@@ -11430,7 +11431,7 @@
                               <span>{sources.length} {sources.length === 1 ? 'fuente utilizada' : 'fuentes utilizadas'}</span>
                               <span className="flex -space-x-1">
                                 {sources.slice(0, 3).map((source) => (
-                                  <span key={source.url} title={getAISourceLabel(source)} className="flex h-4 w-4 items-center justify-center rounded-full border border-white bg-[#e8f0ff] text-[8px] font-bold text-[#31528a]">
+                                  <span key={source.url} title={getAISourceLabel(source)} className="flex h-4 w-4 items-center justify-center rounded-full border border-brand/20 bg-brand/5 text-[8px] font-bold text-brand">
                                     {getAISourceLabel(source).charAt(0).toUpperCase()}
                                   </span>
                                 ))}
