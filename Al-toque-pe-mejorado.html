@@ -4361,7 +4361,7 @@
   ></video>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo, useRef } = React;
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
     const createReactElement = React.createElement;
     const lucideIconName = (name) => name
       .split('-')
@@ -7207,6 +7207,209 @@
       }
     ];
 
+    const RIDER_TUTORIAL_COMPLETION_STORAGE_KEY = 'altoque_rider_tutorial_completed_v1';
+    const RIDER_TUTORIAL_STEPS = [
+      {
+        tab: 'orders',
+        section: 'Repartidor · Bienvenida',
+        title: 'Conoce tu panel de entregas',
+        body: 'Este recorrido te explica Pedidos, Rutas, Ganancias y Perfil. Usa Anterior y Siguiente; Skip lo termina. Durante la guía no se aceptarán ni modificarán pedidos.',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'orders',
+        section: 'Pedidos · Disponibilidad',
+        title: 'Controla cuándo recibir pedidos',
+        body: 'En línea permite recibir ofertas cuando no tienes una entrega activa. Desconectado pausa las nuevas ofertas. La guía no cambiará tu disponibilidad.',
+        target: 'rider-status',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'orders',
+        section: 'Pedidos · Actualización',
+        title: 'Mantén la lista al día',
+        body: 'Los pedidos se sincronizan automáticamente cada pocos segundos. También puedes pulsar Actualizar para solicitar una revisión manual.',
+        target: 'rider-refresh',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'orders',
+        section: 'Pedidos · Información',
+        title: 'Revisa cada pedido antes de decidir',
+        body: 'La tarjeta muestra los productos, recojo, destino, distancia, tiempo aproximado, pago y ganancia estimada. Comprueba los datos antes de aceptar.',
+        target: 'rider-orders-list',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'orders',
+        section: 'Pedidos · Decisión',
+        title: 'Acepta o rechaza una oferta',
+        body: 'Cuando haya una oferta disponible y estés en línea, puedes aceptarla o rechazarla. Solo se aceptan pedidos de la cola compartida y una entrega a la vez.',
+        target: 'rider-order-actions',
+        requiresAvailableOrder: true,
+        mascots: [1, 4]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Acceso',
+        title: 'Abre tus rutas',
+        body: 'La pestaña Rutas muestra la entrega activa. Si aún no tienes un pedido, verás el acceso para volver a Pedidos.',
+        target: 'rider-nav-routes',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Vista',
+        title: 'Consulta la pantalla de ruta',
+        body: 'Cuando aceptes un pedido, aquí verás la ruta y sus indicaciones. Sin una entrega activa, la pantalla te permitirá volver a la lista.',
+        target: 'rider-route-screen',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Mapa',
+        title: 'Sigue el mapa de la entrega',
+        body: 'Con un pedido activo, el mapa acompaña las etapas hacia el punto de recojo y luego hacia el cliente. Puedes mover y ampliar el mapa.',
+        target: 'rider-map',
+        requiresActiveOrder: true,
+        mascots: [1, 4]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Detalles',
+        title: 'Verifica recojo, destino y pago',
+        body: 'La tarjeta de la ruta reúne el cliente, productos, direcciones, distancia, tiempo aproximado, método de pago y ganancia estimada.',
+        target: 'rider-order-details',
+        requiresActiveOrder: true,
+        mascots: [3, 5]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Navegación',
+        title: 'Abre indicaciones externas',
+        body: 'El enlace abre Google Maps para consultar la ruta fuera de Al Toque. Durante este tutorial no abrirá otra aplicación.',
+        target: 'rider-google-maps',
+        requiresActiveOrder: true,
+        mascots: [0, 2]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Contacto',
+        title: 'Llama al cliente desde la app',
+        body: 'Con un pedido activo, la llamada dentro de la aplicación sirve para coordinar la entrega. Solo úsala cuando sea necesario.',
+        target: 'rider-call',
+        requiresActiveOrder: true,
+        mascots: [1, 4]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Mensajes',
+        title: 'Coordina por el chat del pedido',
+        body: 'El chat mantiene los mensajes asociados a la entrega. El indicador te avisa si el cliente escribió mientras el chat estaba cerrado.',
+        target: 'rider-chat',
+        requiresActiveOrder: true,
+        mascots: [3, 5]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Ubicación',
+        title: 'Activa el GPS cuando lo necesites',
+        body: 'La ubicación se solicita al pulsar Activar GPS. En una ruta activa, el seguimiento para el cliente empieza al confirmar el recojo.',
+        target: 'rider-route-gps',
+        requiresActiveOrder: true,
+        mascots: [0, 2]
+      },
+      {
+        tab: 'routes',
+        section: 'Rutas · Estados',
+        title: 'Confirma cada etapa al completarla',
+        body: 'Al llegar al punto indicado, confirma el recojo; después de entregar el pedido, confirma la entrega. Cada confirmación actualiza el estado compartido y no se puede simular durante el tutorial.',
+        target: 'rider-confirm-step',
+        requiresActiveOrder: true,
+        mascots: [1, 4]
+      },
+      {
+        tab: 'earnings',
+        section: 'Ganancias · Acceso',
+        title: 'Abre tu resumen de ganancias',
+        body: 'La pestaña Ganancias reúne los montos y entregas registradas en este dispositivo.',
+        target: 'rider-nav-earnings',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'earnings',
+        section: 'Ganancias · Resumen',
+        title: 'Revisa tu actividad',
+        body: 'Consulta el acumulado, los últimos siete días, el gráfico y las entregas recientes. Son registros locales del dispositivo, no un comprobante de pago.',
+        target: 'rider-earnings',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Acceso',
+        title: 'Abre tu perfil de repartidor',
+        body: 'Desde Perfil puedes revisar tu presentación, opiniones, ubicación, documentos, vehículo y ayuda.',
+        target: 'rider-nav-profile',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Presentación',
+        title: 'Revisa cómo te ve el cliente',
+        body: 'Aquí aparecen tu nombre y foto de perfil, las opiniones recibidas y el total de entregas guardadas en este dispositivo.',
+        target: 'rider-profile-info',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Opiniones',
+        title: 'Lee las calificaciones de clientes',
+        body: 'Las opiniones se muestran cuando un cliente califica una entrega completada. Este panel reúne las más recientes.',
+        target: 'rider-reviews',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Identificación',
+        title: 'Administra tus datos y documentos',
+        body: 'El DNI y la foto del documento se guardan en este dispositivo y no se comparten con el cliente. El nombre y la foto de perfil sí se muestran para coordinar la entrega.',
+        target: 'rider-profile-documents',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Transporte',
+        title: 'Elige tu medio de transporte',
+        body: 'Selecciona moto, bicicleta o caminando para que el cliente conozca cómo llegarás. El tutorial no cambiará tu selección.',
+        target: 'rider-profile-vehicle',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Seguridad',
+        title: 'Controla el acceso a tu ubicación',
+        body: 'El GPS se solicita solo cuando lo activas. La ubicación de la ruta se comparte con el cliente únicamente durante una entrega activa, según su etapa.',
+        target: 'rider-profile-gps',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Ayuda',
+        title: 'Consulta soporte y preguntas frecuentes',
+        body: 'Abre Ayuda y soporte para consultar el asistente de Al Toque y las respuestas frecuentes del panel de repartidor.',
+        target: 'rider-profile-support',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'orders',
+        section: 'Repartidor · Salida',
+        title: 'Vuelve a la app principal',
+        body: 'Cuando cierres el tutorial, usa Volver a Al Toque para salir del panel de repartidor. Puedes repetir esta guía desde Perfil.',
+        target: 'rider-exit',
+        mascots: [3, 5]
+      }
+    ];
+
     function TutorialMascot({ stepIndex, step }) {
       const mascotIndex = step?.mascots?.[stepIndex % step.mascots.length] ?? stepIndex % 6;
 
@@ -7222,7 +7425,7 @@
       );
     }
 
-    function TutorialModal({ steps, stepIndex, onStepChange, onClose }) {
+    function TutorialModal({ steps, stepIndex, onStepChange, onClose, brand = 'Tutorial Al Toque Pe' }) {
       const step = steps[stepIndex] || steps[0];
       const dialogRef = useRef(null);
       const highlightedTargetRef = useRef(null);
@@ -7351,10 +7554,10 @@
             ref={dialogRef}
             className="altoque-tutorial-dialog"
             style={{ left: `${targetPosition.left}px`, top: `${targetPosition.top}px` }}
-            aria-label="Guía interactiva de Al Toque Pe"
+            aria-label={brand}
           >
             <header className="altoque-tutorial-header">
-              <span className="altoque-tutorial-brand">Tutorial Al Toque Pe</span>
+              <span className="altoque-tutorial-brand">{brand}</span>
               <button type="button" className="altoque-tutorial-skip" onClick={onClose} aria-label="Saltar tutorial">
                 Skip {'>>'}
               </button>
@@ -15135,6 +15338,20 @@
       const [riderLiveLocation, setRiderLiveLocation] = useState(null);
       const [locationSharingStatus, setLocationSharingStatus] = useState('');
       const [liveOrders, setLiveOrders] = useState([]);
+      const [isRiderTutorialOpen, setIsRiderTutorialOpen] = useState(() => {
+        try {
+          return localStorage.getItem(RIDER_TUTORIAL_COMPLETION_STORAGE_KEY) !== 'true';
+        } catch (error) {
+          console.error('No se pudo consultar el estado del tutorial del repartidor:', error);
+          return false;
+        }
+      });
+      const [riderTutorialStep, setRiderTutorialStep] = useState(0);
+      const riderTutorialSteps = useMemo(() => RIDER_TUTORIAL_STEPS.map((step) => {
+        const missingRequiredOrder = (step.requiresActiveOrder && !activeOrder)
+          || (step.requiresAvailableOrder && liveOrders.length === 0);
+        return missingRequiredOrder ? { ...step, target: undefined } : step;
+      }), [activeOrder, liveOrders.length]);
       const [orderSyncError, setOrderSyncError] = useState('');
       const [unavailableDeliveryOrderId, setUnavailableDeliveryOrderId] = useState('');
       const [riderReviewProfile, setRiderReviewProfile] = useState({ ratingAverage: 0, reviewCount: 0, reviews: [] });
@@ -15408,6 +15625,7 @@
       }, [activeOrder?.id, isRiderChatOpen]);
 
       const sendRiderChatReply = async (message) => {
+        if (isRiderTutorialOpen) return;
         if ((!message.text.trim() && !['sticker', 'audio', 'document'].includes(message.type)) || !activeOrder?.id) return;
         try {
           const storageKey = `altoque_order_chat_${activeOrder.id}`;
@@ -15555,6 +15773,10 @@
       useOrderWebSocket(() => orderRefreshRef.current?.());
 
       useEffect(() => {
+        if (isRiderTutorialOpen) setActiveTab(riderTutorialSteps[0]?.tab || 'orders');
+      }, [isRiderTutorialOpen]);
+
+      useEffect(() => {
         let isMounted = true;
         let isRefreshing = false;
         const refreshRiderProfile = async () => {
@@ -15642,6 +15864,26 @@
         noticeTimeoutRef.current = window.setTimeout(() => setNotice(''), 3200);
       };
 
+      const openRiderTutorial = useCallback(() => {
+        setRiderTutorialStep(0);
+        setActiveTab(RIDER_TUTORIAL_STEPS[0].tab);
+        setIsRiderTutorialOpen(true);
+      }, []);
+      const changeRiderTutorialStep = useCallback((nextStep) => {
+        const step = riderTutorialSteps[nextStep];
+        if (!step) return;
+        setRiderTutorialStep(nextStep);
+        setActiveTab(step.tab);
+      }, [riderTutorialSteps]);
+      const closeRiderTutorial = useCallback(() => {
+        try {
+          localStorage.setItem(RIDER_TUTORIAL_COMPLETION_STORAGE_KEY, 'true');
+        } catch (error) {
+          console.error('No se pudo guardar el estado del tutorial del repartidor:', error);
+        }
+        setIsRiderTutorialOpen(false);
+      }, []);
+
       const lookupGpsAddress = async (latitude, longitude) => {
         let place;
         try {
@@ -15695,6 +15937,7 @@
       };
 
       const requestGps = () => {
+        if (isRiderTutorialOpen) return;
         if (!navigator.geolocation) {
           setGps((current) => ({ ...current, status: 'error', message: 'Este navegador no ofrece ubicación GPS.' }));
           return;
@@ -15788,6 +16031,7 @@
       };
 
       const acceptOrder = async (order) => {
+        if (isRiderTutorialOpen) return;
         if (!isOnline) {
           showNotice('Conéctate para aceptar pedidos.');
           return;
@@ -15817,6 +16061,7 @@
       };
 
       const declineOrder = async (order) => {
+        if (isRiderTutorialOpen) return;
         if (order.isLive) {
           try {
             await sendLiveOrderAction(order.id, 'decline');
@@ -15836,6 +16081,7 @@
       };
 
       const confirmOrderStep = async () => {
+        if (isRiderTutorialOpen) return;
         if (!activeOrder) return;
         if (!activeOrder.isLive) {
           const message = 'Esta ruta ya no está conectada con un pedido activo del servidor.';
@@ -16020,28 +16266,30 @@
       };
 
       const renderMap = (step = 0) => (
-        <LiveRouteMapErrorBoundary
-          className="rider-map"
-          label={`Ruta en vivo del pedido ${activeOrder?.id || ''}`}
-        >
-          <LiveRouteMap
-            location={gps.status === 'active'
-              ? gps
-              : step > 0 ? riderLiveLocation || activeOrder?.riderLocation : null}
+        <div data-tutorial-target="rider-map">
+          <LiveRouteMapErrorBoundary
             className="rider-map"
             label={`Ruta en vivo del pedido ${activeOrder?.id || ''}`}
-            walkingStartedAt={step === 1 && riderDetails.vehicle === 'Caminando'
-              ? activeOrder?.routeStartedAt || activeOrder?.pickedUpAt
-              : null}
-            allowMapInteraction
-            walkingRoutePoints={RIDER_WALKING_ROUTE_POINTS}
-            gpsLocation={riderDetails.vehicle === 'Caminando' && gps.status === 'active' ? gps : null}
-          />
-        </LiveRouteMapErrorBoundary>
+          >
+            <LiveRouteMap
+              location={gps.status === 'active'
+                ? gps
+                : step > 0 ? riderLiveLocation || activeOrder?.riderLocation : null}
+              className="rider-map"
+              label={`Ruta en vivo del pedido ${activeOrder?.id || ''}`}
+              walkingStartedAt={step === 1 && riderDetails.vehicle === 'Caminando'
+                ? activeOrder?.routeStartedAt || activeOrder?.pickedUpAt
+                : null}
+              allowMapInteraction
+              walkingRoutePoints={RIDER_WALKING_ROUTE_POINTS}
+              gpsLocation={riderDetails.vehicle === 'Caminando' && gps.status === 'active' ? gps : null}
+            />
+          </LiveRouteMapErrorBoundary>
+        </div>
       );
 
       const renderOrders = () => (
-        <section className="space-y-4">
+        <section className="space-y-4" data-tutorial-target="rider-orders-list">
           <div className="flex items-end justify-between">
             <div>
               <h1 className="font-title text-xl font-bold">Pedidos disponibles</h1>
@@ -16054,7 +16302,7 @@
               }
               orderRefreshRef.current?.();
               showNotice('Actualizando pedidos en línea…');
-            }} className="flex items-center gap-1 text-[10px] font-bold text-[#a90000]">
+            }} data-tutorial-target="rider-refresh" className="flex items-center gap-1 text-[10px] font-bold text-[#a90000]">
               <i data-lucide="refresh-cw" className="h-3 w-3"></i> Actualizar
             </button>
           </div>
@@ -16109,9 +16357,9 @@
                 <span>{order.distance} · aprox. {order.eta} min</span>
                 <span>Total S/{order.total.toFixed(2)}</span>
               </div>
-              <div className="mt-3 grid grid-cols-[0.75fr_1.25fr] gap-2">
-                <button type="button" disabled={!isOnline || Boolean(activeOrder)} onClick={() => declineOrder(order)} className="rounded-xl border border-gray-200 py-2.5 text-[10px] font-bold text-gray-600 disabled:cursor-not-allowed disabled:opacity-40">Rechazar</button>
-                <button type="button" disabled={!isOnline || Boolean(activeOrder)} onClick={() => acceptOrder(order)} className="flex items-center justify-center gap-1.5 rounded-xl bg-[#211716] py-2.5 text-[10px] font-bold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40">
+              <div className="mt-3 grid grid-cols-[0.75fr_1.25fr] gap-2" data-tutorial-target="rider-order-actions">
+                <button type="button" disabled={isRiderTutorialOpen || !isOnline || Boolean(activeOrder)} onClick={() => declineOrder(order)} className="rounded-xl border border-gray-200 py-2.5 text-[10px] font-bold text-gray-600 disabled:cursor-not-allowed disabled:opacity-40">Rechazar</button>
+                <button type="button" disabled={isRiderTutorialOpen || !isOnline || Boolean(activeOrder)} onClick={() => acceptOrder(order)} className="flex items-center justify-center gap-1.5 rounded-xl bg-[#211716] py-2.5 text-[10px] font-bold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40">
                   Aceptar pedido <i data-lucide="chevron-right" className="h-3.5 w-3.5"></i>
                 </button>
               </div>
@@ -16122,14 +16370,14 @@
       );
 
       const renderRoutes = () => !activeOrder ? (
-        <section className="rider-card space-y-3 p-5 text-center">
+        <section className="rider-card space-y-3 p-5 text-center" data-tutorial-target="rider-route-screen">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff2df] text-[#a90000]"><i data-lucide="route" className="h-6 w-6"></i></div>
           <h1 className="font-title text-lg font-bold">Aún no tienes una ruta</h1>
           <p className="text-xs text-gray-500">Acepta un pedido para ver sus indicaciones de recojo y entrega.</p>
           <button type="button" onClick={() => setActiveTab('orders')} className="rounded-xl bg-[#a90000] px-4 py-2.5 text-xs font-bold text-white">Ver pedidos</button>
         </section>
       ) : (
-        <section className="space-y-3">
+        <section className="space-y-3" data-tutorial-target="rider-route-screen">
           <div>
             <h1 className="font-title text-xl font-bold">Navegación UPCH</h1>
             <p className="text-[11px] text-gray-500">Pedido #{activeOrder.id} · {activeOrder.step === 0 ? 'Ruta al punto de recojo' : 'Ruta al cliente'}</p>
@@ -16140,7 +16388,7 @@
               ? 'El GPS del repartidor se compartirá con el cliente al confirmar el recojo.'
               : locationSharingStatus || 'El seguimiento GPS se activa al confirmar el recojo.'}
           </p>
-          <div className="rider-card space-y-3 p-4">
+          <div className="rider-card space-y-3 p-4" data-tutorial-target="rider-order-details">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-wider text-[#a90000]">Cliente: {activeOrder.customer}</p>
@@ -16166,7 +16414,7 @@
               <span>{activeOrder.payment}</span>
             </div>
             <div className="grid grid-cols-2 gap-2 py-2">
-              <button type="button" onClick={() => voiceCall.startCall()} disabled={['incoming', 'ringing', 'connecting', 'connected'].includes(voiceCall.call.status)} aria-label="Llamar al cliente dentro de la app" className="flex flex-col items-center gap-1.5 py-1 text-center text-[10px] font-bold text-[#a90000] disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="button" onClick={() => voiceCall.startCall()} disabled={isRiderTutorialOpen || ['incoming', 'ringing', 'connecting', 'connected'].includes(voiceCall.call.status)} data-tutorial-target="rider-call" aria-label="Llamar al cliente dentro de la app" className="flex flex-col items-center gap-1.5 py-1 text-center text-[10px] font-bold text-[#a90000] disabled:cursor-not-allowed disabled:opacity-50">
                 <span className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#a90000] bg-white shadow-sm">
                   <i data-lucide="phone" className="h-6 w-6"></i>
                 </span>
@@ -16191,12 +16439,14 @@
                 )}
                 <button
                   type="button"
+                  disabled={isRiderTutorialOpen}
                   onClick={() => {
                     setHasNewCustomerMessage(false);
                     setIsRiderChatOpen(true);
                   }}
+                  data-tutorial-target="rider-chat"
                   aria-label="Abrir chat con el cliente"
-                  className="flex flex-col items-center gap-1.5 py-1 text-center text-[10px] font-bold text-[#a90000]"
+                  className="flex flex-col items-center gap-1.5 py-1 text-center text-[10px] font-bold text-[#a90000] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#a90000] bg-white shadow-sm">
                     <i data-lucide="message-circle" className="h-6 w-6"></i>
@@ -16209,6 +16459,11 @@
               href="https://www.google.com/maps/dir/KOU-XIN,+Av.+Armend%C3%A1riz+524,+Miraflores+15076/Universidad+Peruana+Cayetano+Heredia+-+Sede+Miraflores,+Av.+Armend%C3%A1riz+497,+Miraflores+15074/@-12.1344714,-77.0260124,20.03z/data=!4m13!4m12!1m5!1m1!1s0x9105b7007a198825:0xc97840f7f6ccaee5!2m2!1d-77.0260012!2d-12.1348222!1m5!1m1!1s0x9105b7e3bfbe8e9b:0xbd7840de0e702ace!2m2!1d-77.0260721!2d-12.1341675?entry=ttu&g_ep=EgoyMDI2MTAyOC4wIKXMDSoASAFQAw%3D%3D"
               target="_blank"
               rel="noopener noreferrer"
+              data-tutorial-target="rider-google-maps"
+              aria-disabled={isRiderTutorialOpen}
+              onClick={(event) => {
+                if (isRiderTutorialOpen) event.preventDefault();
+              }}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#a90000]/25 py-2.5 text-[10px] font-bold text-[#a90000]"
             >
               <i data-lucide="navigation" className="h-4 w-4"></i> Abrir ruta en Google Maps
@@ -16216,12 +16471,12 @@
             {unavailableDeliveryOrderId === activeOrder.id ? (
               <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <p className="text-center text-[10px] text-amber-900" role="alert">El servidor ya cambió el estado de este pedido. No se marcará como completado ni afectará tus ganancias.</p>
-                <button type="button" onClick={discardUnavailableDeliveryOrder} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#a90000] py-3 text-xs font-bold text-white shadow-md">
+                <button type="button" disabled={isRiderTutorialOpen} onClick={discardUnavailableDeliveryOrder} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#a90000] py-3 text-xs font-bold text-white shadow-md disabled:opacity-50">
                   Quitar solo este pedido y continuar
                 </button>
               </div>
             ) : (
-              <button type="button" onClick={confirmOrderStep} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#a90000] py-3 text-xs font-bold text-white shadow-md">
+              <button type="button" disabled={isRiderTutorialOpen} onClick={confirmOrderStep} data-tutorial-target="rider-confirm-step" className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#a90000] py-3 text-xs font-bold text-white shadow-md disabled:opacity-50">
                 <i data-lucide={activeOrder.step === 0 ? 'package-check' : 'check-circle-2'} className="h-4 w-4"></i>
                 {activeOrder.step === 0 ? 'Confirmar recojo' : 'Confirmar entrega'}
               </button>
@@ -16234,7 +16489,7 @@
                 <p className="text-[10px] font-bold">Ubicación del dispositivo</p>
                 <p className="text-[9px] text-gray-500">{gps.status === 'active' ? `GPS activo · precisión ±${Math.round(gps.accuracy)} m` : 'La ubicación no se comparte mientras el GPS está desactivado.'}</p>
               </div>
-              <button type="button" onClick={requestGps} disabled={gps.status === 'loading' || gps.status === 'active'} className="shrink-0 rounded-lg border border-gray-200 px-2.5 py-2 text-[9px] font-bold text-[#a90000] disabled:opacity-50">
+              <button type="button" onClick={requestGps} disabled={isRiderTutorialOpen || gps.status === 'loading' || gps.status === 'active'} data-tutorial-target="rider-route-gps" className="shrink-0 rounded-lg border border-gray-200 px-2.5 py-2 text-[9px] font-bold text-[#a90000] disabled:opacity-50">
                 {gps.status === 'active' ? 'GPS activo' : gps.status === 'loading' ? 'Buscando…' : 'Activar GPS'}
               </button>
             </div>
@@ -16280,7 +16535,7 @@
       );
 
       const renderEarnings = () => (
-        <section className="space-y-4">
+        <section className="space-y-4" data-tutorial-target="rider-earnings">
           <div className="rounded-b-3xl rounded-t-[22px] bg-[#211716] px-5 py-6 text-center text-white">
             <p className="text-[9px] font-bold uppercase tracking-[.18em] text-amber-300">Acumulado por entregas completadas</p>
             <p className="mt-1 font-title text-4xl font-bold">S/ {earnings.toFixed(2)}</p>
@@ -16318,7 +16573,7 @@
         const ratingAverage = reviewCount ? Number((reviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount).toFixed(1)) : 0;
         return (
         <section className="space-y-4">
-          <div className="rounded-3xl bg-[#211716] p-5 text-white">
+          <div className="rounded-3xl bg-[#211716] p-5 text-white" data-tutorial-target="rider-profile-info">
             <p className="text-[9px] font-bold uppercase tracking-[.15em] text-amber-300">Perfil del repartidor</p>
             <div className="mt-2 flex items-center gap-3">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/50 bg-white/10 text-xl">
@@ -16340,7 +16595,7 @@
             <div className="mt-4 border-t border-white/15 pt-3 text-center"><p className="font-bold">{completedCount}</p><p className="text-[8px] text-white/55">Entregas completadas en este dispositivo</p></div>
           </div>
 
-          <div className="rider-card space-y-3 p-4">
+          <div className="rider-card space-y-3 p-4" data-tutorial-target="rider-reviews">
             <div className="flex items-center justify-between gap-2">
               <div><h2 className="text-xs font-bold">Opiniones de tus clientes</h2><p className="mt-1 text-[9px] text-gray-500">Se actualizan automáticamente desde los pedidos entregados.</p></div>
               <span className="text-lg font-bold text-amber-500">{ratingAverage > 0 ? `★ ${ratingAverage.toFixed(1)}` : '—'}</span>
@@ -16365,7 +16620,7 @@
 
           <div className="rider-card space-y-3 p-4">
             <div><h2 className="text-xs font-bold">Ubicación y seguridad</h2><p className="mt-1 text-[10px] leading-relaxed text-gray-500">El GPS solo se solicita cuando lo activas. El punto se muestra en este dispositivo.</p></div>
-            <button type="button" onClick={requestGps} disabled={gps.status === 'loading' || gps.status === 'active'} className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 py-2.5 text-[10px] font-bold text-[#a90000] disabled:opacity-50">
+            <button type="button" onClick={requestGps} disabled={isRiderTutorialOpen || gps.status === 'loading' || gps.status === 'active'} data-tutorial-target="rider-profile-gps" className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 py-2.5 text-[10px] font-bold text-[#a90000] disabled:opacity-50">
               <i data-lucide="locate-fixed" className="h-4 w-4"></i>{gps.status === 'active' ? 'Ubicación activa' : gps.status === 'loading' ? 'Solicitando ubicación…' : 'Activar ubicación del dispositivo'}
             </button>
             {gps.status === 'active' && (
@@ -16384,17 +16639,17 @@
           </div>
 
           <div className="rider-card divide-y divide-gray-100">
-            <button type="button" onClick={() => { setProfileFormError(''); setProfileModal('identity'); }} className="flex w-full items-center gap-3 p-3 text-left">
+            <button type="button" disabled={isRiderTutorialOpen} onClick={() => { setProfileFormError(''); setProfileModal('identity'); }} data-tutorial-target="rider-profile-documents" className="flex w-full items-center gap-3 p-3 text-left disabled:cursor-not-allowed disabled:opacity-50">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff2df] text-[#a90000]"><i data-lucide="file-check-2" className="h-4 w-4"></i></span>
               <span className="flex-1"><span className="block text-[10px] font-bold">Idoneidad y documentos</span><span className="block text-[9px] text-gray-500">{riderDetails.dni ? 'Datos guardados en este dispositivo' : 'Agrega tus datos y fotos de identificación'}</span></span>
               <i data-lucide="chevron-right" className="h-4 w-4 text-gray-500"></i>
             </button>
-            <button type="button" onClick={() => setProfileModal('vehicle')} className="flex w-full items-center gap-3 p-3 text-left">
+            <button type="button" disabled={isRiderTutorialOpen} onClick={() => setProfileModal('vehicle')} data-tutorial-target="rider-profile-vehicle" className="flex w-full items-center gap-3 p-3 text-left disabled:cursor-not-allowed disabled:opacity-50">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff2df] text-[#a90000]"><i data-lucide="bike" className="h-4 w-4"></i></span>
               <span className="flex-1"><span className="block text-[10px] font-bold">Vehículo</span><span className="block text-[9px] text-gray-500">{riderDetails.vehicle || 'Elige moto, bicicleta o caminar'}</span></span>
               <i data-lucide="chevron-right" className="h-4 w-4 text-gray-500"></i>
             </button>
-            <button type="button" onClick={() => { setSupportQuery(''); setSupportAnswer(null); setSupportError(''); setProfileModal('support'); }} className="flex w-full items-center gap-3 p-3 text-left">
+            <button type="button" disabled={isRiderTutorialOpen} onClick={() => { setSupportQuery(''); setSupportAnswer(null); setSupportError(''); setProfileModal('support'); }} data-tutorial-target="rider-profile-support" className="flex w-full items-center gap-3 p-3 text-left disabled:cursor-not-allowed disabled:opacity-50">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#fff2df] text-[#a90000]"><i data-lucide="life-buoy" className="h-4 w-4"></i></span>
               <span className="flex-1"><span className="block text-[10px] font-bold">Ayuda y soporte</span><span className="block text-[9px] text-gray-500">Asistente y 12 respuestas frecuentes</span></span>
               <i data-lucide="chevron-right" className="h-4 w-4 text-gray-500"></i>
@@ -16527,7 +16782,8 @@
               </section>
             </div>
           )}
-          <button type="button" onClick={onExit} className="w-full rounded-xl border border-gray-200 bg-white py-3 text-xs font-bold text-[#211716]">Volver a Al Toque</button>
+          <button type="button" disabled={isRiderTutorialOpen} onClick={onExit} data-tutorial-target="rider-exit" className="w-full rounded-xl border border-gray-200 bg-white py-3 text-xs font-bold text-[#211716] disabled:cursor-not-allowed disabled:opacity-50">Volver a Al Toque</button>
+          <button type="button" disabled={isRiderTutorialOpen} onClick={openRiderTutorial} data-tutorial-target="rider-tutorial-replay" className="w-full rounded-xl border border-[#a90000]/25 bg-white py-3 text-xs font-bold text-[#a90000] disabled:cursor-not-allowed disabled:opacity-50">Repetir tutorial del repartidor</button>
         </section>
         );
       };
@@ -16543,16 +16799,16 @@
         <div className="rider-app">
           <header className="rider-topbar">
             <div className="flex items-center gap-2">
-              <button type="button" onClick={onExit} aria-label="Volver a Al Toque" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15"><i data-lucide="arrow-left" className="h-4 w-4"></i></button>
+              <button type="button" disabled={isRiderTutorialOpen} onClick={onExit} data-tutorial-target="rider-exit" aria-label="Volver a Al Toque" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 disabled:opacity-50"><i data-lucide="arrow-left" className="h-4 w-4"></i></button>
               <div><p className="rider-brand-title">Al Toque PE</p><p className="rider-brand-subtitle">PANEL DEL REPARTIDOR</p></div>
             </div>
-            <button type="button" onClick={() => {
+            <button type="button" disabled={isRiderTutorialOpen} onClick={() => {
               if (activeOrder) {
                 showNotice('Completa tu entrega antes de desconectarte.');
                 return;
               }
               setIsOnline((value) => !value);
-            }} aria-pressed={isOnline} className={`flex items-center gap-2 rounded-full px-3 py-2 text-[9px] font-bold ${isOnline ? 'bg-white/15' : 'bg-black/20'}`}>
+            }} aria-pressed={isOnline} data-tutorial-target="rider-status" className={`flex items-center gap-2 rounded-full px-3 py-2 text-[9px] font-bold disabled:opacity-50 ${isOnline ? 'bg-white/15' : 'bg-black/20'}`}>
               {isOnline ? 'En línea' : 'Desconectado'}<span className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-green-400' : 'bg-gray-400'}`}></span>
             </button>
           </header>
@@ -16568,11 +16824,20 @@
 
           <nav className="rider-bottom-nav" aria-label="Navegación del repartidor">
             {tabs.map((tab) => (
-              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} aria-current={activeTab === tab.id ? 'page' : undefined} className={`rider-nav-item ${activeTab === tab.id ? 'active' : ''}`}>
+              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} aria-current={activeTab === tab.id ? 'page' : undefined} data-tutorial-target={`rider-nav-${tab.id}`} className={`rider-nav-item ${activeTab === tab.id ? 'active' : ''}`}>
                 <i data-lucide={tab.icon} className="h-4 w-4"></i><span>{tab.label}</span>
               </button>
             ))}
           </nav>
+          {isRiderTutorialOpen && (
+            <TutorialModal
+              steps={riderTutorialSteps}
+              stepIndex={riderTutorialStep}
+              onStepChange={changeRiderTutorialStep}
+              onClose={closeRiderTutorial}
+              brand="Tutorial del repartidor"
+            />
+          )}
         </div>
       );
     }

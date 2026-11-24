@@ -208,6 +208,15 @@ test('serves the interactive animated tutorial, stickers and mascot images', asy
   assert.match(html, /Skip \{'>>'\}/);
   assert.match(html, /altoque_tutorial_completed_v3/);
   assert.match(html, /Ver tutorial paso a paso/);
+  assert.match(html, /altoque_rider_tutorial_completed_v1/);
+  assert.match(html, /const RIDER_TUTORIAL_STEPS = \[/);
+  assert.match(html, /brand="Tutorial del repartidor"/);
+  assert.match(html, /Repetir tutorial del repartidor/);
+  assert.match(html, /no se aceptarán ni modificarán pedidos/);
+  assert.match(html, /disabled=\{isRiderTutorialOpen \|\| !isOnline \|\| Boolean\(activeOrder\)\}/);
+  assert.match(html, /data-tutorial-target="rider-confirm-step"/);
+  assert.match(html, /data-tutorial-target="rider-profile-support"/);
+  assert.match(html, /data-tutorial-target="rider-earnings"/);
   assert.match(html, /data-tutorial-action="tutorial-open-music"/);
   assert.match(html, /data-tutorial-action="tutorial-select-track"/);
   assert.match(html, /data-tutorial-action="tutorial-add-dish"/);
