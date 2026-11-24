@@ -81,6 +81,35 @@ const MENU_ALIASES = [
   { id: '7', terms: ['jugo', 'maracuya'] },
   { id: '10', terms: ['agua san luis'] }
 ];
+let menuRecommendationIndex = 0;
+const MENU_RECOMMENDATION_OPENERS = {
+  food: [
+    'Para comer te recomiendo',
+    'Una opción distinta del menú es',
+    'Si quieres variar, podrías elegir',
+    'También puedes pedir',
+    'Te sugiero probar',
+    'Otra alternativa para comer es',
+    'Para tu próximo pedido, considera',
+    'Hoy podrías elegir',
+    'Entre las opciones disponibles está',
+    'Una alternativa que vale la pena es',
+    '¿Qué te parece probar'
+  ],
+  drink: [
+    'Para tomar te recomiendo',
+    'Una bebida del menú que podrías probar es',
+    'Si quieres variar, podrías elegir',
+    'También puedes pedir',
+    'Te sugiero probar',
+    'Otra alternativa refrescante es',
+    'Para refrescarte, considera',
+    'Hoy podrías elegir',
+    'Entre las bebidas disponibles está',
+    'Una alternativa para tomar es',
+    '¿Qué te parece probar'
+  ]
+};
 
 const PUBLIC_ASSETS = new Set([
   HTML_FILE,
@@ -222,7 +251,12 @@ export function detectMenuIntent(text) {
   return 'ninguna';
 }
 
-export function selectMenuItem(intent, text) {
+function getRequestedMenuBudget(query) {
+  const match = /\bs\/\.?\s*(\d+(?:[.,]\d{1,2})?)/.exec(query);
+  return match ? Number(match[1].replace(',', '.')) : null;
+}
+
+function chooseMenuRecommendation(intent, text) {
   if (intent === 'ninguna') return null;
   const query = normalize(text);
   const eligible = MENU.filter((item) => (
@@ -233,20 +267,39 @@ export function selectMenuItem(intent, text) {
         : true
   ));
   const explicitlyNamed = eligible.find((item) => query.includes(normalize(item.name)));
-  if (explicitlyNamed) return explicitlyNamed;
+  if (explicitlyNamed) return { item: explicitlyNamed, sequence: menuRecommendationIndex };
   const matchingAlias = MENU_ALIASES.find((entry) => (
     eligible.some((item) => item.id === entry.id)
     && entry.terms.some((term) => query.includes(normalize(term)))
   ));
-  if (matchingAlias) return eligible.find((item) => item.id === matchingAlias.id);
+  if (matchingAlias) {
+    return {
+      item: eligible.find((item) => item.id === matchingAlias.id),
+      sequence: menuRecommendationIndex
+    };
+  }
 
-  const preferred = query.includes('ligero') || query.includes('fresco')
-    ? eligible.find((item) => item.id === '2')
+  const budget = getRequestedMenuBudget(query);
+  const available = budget === null
+    ? eligible
+    : eligible.filter((item) => item.price <= budget);
+  if (!available.length) return { item: null, budget, eligible, sequence: menuRecommendationIndex };
+
+  const preferredId = query.includes('ligero') || query.includes('fresco')
+    ? '2'
     : query.includes('15') || query.includes('presupuesto')
-      ? eligible.find((item) => item.id === '4')
-      : undefined;
+      ? '4'
+      : null;
+  const preferredIndex = available.findIndex((item) => item.id === preferredId);
+  const startOffset = preferredIndex >= 0 ? preferredIndex : 1;
+  const sequence = menuRecommendationIndex;
+  const item = available[(sequence + startOffset) % available.length];
+  menuRecommendationIndex += 1;
+  return { item, sequence, budget, eligible };
+}
 
-  return preferred || eligible.find((item) => item.popular) || eligible[0];
+export function selectMenuItem(intent, text) {
+  return chooseMenuRecommendation(intent, text)?.item || null;
 }
 
 const MENU_QUESTION_TERMS = /\b(menu|carta|comedor|plato|platos|comida|comidas|bebida|bebidas|combo|combos|lomo saltado|quinua|ceviche|chicha morada|maracuya|precios|precio|cuesta|cuestan|disponible|disponibles|ofrecen|tienen|hay|ingrediente|ingredientes|incluye|incluyen|demora|rapido|rapida)\b/;
@@ -342,11 +395,21 @@ export function getLocalMenuAnswer(text) {
 
   if (intent === 'ninguna' || intent === 'cualquiera' || intent === 'bebidas' || intent === 'comida') {
     if (intent === 'ninguna' && !/\b(menu|carta|comedor)\b/.test(query)) return null;
-    const item = selectMenuItem(intent, text);
-    if (!item) return null;
-    const verb = item.category === 'bebidas' ? 'Para tomar' : 'Para comer';
+    const recommendation = chooseMenuRecommendation(intent, text);
+    if (!recommendation?.item) {
+      if (recommendation?.budget === null || recommendation?.budget === undefined) return null;
+      const cheapest = [...recommendation.eligible].sort((first, second) => first.price - second.price)[0];
+      return {
+        reply: `No hay opciones de este menú por S/${recommendation.budget.toFixed(2)}. La más económica es ${cheapest.name} (S/${cheapest.price.toFixed(2)}).`,
+        dishId: null,
+        intent: 'ninguna'
+      };
+    }
+    const { item, sequence } = recommendation;
+    const openers = MENU_RECOMMENDATION_OPENERS[item.category === 'bebidas' ? 'drink' : 'food'];
+    const opener = openers[sequence % openers.length];
     return {
-      reply: `${verb} te recomiendo ${item.name} (S/${item.price.toFixed(2)}), listo en ${item.time}. ${item.description}.`,
+      reply: `${opener} ${item.name} (S/${item.price.toFixed(2)}), listo en ${item.time}. ${item.description}.`,
       dishId: item.id,
       intent: item.category === 'bebidas' ? 'bebidas' : 'comida'
     };

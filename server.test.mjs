@@ -2171,6 +2171,25 @@ test('uses a reasonable general recommendation when the request has no category'
   assert.equal(selectMenuItem('ninguna', '¿A qué hora empieza el partido?'), null);
 });
 
+test('rotates recommendations across the menu and respects the requested budget', () => {
+  const recommendations = Array.from({ length: 10 }, () => getLocalMenuAnswer('¿Qué me recomiendas?'));
+  assert.equal(new Set(recommendations.map(({ dishId }) => dishId)).size, 10);
+  assert.equal(new Set(recommendations.map(({ reply }) => reply)).size, 10);
+  assert.notEqual(
+    getLocalMenuAnswer('¿Qué me recomiendas?').reply,
+    recommendations[0].reply,
+    'the response wording also changes when the product rotation wraps'
+  );
+
+  const affordableRecommendations = Array.from({ length: 8 }, () => getLocalMenuAnswer('Tengo S/ 15'));
+  assert.equal(new Set(affordableRecommendations.map(({ dishId }) => dishId)).size, 8);
+  assert.ok(affordableRecommendations.every(({ dishId }) => !['8', '9'].includes(dishId)));
+
+  const overBudget = getLocalMenuAnswer('Tengo S/ 0');
+  assert.equal(overBudget.dishId, null);
+  assert.match(overBudget.reply, /No hay opciones de este menú/);
+});
+
 test('resolves explicit exclusions to the requested category', () => {
   assert.equal(detectMenuIntent('No quiero bebida, prefiero un plato'), 'comida');
   assert.equal(detectMenuIntent('No quiero un plato, solo una bebida'), 'bebidas');
