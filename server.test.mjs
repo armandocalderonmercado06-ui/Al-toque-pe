@@ -74,7 +74,7 @@ test('uses and serves the tablet app photos for the mobile order catalog', async
   for (const key of Object.keys(menuImages)) {
     assert.ok(initialMenu.includes(`image: window.MENU_IMAGES.${key}`), `${key} should use the tablet photo`);
   }
-  assert.match(html, /<img src=\{item\.image\} alt=\{item\.name\} className="w-12 h-12 rounded-xl object-cover" \/>/);
+  assert.match(html, /<img src=\{item\.image\} alt="" className="mb-2 h-20 w-full rounded-xl object-cover" loading="lazy" \/>/);
 
   assert.match(initialMenu, /image: '\.\/desayuno-emoliente-pan-queso-nueva\.png'/);
   assert.match(initialMenu, /image: '\.\/ceviche-carretillero-imagen\.png'/);
