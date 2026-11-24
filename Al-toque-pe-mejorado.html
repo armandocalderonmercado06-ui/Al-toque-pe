@@ -10870,6 +10870,17 @@
         };
         const cancel = (error) => finish(error);
         botpressWebSearchRequestsRef.current.set(searchKey, cancel);
+        const resetResponseTimer = () => {
+          window.clearTimeout(responseTimer);
+          responseTimer = window.setTimeout(() => {
+            const pending = botpressWebSearchPendingRef.current.get(searchKey);
+            if (pending?.messages.length) {
+              pending.finish(null, pending.messages.join('\n\n'));
+              return;
+            }
+            finish(new Error('Botpress no respondió a tiempo.'));
+          }, 90000);
+        };
 
         initializeTimer = window.setTimeout(() => {
           finish(new Error('No se pudo conectar con el asistente de búsqueda de Botpress.'));
@@ -10890,18 +10901,17 @@
                 const text = typeof message.block?.text === 'string' ? message.block.text.trim() : '';
                 if (!text) return;
                 pending.messages.push(text);
+                resetResponseTimer();
                 window.clearTimeout(settleTimer);
                 settleTimer = window.setTimeout(
                   () => pending.finish(null, pending.messages.join('\n\n')),
-                  2500
+                  5000
                 );
               });
               frame.__altoqueWebSearchMessageListener = true;
             }
-            responseTimer = window.setTimeout(() => {
-              finish(new Error('Botpress no respondió a tiempo.'));
-            }, 45000);
             botpressWebSearchPendingRef.current.set(searchKey, { messages: [], finish });
+            resetResponseTimer();
             const botpressQuestion = [
               'Busca en internet usando la herramienta web habilitada en Botpress para responder esta pregunta. Verifica los datos con fuentes confiables, responde en español e incluye enlaces de las fuentes consultadas.',
               'Si no puedes consultar internet o no encuentras fuentes útiles, indícalo claramente y no inventes citas.',
