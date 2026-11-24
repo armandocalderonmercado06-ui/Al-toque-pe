@@ -10118,7 +10118,7 @@
 
     function getAIReplyWithoutSourceList(text, sourceCount) {
       if (sourceCount === 0) return text;
-      const sourceStart = text.search(/\b(?:fuentes?|sources?)\s*[:\-–—]/i);
+      const sourceStart = text.search(/\b(?:fuentes?|sources?)(?:\s+(?:consultadas?|utilizadas?|used))?\s*[:\-–—]/i);
       const reply = sourceStart < 0 ? text : text.slice(0, sourceStart);
       return reply
         .replace(/https?:\/\/[^\s<>"'`]+/g, '')
@@ -11375,17 +11375,31 @@
                           {m.sender === 'ai' && firstSource && (
                             <>
                               {' '}
-                              <a
-                                href={firstSource.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={`Abrir fuente: ${firstSourceLabel}`}
-                                className="inline-flex max-w-full items-center gap-1 rounded-full bg-[#e8f0ff] px-2 py-1 align-middle text-[10px] font-medium text-[#31528a] no-underline"
-                              >
-                                <i data-lucide="globe" className="h-3 w-3 shrink-0"></i>
-                                <span className="max-w-[150px] truncate">{firstSourceLabel}</span>
-                                {sources.length > 1 && <span className="shrink-0">+{sources.length - 1}</span>}
-                              </a>
+                              <details className="mt-1 inline-block max-w-full align-middle">
+                                <summary className="inline-flex max-w-full cursor-pointer list-none items-center gap-1 rounded-full bg-[#e8f0ff] px-2 py-1 text-[10px] font-medium text-[#31528a]">
+                                  <i data-lucide="globe" className="h-3 w-3 shrink-0"></i>
+                                  <span className="max-w-[150px] truncate">{firstSourceLabel}</span>
+                                  {sources.length > 1 && <span className="shrink-0">+{sources.length - 1}</span>}
+                                </summary>
+                                <div className="mt-2 max-w-full space-y-1 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+                                  {sources.map((source, sourceIndex) => (
+                                    <a
+                                      key={source.url}
+                                      href={source.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex min-w-0 items-center gap-2 rounded-lg p-2 text-left no-underline transition hover:bg-gray-50"
+                                    >
+                                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e8f0ff] text-[9px] font-bold text-[#31528a]">{sourceIndex + 1}</span>
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-[10px] font-semibold text-dark">{getAISourceLabel(source)}</span>
+                                        <span className="block break-all text-[9px] text-gray-500">{source.url}</span>
+                                      </span>
+                                      <i data-lucide="external-link" className="h-3 w-3 shrink-0 text-gray-400"></i>
+                                    </a>
+                                  ))}
+                                </div>
+                              </details>
                             </>
                           )}
                         </div>
@@ -11408,8 +11422,7 @@
                           </button>
                         )}
                         {m.sender === 'ai' && sources.length > 0 && (
-                          <details className="mt-1.5 max-w-[90%] text-[10px]">
-                            <summary className="flex cursor-pointer list-none items-center gap-1.5 px-1 text-gray-500">
+                          <div className="mt-1.5 flex max-w-[90%] items-center gap-1.5 px-1 text-[10px] text-gray-500">
                               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand text-white">
                                 <i data-lucide="sparkles" className="h-3 w-3"></i>
                               </span>
@@ -11423,26 +11436,7 @@
                                 ))}
                               </span>
                               {sources.length > 3 && <span>+{sources.length - 3}</span>}
-                            </summary>
-                            <div className="mt-2 max-w-full space-y-1 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
-                              {sources.map((source, sourceIndex) => (
-                                <a
-                                  key={source.url}
-                                  href={source.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex min-w-0 items-center gap-2 rounded-lg p-2 text-left no-underline transition hover:bg-gray-50"
-                                >
-                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e8f0ff] text-[9px] font-bold text-[#31528a]">{sourceIndex + 1}</span>
-                                  <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-[10px] font-semibold text-dark">{getAISourceLabel(source)}</span>
-                                    <span className="block break-all text-[9px] text-gray-500">{source.url}</span>
-                                  </span>
-                                  <i data-lucide="external-link" className="h-3 w-3 shrink-0 text-gray-400"></i>
-                                </a>
-                              ))}
-                            </div>
-                          </details>
+                          </div>
                         )}
                       </div>
                     );
