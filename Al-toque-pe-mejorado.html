@@ -4166,6 +4166,9 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #f1eadf;
       pointer-events: auto;
     }
     .altoque-tutorial-step-count {
@@ -4183,10 +4186,11 @@
       padding: 0 12px;
       font: 700 11px/1 Outfit, Arial, sans-serif;
       cursor: pointer;
-      transition: transform 160ms ease, opacity 160ms ease;
+      transition: transform 160ms ease, opacity 160ms ease, filter 160ms ease;
+      animation: altoqueTutorialNavPulse 1.6s ease-in-out infinite;
     }
     .altoque-tutorial-action:hover:not(:disabled) {
-      transform: translateY(-1px);
+      filter: brightness(1.08);
     }
     .altoque-tutorial-action:disabled {
       cursor: not-allowed;
@@ -4227,6 +4231,10 @@
     @keyframes altoqueTutorialFloat {
       0%, 100% { transform: translateY(3px) rotate(-1deg); }
       50% { transform: translateY(-7px) rotate(1deg); }
+    }
+    @keyframes altoqueTutorialNavPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.045); }
     }
     @keyframes altoqueTutorialTargetPulse {
       0%, 100% { outline-offset: 3px; }
@@ -7345,6 +7353,27 @@
                   No se encontró este control en la pantalla. Puedes continuar con el botón.
                 </p>
               )}
+              <footer className="altoque-tutorial-footer">
+                <button
+                  type="button"
+                  className="altoque-tutorial-action altoque-tutorial-action--back"
+                  onClick={() => onStepChange(stepIndex - 1)}
+                  disabled={stepIndex === 0}
+                >
+                  Anterior
+                </button>
+                <span className="altoque-tutorial-step-count" aria-live="polite">
+                  Paso {stepIndex + 1} de {steps.length}
+                </span>
+                <button
+                  type="button"
+                  className="altoque-tutorial-action altoque-tutorial-action--next"
+                  onClick={advance}
+                  disabled={Boolean(step.action && !targetUnavailable)}
+                >
+                  {stepIndex === steps.length - 1 ? 'Finalizar' : targetUnavailable ? 'Continuar' : 'Siguiente'}
+                </button>
+              </footer>
             </div>
             <div className="altoque-tutorial-character">
               <TutorialMascot stepIndex={stepIndex} step={step} />
@@ -7352,27 +7381,6 @@
             <div className="altoque-tutorial-progress" aria-hidden="true">
               <div className="altoque-tutorial-progress-fill" style={{ width: `${progress}%` }}></div>
             </div>
-            <footer className="altoque-tutorial-footer">
-              <button
-                type="button"
-                className="altoque-tutorial-action altoque-tutorial-action--back"
-                onClick={() => onStepChange(stepIndex - 1)}
-                disabled={stepIndex === 0}
-              >
-                Anterior
-              </button>
-              <span className="altoque-tutorial-step-count" aria-live="polite">
-                Paso {stepIndex + 1} de {steps.length}
-              </span>
-              <button
-                type="button"
-                className="altoque-tutorial-action altoque-tutorial-action--next"
-                onClick={advance}
-                disabled={Boolean(step.action && !targetUnavailable)}
-              >
-                {stepIndex === steps.length - 1 ? 'Finalizar' : targetUnavailable ? 'Continuar' : 'Siguiente'}
-              </button>
-            </footer>
           </section>
         </div>
       );

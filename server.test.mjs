@@ -211,6 +211,17 @@ test('serves the interactive animated tutorial, stickers and mascot images', asy
   assert.match(html, /data-tutorial-action="tutorial-open-music"/);
   assert.match(html, /data-tutorial-action="tutorial-select-track"/);
   assert.match(html, /data-tutorial-action="tutorial-add-dish"/);
+  const tutorialMarkupStart = html.indexOf('function TutorialModal');
+  const tutorialMarkupEnd = html.indexOf('function App()', tutorialMarkupStart);
+  assert.ok(tutorialMarkupStart >= 0 && tutorialMarkupEnd > tutorialMarkupStart);
+  const tutorialMarkup = html.slice(tutorialMarkupStart, tutorialMarkupEnd);
+  const bubbleIndex = tutorialMarkup.indexOf('className="altoque-tutorial-bubble"');
+  const footerIndex = tutorialMarkup.indexOf('className="altoque-tutorial-footer"');
+  const characterIndex = tutorialMarkup.indexOf('className="altoque-tutorial-character"');
+  assert.ok(bubbleIndex >= 0 && bubbleIndex < footerIndex);
+  assert.ok(footerIndex >= 0 && footerIndex < characterIndex);
+  assert.match(html, /altoque-tutorial-action\s*\{[^}]*animation:\s*altoqueTutorialNavPulse/);
+  assert.match(html, /@keyframes altoqueTutorialNavPulse/);
   assert.match(html, /activeOrderOnly: true/);
   assert.match(html, /orderConfirmed \? !step\.requiresPracticeOrder : !step\.activeOrderOnly/);
   assert.match(html, /disabled=\{tutorialMode \|\| isSubmittingOrder/);
