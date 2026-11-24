@@ -214,7 +214,8 @@ test('serves the interactive animated tutorial, stickers and mascot images', asy
   assert.match(html, /activeOrderOnly: true/);
   assert.match(html, /orderConfirmed \? !step\.requiresPracticeOrder : !step\.activeOrderOnly/);
   assert.match(html, /disabled=\{tutorialMode \|\| isSubmittingOrder/);
-  assert.match(html, /src="\/tutorial-stickers\.mp4"/);
+  assert.match(html, /src=\{`\/tutorial-mascot-\$\{mascotIndex \+ 1\}\.png`\}/);
+  assert.doesNotMatch(html, /tutorial-stickers\.mp4/);
 
   for (let index = 1; index <= 6; index += 1) {
     const response = await fetch(`${baseUrl}/tutorial-mascot-${index}.png`);
@@ -225,14 +226,6 @@ test('serves the interactive animated tutorial, stickers and mascot images', asy
     assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
   }
 
-  const stickerResponse = await fetch(`${baseUrl}/tutorial-stickers.mp4`, {
-    headers: { Range: 'bytes=0-63' }
-  });
-  const stickerBytes = Buffer.from(await stickerResponse.arrayBuffer());
-
-  assert.equal(stickerResponse.status, 206);
-  assert.equal(stickerResponse.headers.get('content-type'), 'video/mp4');
-  assert.equal(stickerBytes.length, 64);
 });
 
 test('serves the transparent Miraflores logo as a public PNG asset', async (t) => {

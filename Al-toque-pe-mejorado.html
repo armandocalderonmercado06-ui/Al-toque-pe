@@ -7182,22 +7182,17 @@
     ];
 
     function TutorialMascot({ stepIndex, step }) {
-      const posterIndex = step?.mascots?.[0] ?? stepIndex % 6;
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const mascotIndex = step?.mascots?.[stepIndex % step.mascots.length] ?? stepIndex % 6;
 
       return (
-        <video
+        <img
           className="altoque-tutorial-mascot"
-          src="/tutorial-stickers.mp4"
-          poster={`/tutorial-mascot-${posterIndex + 1}.png`}
-          autoPlay={!reduceMotion}
-          loop
-          muted
-          playsInline
-          preload="metadata"
+          src={`/tutorial-mascot-${mascotIndex + 1}.png`}
+          alt=""
           aria-hidden="true"
           tabIndex={-1}
-        ></video>
+          draggable={false}
+        />
       );
     }
 
