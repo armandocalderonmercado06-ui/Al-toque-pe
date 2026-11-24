@@ -276,8 +276,9 @@ export function shouldUseWebSearch(text) {
 }
 
 export function createWebSearchPlan(provider, assistantMode, text) {
-  const webSearch = assistantMode === 'menu' && shouldUseWebSearch(text);
-  const handoffToBotpress = webSearch && ['ChatGPT', 'Gemini'].includes(provider);
+  const botpressProvider = ['ChatGPT', 'Gemini'].includes(provider);
+  const webSearch = assistantMode === 'menu' && (botpressProvider || shouldUseWebSearch(text));
+  const handoffToBotpress = assistantMode === 'menu' && botpressProvider;
   return {
     webSearch,
     openAIWebSearch: webSearch && !['ChatGPT', 'Gemini'].includes(provider),
@@ -1573,16 +1574,16 @@ async function handleRequest(request, response, orders, riderLocations, idempote
     const openAIAvailable = Boolean(openAIApiKey);
     return json(response, 200, {
       providers: {
-        chatgpt: openAIAvailable,
+        chatgpt: true,
         copilot: openAIAvailable,
-        gemini: openAIAvailable,
+        gemini: true,
         sharedOpenAI: openAIAvailable
       },
       capabilities: {
         botpressWebSearch: true
       },
       personas: Object.keys(ASSISTANT_PERSONAS),
-      engine: openAIAvailable ? 'OpenAI API + Botpress Web Search' : 'Botpress Web Search'
+      engine: 'Botpress Web Search'
     });
   }
 
@@ -2117,6 +2118,9 @@ async function handleRequest(request, response, orders, riderLocations, idempote
     const assistantMode = body.assistantMode === undefined ? 'menu' : body.assistantMode;
     if (!['menu', 'rider-support'].includes(assistantMode)) {
       return json(response, 400, { error: 'El tipo de asistente solicitado no es válido.' });
+    }
+    if (assistantMode === 'menu' && (provider === 'ChatGPT' || provider === 'Gemini')) {
+      return json(response, 200, createWebSearchPlan(provider, assistantMode, text).handoff);
     }
 
     const orderHistory = body.orderHistory === undefined ? [] : body.orderHistory;

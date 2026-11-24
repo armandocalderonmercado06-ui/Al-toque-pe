@@ -9,13 +9,14 @@ import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { composePrompt, createAlToqueServer, createWebSearchPlan, detectMenuIntent, getAssistantPersona, getLocalMenuAnswer, makeRiderSupportInstructions, selectMenuItem, shouldUseWebSearch, styleLocalAnswer } from './server.mjs';
 
-async function createReelsTestServer(t, testDataDir, reelsDeletePassword = 'test-reels-delete-password') {
+async function createReelsTestServer(t, testDataDir, reelsDeletePassword = 'test-reels-delete-password', fetchImpl = fetch) {
   const server = createAlToqueServer({
     ordersFile: join(testDataDir, 'orders.json'),
     reelsFile: join(testDataDir, 'reels.json'),
     complaintsFile: join(testDataDir, 'complaints.json'),
     reelsVideosDir: join(testDataDir, 'reels-videos'),
-    reelsDeletePassword
+    reelsDeletePassword,
+    fetchImpl
   });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -2128,7 +2129,7 @@ test('reserves web search for current or complex questions', () => {
   assert.equal(shouldUseWebSearch('¿Cuál es el origen histórico del ceviche?'), true);
 });
 
-test('routes ChatGPT and Gemini web-search questions through Botpress', () => {
+test('routes every ChatGPT and Gemini menu question through Botpress', () => {
   const expectedHandoff = {
     reply: '',
     sources: [],
@@ -2139,16 +2140,13 @@ test('routes ChatGPT and Gemini web-search questions through Botpress', () => {
     engine: 'Botpress Web Search'
   };
   for (const provider of ['ChatGPT', 'Gemini']) {
-    const plan = createWebSearchPlan(provider, 'menu', '¿Cuál es el precio del dólar hoy en Perú?');
-    assert.equal(plan.webSearch, true);
-    assert.equal(plan.openAIWebSearch, false);
-    assert.deepEqual(plan.handoff, expectedHandoff);
+    for (const text of ['Hola', '¿Qué incluye el Combo Fitness?', '¿Cuál es el precio del dólar hoy en Perú?']) {
+      const plan = createWebSearchPlan(provider, 'menu', text);
+      assert.equal(plan.webSearch, true);
+      assert.equal(plan.openAIWebSearch, false);
+      assert.deepEqual(plan.handoff, expectedHandoff);
+    }
   }
-
-  const normalGemini = createWebSearchPlan('Gemini', 'menu', '¿Qué es una nebulosa?');
-  assert.equal(normalGemini.webSearch, false);
-  assert.equal(normalGemini.openAIWebSearch, false);
-  assert.equal(normalGemini.handoff, null);
 
   const copilotSearch = createWebSearchPlan('Copilot', 'menu', '¿Cuál es el tipo de cambio actual?');
   assert.equal(copilotSearch.webSearch, true);
@@ -2161,7 +2159,48 @@ test('routes ChatGPT and Gemini web-search questions through Botpress', () => {
   assert.equal(riderSupport.handoff, null);
 });
 
-test('uses one OpenAI-backed assistant with three distinct response personas', () => {
+test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {
+  const page = await readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8');
+  assert.match(page, /storageKey: 'altoque-\$\{searchProvider\.toLowerCase\(\)\}-\$\{conversationId\}-web-search-v1'/);
+  assert.match(page, /Busca en internet usando la herramienta web habilitada en Botpress/);
+  assert.match(page, /askBotpressWebSearch\(\s*text,\s*provider,\s*conversationId,/);
+  assert.doesNotMatch(page, /fetch\('\/api\/chat'/);
+  assert.doesNotMatch(page, /buildLocalFallback/);
+});
+
+test('hands legacy ChatGPT and Gemini menu API requests to Botpress without contacting a model provider', async (t) => {
+  const testDataDir = await createReelsTestDirectory();
+  const requestedUrls = [];
+  const server = await createReelsTestServer(t, testDataDir, undefined, async (url) => {
+    requestedUrls.push(new URL(url));
+    throw new Error('No se esperaba ninguna solicitud a un proveedor externo.');
+  });
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+
+  for (const provider of ['ChatGPT', 'Gemini']) {
+    const response = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+      body: JSON.stringify({ provider, text: '¿Qué noticias hay hoy?', history: [] })
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.handoffToBotpress, true);
+    assert.equal(payload.webSearchUsed, true);
+    assert.equal(payload.engine, 'Botpress Web Search');
+  }
+  assert.deepEqual(requestedUrls, []);
+
+  const statusResponse = await fetch(`${baseUrl}/api/status`);
+  assert.equal(statusResponse.status, 200);
+  const status = await statusResponse.json();
+  assert.equal(status.providers.chatgpt, true);
+  assert.equal(status.providers.gemini, true);
+  assert.equal(status.capabilities.botpressWebSearch, true);
+  assert.equal(status.engine, 'Botpress Web Search');
+});
+
+test('keeps server-side assistant personas distinct', () => {
   const personas = ['ChatGPT', 'Copilot', 'Gemini'].map(getAssistantPersona);
   assert.equal(new Set(personas).size, 3);
   assert.match(getAssistantPersona('Copilot'), /práctico/);
@@ -2315,7 +2354,7 @@ test('keeps previous conversation context separate from assistant instructions',
   assert.match(prompt[1].content, /"Bowl de quinua": 1/);
 });
 
-test('gives all three AI personas recent order history for direct purchase questions', async (t) => {
+test('passes recent order history to Copilot for direct purchase questions', async (t) => {
   const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-order-history-ai-test-'));
   const requestedBodies = [];
   const server = createAlToqueServer({
@@ -2345,28 +2384,26 @@ test('gives all three AI personas recent order history for direct purchase quest
   });
 
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
-  for (const provider of ['ChatGPT', 'Copilot', 'Gemini']) {
-    const response = await fetch(`${baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: baseUrl },
-      body: JSON.stringify({
-        provider,
-        text: 'Según mis recientes pedidos, ¿qué es lo que más compro?',
-        history: [],
-        memory: '',
-        orderHistory: [
-          { name: 'Jugo de Maracuyá', quantity: 3 },
-          { name: 'Bowl de quinua', quantity: 1 }
-        ]
-      })
-    });
-    assert.equal(response.status, 200);
-    const payload = await response.json();
-    assert.equal(payload.reply, 'Según tus pedidos recientes, compras más Jugo de Maracuyá: 3 unidades.');
-    assert.equal(payload.dishId, null);
-  }
+  const response = await fetch(`${baseUrl}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+    body: JSON.stringify({
+      provider: 'Copilot',
+      text: 'Según mis recientes pedidos, ¿qué es lo que más compro?',
+      history: [],
+      memory: '',
+      orderHistory: [
+        { name: 'Jugo de Maracuyá', quantity: 3 },
+        { name: 'Bowl de quinua', quantity: 1 }
+      ]
+    })
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.reply, 'Según tus pedidos recientes, compras más Jugo de Maracuyá: 3 unidades.');
+  assert.equal(payload.dishId, null);
 
-  assert.equal(requestedBodies.length, 3);
+  assert.equal(requestedBodies.length, 1);
   for (const { url, body } of requestedBodies) {
     assert.equal(url.origin, 'https://api.openai.com');
     assert.match(body.input[0].content, /pregunta qué compra más, responde directamente/);
@@ -2378,7 +2415,7 @@ test('gives all three AI personas recent order history for direct purchase quest
   }
 });
 
-test('tells the AI not to invent purchase history when no orders are saved', async (t) => {
+test('tells Copilot not to invent purchase history when no orders are saved', async (t) => {
   const testDataDir = await mkdtemp(join(tmpdir(), 'altoque-empty-order-history-ai-test-'));
   let requestedBody;
   const server = createAlToqueServer({
@@ -2410,7 +2447,7 @@ test('tells the AI not to invent purchase history when no orders are saved', asy
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Origin: baseUrl },
     body: JSON.stringify({
-      provider: 'Gemini',
+      provider: 'Copilot',
       text: 'Según mis recientes pedidos, ¿qué es lo que más compro?',
       history: [],
       memory: '',

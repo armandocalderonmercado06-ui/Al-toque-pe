@@ -10198,6 +10198,18 @@
       const activeConversationId = activeConversationByProvider[provider];
       const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId);
       const messages = activeConversation?.messages || [];
+      const getLearnedPreferences = () => conversations
+        .filter((conversation) => conversation.provider === provider && conversation.id !== activeConversationId)
+        .sort((a, b) => a.updatedAt - b.updatedAt)
+        .flatMap((conversation) => (conversation.messages || [])
+          .filter((message) => message.sender === 'user')
+          .slice(-3)
+          .map((message) => message.text.trim())
+          .filter(Boolean))
+        .slice(-20)
+        .map((text) => `- ${text}`)
+        .join('\n')
+        .slice(-3500);
       const isBotpressArchive = provider === 'Botpress'
         && Boolean(activeConversation?.botpressConversationId)
         && Boolean(botpressLiveConversationId)
@@ -10670,6 +10682,9 @@
       const deleteConversation = async (conversationId) => {
         botpressArchiveSelectionRef.current = false;
         const conversationToDelete = conversations.find((conversation) => conversation.id === conversationId);
+        if (conversationToDelete && ['ChatGPT', 'Gemini'].includes(conversationToDelete.provider)) {
+          disposeBotpressWebSearchFrame(conversationToDelete.provider, conversationId);
+        }
         const deletingCurrentBotpressChat = provider === 'Botpress'
           && conversationId === activeConversationId
           && (!conversationToDelete?.botpressConversationId
@@ -10713,21 +10728,9 @@
         setConversations(remaining);
       };
 
-      const getLearnedPreferences = () => conversations
-        .filter((conversation) => conversation.provider === provider && conversation.id !== activeConversationId)
-        .sort((a, b) => a.updatedAt - b.updatedAt)
-        .flatMap((conversation) => (conversation.messages || [])
-          .filter((message) => message.sender === 'user')
-          .slice(-3)
-          .map((message) => message.text.trim())
-          .filter(Boolean))
-        .slice(-20)
-        .map((text) => `- ${text}`)
-        .join('\n')
-        .slice(-3500);
-
-      const getBotpressWebSearchFrame = (searchProvider) => {
-        let frame = botpressWebSearchFramesRef.current.get(searchProvider);
+      const getBotpressWebSearchFrame = (searchProvider, conversationId) => {
+        const searchKey = `${searchProvider}:${conversationId}`;
+        let frame = botpressWebSearchFramesRef.current.get(searchKey);
         if (frame) return frame;
 
         frame = document.createElement('iframe');
@@ -10745,7 +10748,7 @@
                 window.botpress.init({
                   botId: '05d38ce8-6b72-4b24-9fef-1df5c1e04631',
                   clientId: '57d0986f-3d99-4c76-aed2-18ada88a6d30',
-                  storageKey: 'altoque-${searchProvider.toLowerCase()}-web-search-v1',
+                  storageKey: 'altoque-${searchProvider.toLowerCase()}-${conversationId}-web-search-v1',
                   configuration: {
                     version: 'v2',
                     botName: 'Al toque pe',
@@ -10761,12 +10764,23 @@
             <body></body>
           </html>`;
         document.body.appendChild(frame);
-        botpressWebSearchFramesRef.current.set(searchProvider, frame);
+        botpressWebSearchFramesRef.current.set(searchKey, frame);
         return frame;
       };
 
-      const askBotpressWebSearch = (question, searchProvider) => new Promise((resolve, reject) => {
-        const frame = getBotpressWebSearchFrame(searchProvider);
+      const disposeBotpressWebSearchFrame = (searchProvider, conversationId) => {
+        const searchKey = `${searchProvider}:${conversationId}`;
+        const cancel = botpressWebSearchRequestsRef.current.get(searchKey);
+        if (cancel) cancel(new Error('Se cerró la conversación.'));
+        botpressWebSearchFramesRef.current.get(searchKey)?.remove();
+        botpressWebSearchRequestsRef.current.delete(searchKey);
+        botpressWebSearchPendingRef.current.delete(searchKey);
+        botpressWebSearchFramesRef.current.delete(searchKey);
+      };
+
+      const askBotpressWebSearch = (question, searchProvider, conversationId, memory, orderHistory) => new Promise((resolve, reject) => {
+        const searchKey = `${searchProvider}:${conversationId}`;
+        const frame = getBotpressWebSearchFrame(searchProvider, conversationId);
         let pollTimer;
         let initializeTimer;
         let responseTimer;
@@ -10779,11 +10793,11 @@
           window.clearTimeout(initializeTimer);
           window.clearTimeout(responseTimer);
           window.clearTimeout(settleTimer);
-          if (botpressWebSearchPendingRef.current.get(searchProvider)?.finish === finish) {
-            botpressWebSearchPendingRef.current.delete(searchProvider);
+          if (botpressWebSearchPendingRef.current.get(searchKey)?.finish === finish) {
+            botpressWebSearchPendingRef.current.delete(searchKey);
           }
-          if (botpressWebSearchRequestsRef.current.get(searchProvider) === cancel) {
-            botpressWebSearchRequestsRef.current.delete(searchProvider);
+          if (botpressWebSearchRequestsRef.current.get(searchKey) === cancel) {
+            botpressWebSearchRequestsRef.current.delete(searchKey);
           }
           if (error) {
             reject(error);
@@ -10811,7 +10825,7 @@
           resolve({ reply, sources });
         };
         const cancel = (error) => finish(error);
-        botpressWebSearchRequestsRef.current.set(searchProvider, cancel);
+        botpressWebSearchRequestsRef.current.set(searchKey, cancel);
 
         initializeTimer = window.setTimeout(() => {
           finish(new Error('No se pudo conectar con el asistente de búsqueda de Botpress.'));
@@ -10827,7 +10841,7 @@
             window.clearTimeout(initializeTimer);
             if (!frame.__altoqueWebSearchMessageListener) {
               botpress.on('message', (message) => {
-                const pending = botpressWebSearchPendingRef.current.get(searchProvider);
+                const pending = botpressWebSearchPendingRef.current.get(searchKey);
                 if (!pending || message.authorId === botpress.user?.id) return;
                 const text = typeof message.block?.text === 'string' ? message.block.text.trim() : '';
                 if (!text) return;
@@ -10843,8 +10857,17 @@
             responseTimer = window.setTimeout(() => {
               finish(new Error('Botpress no respondió a tiempo.'));
             }, 45000);
-            botpressWebSearchPendingRef.current.set(searchProvider, { messages: [], finish });
-            Promise.resolve(botpress.sendMessage(question)).catch((error) => finish(error));
+            botpressWebSearchPendingRef.current.set(searchKey, { messages: [], finish });
+            const botpressQuestion = [
+              'Busca en internet usando la herramienta web habilitada en Botpress para responder esta pregunta. Verifica los datos con fuentes confiables, responde en español e incluye enlaces de las fuentes consultadas.',
+              'Si no puedes consultar internet o no encuentras fuentes útiles, indícalo claramente y no inventes citas.',
+              memory ? `Preferencias de conversaciones anteriores de ${searchProvider}:\n${memory}` : '',
+              orderHistory.length > 0
+                ? `Productos comprados antes: ${orderHistory.map(({ name, quantity }) => `${name} (${quantity})`).join(', ')}.`
+                : '',
+              `Consulta: ${question}`
+            ].filter(Boolean).join('\n\n');
+            Promise.resolve(botpress.sendMessage(botpressQuestion)).catch((error) => finish(error));
           } catch (error) {
             finish(error);
           }
@@ -11024,77 +11047,6 @@
         if (outgoingTimerRef.current) window.clearTimeout(outgoingTimerRef.current);
       }, []);
 
-      const buildLocalFallback = (textToSend) => {
-        const normalizedText = textToSend.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const isGreeting = /^(hola|buenas|buenos dias|buenas tardes|buenas noches|gracias|muchas gracias|ok|okay|listo)[!.? ]*$/.test(normalizedText.trim());
-        if (isGreeting) {
-          return {
-            text: '¡Hola! Estoy aquí para ayudarte. Cuéntame qué se te antoja y buscamos una buena opción.',
-            dish: null
-          };
-        }
-
-        const excludesDrink = /\b(?:no\s+(?:quiero\s+)?(?:una?\s+)?|sin\s+|evita(?:r)?\s+)(?:bebida|tomar|beber|jugo|chicha|agua|refresco|maracuya)\b/.test(normalizedText);
-        const excludesFood = /\b(?:no\s+(?:quiero\s+)?(?:un\s+)?|sin\s+|evita(?:r)?\s+)(?:plato|comida|almuerzo|menu|lomo|quinua|ceviche|combo)\b/.test(normalizedText);
-        const excludedCategory = excludesFood && excludesDrink
-          ? null
-          : excludesFood
-            ? 'bebidas'
-            : excludesDrink
-              ? 'comida'
-              : null;
-        const namedDish = !excludedCategory && INITIAL_MENU.find((item) => normalizedText.includes(
-          item.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-        ));
-        if (namedDish) {
-          return {
-            text: `${namedDish.name}: S/${namedDish.price.toFixed(2)}, listo en ${namedDish.time}. ${namedDish.description}.`,
-            dish: namedDish
-          };
-        }
-
-        const asksForDrink = /\b(bebida|bebidas|tomar|beber|sed|jugo|chicha|agua|refresco|refrescante|maracuya)\b/.test(normalizedText);
-        const asksForFood = /\b(plato|comida|comer|almorzar|cenar|menu|lomo|quinua|ceviche|combo|hambre|ensalada|pota)\b/.test(normalizedText);
-        const asksForMenu = /\b(recomiend|recomend|antojo|pedido|pedir|pide|menu|carta|comedor|presupuesto|precio|cuesta|opcion|ligero|fresco|rapido)\b/.test(normalizedText);
-        if (asksForDrink || asksForFood || asksForMenu) {
-          const category = excludedCategory || (asksForDrink && !asksForFood ? 'bebidas' : asksForFood ? 'comida' : null);
-          const budgetMatch = normalizedText.match(/s\/?\s*(\d+(?:[.,]\d+)?)/);
-          const budget = budgetMatch ? Number(budgetMatch[1].replace(',', '.')) : null;
-          let options = INITIAL_MENU.filter((item) => (
-            category === 'bebidas'
-              ? item.category === 'bebidas'
-              : category === 'comida'
-                ? item.category !== 'bebidas'
-                : true
-          ));
-          if (budget !== null) {
-            const withinBudget = options.filter((item) => item.price <= budget);
-            if (withinBudget.length > 0) options = withinBudget;
-          }
-          const historicalFavorites = orderHistoryForAI
-            .map((purchasedItem) => ({
-              count: purchasedItem.quantity,
-              item: options.find((menuItem) => menuItem.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-                === purchasedItem.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())
-            }))
-            .filter(({ item }) => item)
-            .sort((first, second) => second.count - first.count);
-          const recommendedDish = historicalFavorites[0]?.item || options.find((item) => item.isPopular) || options[0];
-          if (recommendedDish) {
-            const lead = recommendedDish.category === 'bebidas' ? 'Para tomar' : 'Para comer';
-            return {
-              text: `${lead}, te recomiendo ${recommendedDish.name} por S/${recommendedDish.price.toFixed(2)}. Está listo en ${recommendedDish.time}: ${recommendedDish.description}.`,
-              dish: recommendedDish
-            };
-          }
-        }
-
-        return {
-          text: 'Puedo ayudarte a elegir entre las opciones del menú. Cuéntame si buscas comida o bebida, cuánto tiempo tienes y tu presupuesto.',
-          dish: null
-        };
-      };
-
       useEffect(() => {
         const timer = setInterval(() => advanceEncouragement(foodMode), 5000);
         return () => clearInterval(timer);
@@ -11106,88 +11058,35 @@
 
         const conversationId = activeConversationId;
         const userMessage = { sender: 'user', text };
-        const conversationHistory = [...messages, userMessage];
         updateConversationMessages(conversationId, userMessage);
         setInput('');
         setIsTyping(true);
-        let botpressSearchRequested = false;
 
         try {
-          const response = await fetch('/api/chat', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              provider,
-              text,
-              history: conversationHistory.slice(-6).map(({ sender, text: messageText }) => ({ sender, text: messageText.slice(-500) })),
-              memory: getLearnedPreferences().slice(-1600),
-              orderHistory: orderHistoryForAI
-            })
-          });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || `${provider} no pudo responder. Inténtalo otra vez.`);
-          if (result.handoffToBotpress === true) {
-            botpressSearchRequested = true;
-            const searchAnswer = await askBotpressWebSearch(text, provider);
-            result.reply = searchAnswer.reply;
-            result.sources = searchAnswer.sources;
-            result.engine = 'Botpress Web Search';
-          }
-
-          const recommendedDish = INITIAL_MENU.find((item) => item.id === result.dishId);
-          const dishMatchesIntent = result.intent === 'ninguna'
-            ? !recommendedDish
-            : result.intent === 'bebidas'
-              ? recommendedDish?.category === 'bebidas'
-              : result.intent === 'comida'
-                ? recommendedDish && recommendedDish.category !== 'bebidas'
-                : Boolean(recommendedDish);
-          if (!dishMatchesIntent || typeof result.reply !== 'string') {
-            throw new Error('La respuesta no incluyó una recomendación válida del tipo solicitado. Inténtalo de nuevo.');
-          }
-
-          const sources = Array.isArray(result.sources)
-            ? result.sources.filter((source) => {
-              try {
-                return ['http:', 'https:'].includes(new URL(source.url).protocol);
-              } catch {
-                return false;
-              }
-            })
-            : [];
+          const searchAnswer = await askBotpressWebSearch(
+            text,
+            provider,
+            conversationId,
+            getLearnedPreferences().slice(-1600),
+            orderHistoryForAI
+          );
           updateConversationMessages(conversationId, {
             sender: 'ai',
-            text: result.reply,
-            dish: recommendedDish,
-            local: result.local === true,
-            webSearchUsed: result.webSearchUsed === true,
-            engine: result.engine,
+            text: searchAnswer.reply,
+            webSearchUsed: true,
+            engine: 'Botpress Web Search',
             persona: provider,
-            sources
+            sources: searchAnswer.sources
           });
         } catch (error) {
-          if (botpressSearchRequested) {
-            console.error('No se pudo completar la búsqueda web con Botpress:', error);
-            updateConversationMessages(conversationId, {
-              sender: 'ai',
-              text: 'No pude consultar internet en este momento porque Botpress no respondió. Inténtalo nuevamente más tarde.',
-              webSearchUsed: false,
-              engine: 'Botpress Web Search',
-              persona: provider,
-              error: true
-            });
-            return;
-          }
-          const localFallback = buildLocalFallback(text);
+          console.error('No se pudo completar la búsqueda web con Botpress:', error);
           updateConversationMessages(conversationId, {
             sender: 'ai',
-            text: localFallback.text,
-            dish: localFallback.dish,
-            local: true,
+            text: `No pude consultar internet con Botpress: ${error.message || 'error desconocido'}`,
             webSearchUsed: false,
+            engine: 'Botpress Web Search',
             persona: provider,
-            engine: 'Al Toque'
+            error: true
           });
         } finally {
           setIsTyping(false);

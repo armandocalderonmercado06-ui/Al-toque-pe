@@ -8,10 +8,10 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
 - Requiere Node.js 20.6 o posterior.
 - Ejecuta `npm start` y abre `http://localhost:4173`.
 - Copia `.env.example` a `.env` para configurar integraciones opcionales.
-- Las consultas de ChatGPT y Gemini que necesitan información web se derivan
-  al Web Search habilitado en el agente publicado de Botpress. Las respuestas
-  normales de ambos perfiles siguen usando OpenAI; no se necesita una clave
-  de búsqueda de Gemini.
+- Todas las consultas de ChatGPT y Gemini se responden mediante el Web Search
+  habilitado en el agente publicado de Botpress. Cada perfil y conversación
+  conserva un historial separado. OpenAI sigue disponible para Copilot y otros
+  flujos del servidor.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade
