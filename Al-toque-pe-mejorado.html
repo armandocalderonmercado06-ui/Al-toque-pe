@@ -5703,6 +5703,7 @@
       }
     };
 
+    const MENU_RECIPE_QUESTION_PATTERN = /\b(ingredientes?|componentes?|que lleva|que llevan|que contiene|que contienen|de que esta hecho|de que se prepara|receta|preparacion)\b/;
     const MENU_INGREDIENT_QUESTION_PATTERN = /\b(ingredientes?|componentes?|que lleva|que llevan|que contiene|que contienen|de que esta hecho|de que se prepara|receta|preparacion|alergenos?)\b/;
 
     const isIngredientFollowUp = (messages) => {
@@ -5710,7 +5711,7 @@
       const previousUserMessage = messages[messages.length - 2];
       const lastAssistantMessage = messages[messages.length - 1];
       return previousUserMessage.sender === 'user'
-        && MENU_INGREDIENT_QUESTION_PATTERN.test(normalizeMenuKnowledgeText(previousUserMessage.text || ''))
+        && MENU_RECIPE_QUESTION_PATTERN.test(normalizeMenuKnowledgeText(previousUserMessage.text || ''))
         && lastAssistantMessage.sender === 'ai'
         && String(lastAssistantMessage.text || '').includes('?');
     };
@@ -5812,6 +5813,21 @@
                   : 'https://www.starbucks.pe/menu/bebidas'
               : null
         }));
+    };
+
+    const getMenuIngredientReferenceAnswer = (question, includeFollowUpProduct = false) => {
+      const normalizedQuestion = normalizeMenuKnowledgeText(question);
+      if (!MENU_RECIPE_QUESTION_PATTERN.test(normalizedQuestion) && !includeFollowUpProduct) return null;
+
+      const product = getBotpressMenuKnowledge(question, includeFollowUpProduct)
+        .find((item) => item.ingredientReference);
+      if (!product) return null;
+
+      const reference = product.ingredientReference;
+      return {
+        reply: `La receta publicada por ${reference.source.title} incluye: ${reference.ingredients.join(', ')}. Es una referencia general y no confirma la formulación específica de Al Toque.`,
+        sources: [reference.source]
+      };
     };
 
     const SPLASH_THEME_VARIANTS = ['brand', 'clean', 'warm', 'impact'];
@@ -11260,6 +11276,7 @@
         const conversationId = activeConversationId;
         const conversation = conversations.find((item) => item.id === conversationId);
         const ingredientFollowUp = isIngredientFollowUp(conversation?.messages || []);
+        const ingredientReferenceAnswer = getMenuIngredientReferenceAnswer(text, ingredientFollowUp);
         const userMessage = { sender: 'user', text };
         updateConversationMessages(conversationId, userMessage);
         setInput('');
@@ -11267,6 +11284,18 @@
 
         let webSearchRequested = false;
         try {
+          if (ingredientReferenceAnswer) {
+            updateConversationMessages(conversationId, {
+              sender: 'ai',
+              text: ingredientReferenceAnswer.reply,
+              webSearchUsed: true,
+              engine: 'Búsqueda web',
+              persona: provider,
+              sources: ingredientReferenceAnswer.sources
+            });
+            return;
+          }
+
           let answer = { handoffToBotpress: true };
           if (!ingredientFollowUp) {
             const menuResponse = await fetch('/api/chat', {

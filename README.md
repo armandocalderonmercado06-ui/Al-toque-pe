@@ -8,16 +8,18 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
 - Requiere Node.js 20.6 o posterior.
 - Ejecuta `npm start` y abre `http://localhost:4173`.
 - Copia `.env.example` a `.env` para configurar integraciones opcionales.
-- Todas las consultas de ChatGPT y Gemini se responden mediante el Web Search
-  habilitado en el agente publicado de Botpress. Cada perfil y conversación
-  conserva un historial separado. OpenAI sigue disponible para Copilot y otros
-  flujos del servidor.
+- Las consultas generales de ChatGPT y Gemini usan el Web Search habilitado en
+  el agente publicado de Botpress. Cada perfil y conversación conserva un
+  historial separado. OpenAI sigue disponible para Copilot y otros flujos del
+  servidor.
 - Las consultas de ingredientes envían a Botpress el producto coincidente y los
   componentes publicados en los catálogos de Al Toque, Bembos y Starbucks.
-  Botpress busca en la web: para platos preparados puede usar una receta
-  publicada del mismo plato como referencia general si no encuentra la receta
-  exacta de Al Toque, aclarando esa diferencia; para Bembos y Starbucks
-  prioriza información oficial y no inventa ingredientes no publicados.
+  Cuando hay una receta web verificada para el plato, la app responde
+  directamente con su lista y cita la fuente para que Botpress no pueda
+  sustituirla por una derivación. Para lomo saltado usa una receta de referencia
+  de Recetas Nestlé Perú, aclarando que no confirma la formulación de Al Toque.
+  Para otros platos se usa la búsqueda web de Botpress; Bembos y Starbucks
+  priorizan información oficial y no se completan ingredientes no publicados.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade

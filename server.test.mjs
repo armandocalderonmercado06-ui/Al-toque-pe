@@ -2185,6 +2185,8 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /BEMBOS_PROMOTIONS\.map/);
   assert.match(page, /Productos coincidentes del catálogo de la app/);
   assert.match(page, /const ingredientFollowUp = isIngredientFollowUp/);
+  assert.match(page, /const ingredientReferenceAnswer = getMenuIngredientReferenceAnswer/);
+  assert.match(page, /if \(ingredientReferenceAnswer\) \{/);
   assert.match(page, /getBotpressMenuKnowledge\(text,\s*ingredientFollowUp\)/);
   assert.match(page, /askBotpressWebSearch\(\s*ingredientFollowUp/);
   assert.match(page, /const resetResponseTimer = \(\) => \{/);
@@ -2253,7 +2255,7 @@ test('matches ingredient questions to menu products and includes their evidence 
     }],
     STARBUCKS_UPCOMING_PROMOTIONS: []
   };
-  vm.runInNewContext(`${page.slice(start, end)}\nglobalThis.getBotpressMenuKnowledge = getBotpressMenuKnowledge;\nglobalThis.isIngredientFollowUp = isIngredientFollowUp;`, context);
+  vm.runInNewContext(`${page.slice(start, end)}\nglobalThis.getBotpressMenuKnowledge = getBotpressMenuKnowledge;\nglobalThis.isIngredientFollowUp = isIngredientFollowUp;\nglobalThis.getMenuIngredientReferenceAnswer = getMenuIngredientReferenceAnswer;`, context);
 
   const lomoKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes lleva el lomo saltado?');
   assert.equal(lomoKnowledge.length, 1);
@@ -2268,6 +2270,12 @@ test('matches ingredient questions to menu products and includes their evidence 
   ];
   assert.equal(context.isIngredientFollowUp(ingredientFollowUp), true);
   assert.equal(context.getBotpressMenuKnowledge('lomo saltado', true).length, 1);
+  const referenceAnswer = context.getMenuIngredientReferenceAnswer('los ingredientes del lomo saltado');
+  assert.match(referenceAnswer.reply, /carne de res, cebolla roja, ajo/);
+  assert.match(referenceAnswer.reply, /no confirma la formulación específica de Al Toque/);
+  assert.equal(referenceAnswer.sources[0].url, 'https://www.recetasnestle.com.pe/recetas/lomo-saltado');
+  assert.equal(context.getMenuIngredientReferenceAnswer('¿El lomo saltado tiene alérgenos?'), null);
+  assert.equal(context.getMenuIngredientReferenceAnswer('lomo saltado', true).sources[0].url, 'https://www.recetasnestle.com.pe/recetas/lomo-saltado');
   assert.equal(context.isIngredientFollowUp([
     ...ingredientFollowUp.slice(0, 1),
     { sender: 'ai', text: 'Voy a revisar la información.' }
