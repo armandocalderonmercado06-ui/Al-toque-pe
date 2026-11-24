@@ -11238,6 +11238,14 @@
         .trim();
     }
 
+    const BUDGET_PICKER_MIN = 0;
+    const BUDGET_PICKER_MAX = 500;
+    const BUDGET_PICKER_ROW_HEIGHT = 44;
+    const BUDGET_PICKER_AMOUNTS = Array.from(
+      { length: BUDGET_PICKER_MAX - BUDGET_PICKER_MIN + 1 },
+      (_, index) => index + BUDGET_PICKER_MIN
+    );
+
     function AIScreen({ onOpenCustomize, profile, orderHistory, customerProfileId }) {
       const [provider, setProvider] = useState('ChatGPT');
       const [botpressIsOpen, setBotpressIsOpen] = useState(false);
@@ -11326,8 +11334,13 @@
       const [historyOpen, setHistoryOpen] = useState(false);
       const [input, setInput] = useState('');
       const [isTyping, setIsTyping] = useState(false);
+      const [budgetAmount, setBudgetAmount] = useState(15);
+      const [isBudgetPickerOpen, setIsBudgetPickerOpen] = useState(false);
+      const [budgetPickerAmount, setBudgetPickerAmount] = useState(15);
       const [foodMode, setFoodMode] = useState(false);
       const chatMessagesRef = useRef(null);
+      const budgetPickerRef = useRef(null);
+      const budgetPickerFrameRef = useRef(0);
       const botpressPanelRef = useRef(null);
       const botpressWebSearchFramesRef = useRef(new Map());
       const botpressWebSearchPendingRef = useRef(new Map());
@@ -12318,6 +12331,60 @@
         }
       };
 
+      const openBudgetPicker = () => {
+        setBudgetPickerAmount(budgetAmount);
+        setIsBudgetPickerOpen(true);
+      };
+      const confirmBudgetPicker = () => {
+        const selectedAmount = budgetPickerAmount;
+        setBudgetAmount(selectedAmount);
+        setIsBudgetPickerOpen(false);
+        void handleSend(`Tengo S/ ${selectedAmount}`);
+      };
+      const handleBudgetPickerScroll = (event) => {
+        const picker = event.currentTarget;
+        if (budgetPickerFrameRef.current) return;
+        budgetPickerFrameRef.current = window.requestAnimationFrame(() => {
+          budgetPickerFrameRef.current = 0;
+          const nextAmount = Math.max(
+            BUDGET_PICKER_MIN,
+            Math.min(BUDGET_PICKER_MAX, Math.round(picker.scrollTop / BUDGET_PICKER_ROW_HEIGHT))
+          );
+          setBudgetPickerAmount((current) => current === nextAmount ? current : nextAmount);
+        });
+      };
+      const handleBudgetPickerKeyDown = (event) => {
+        let nextAmount = budgetPickerAmount;
+        if (event.key === 'ArrowDown') nextAmount += 1;
+        else if (event.key === 'ArrowUp') nextAmount -= 1;
+        else if (event.key === 'PageDown') nextAmount += 10;
+        else if (event.key === 'PageUp') nextAmount -= 10;
+        else if (event.key === 'Home') nextAmount = BUDGET_PICKER_MIN;
+        else if (event.key === 'End') nextAmount = BUDGET_PICKER_MAX;
+        else return;
+
+        event.preventDefault();
+        nextAmount = Math.max(BUDGET_PICKER_MIN, Math.min(BUDGET_PICKER_MAX, nextAmount));
+        setBudgetPickerAmount(nextAmount);
+        budgetPickerRef.current?.scrollTo({
+          top: (nextAmount - BUDGET_PICKER_MIN) * BUDGET_PICKER_ROW_HEIGHT,
+          behavior: 'smooth'
+        });
+      };
+
+      useEffect(() => {
+        if (!isBudgetPickerOpen || !budgetPickerRef.current) return;
+        const picker = budgetPickerRef.current;
+        picker.scrollTop = (budgetPickerAmount - BUDGET_PICKER_MIN) * BUDGET_PICKER_ROW_HEIGHT;
+        picker.focus({ preventScroll: true });
+      }, [isBudgetPickerOpen]);
+
+      useEffect(() => () => {
+        if (budgetPickerFrameRef.current) {
+          window.cancelAnimationFrame(budgetPickerFrameRef.current);
+        }
+      }, []);
+
       return (
         <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between gap-2">
@@ -12771,12 +12838,15 @@
               {[
                 { title: 'Quiero algo ligero', sub: 'Fresco y balanceado', icon: 'leaf', query: 'Quiero algo ligero' },
                 { title: 'Tengo poco tiempo', sub: 'Listo en 5 minutos', icon: 'clock', query: 'Tengo poco tiempo' },
-                { title: 'Tengo S/ 15', sub: 'Cuidando tu presupuesto', icon: 'wallet', query: 'Tengo S/ 15' }
-              ].map((shortcut, i) => (
-                <div
-                  key={i}
-                  onClick={() => handleSend(shortcut.query)}
-                  className="bg-white border border-gray-100 rounded-2xl p-3 flex items-center justify-between cursor-pointer hover:border-brand/30 transition shadow-sm"
+                { title: `Tengo S/ ${budgetAmount}`, sub: 'Cuidando tu presupuesto', icon: 'wallet', type: 'budget' }
+              ].map((shortcut) => (
+                <button
+                  type="button"
+                  key={shortcut.type || shortcut.query}
+                  disabled={isTyping}
+                  onClick={shortcut.type === 'budget' ? openBudgetPicker : () => handleSend(shortcut.query)}
+                  aria-haspopup={shortcut.type === 'budget' ? 'dialog' : undefined}
+                  className="flex w-full items-center justify-between rounded-2xl border border-gray-100 bg-white p-3 text-left shadow-sm transition hover:border-brand/30 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-9 h-9 bg-cream rounded-xl flex items-center justify-center text-dark">
@@ -12788,10 +12858,111 @@
                     </div>
                   </div>
                   <i data-lucide="chevron-right" className="w-4 h-4 text-gray-500"></i>
-                </div>
+                </button>
               ))}
             </div>
           </div>
+          {isBudgetPickerOpen && (
+            <div
+              className="fixed inset-0 z-[110] flex items-end justify-center bg-[#211716]/50 p-0 sm:items-center sm:p-4"
+              onClick={() => setIsBudgetPickerOpen(false)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') setIsBudgetPickerOpen(false);
+              }}
+            >
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="budget-picker-title"
+                className="max-h-[90dvh] w-full max-w-[390px] overflow-y-auto rounded-t-[28px] bg-white px-5 pt-4 shadow-2xl sm:rounded-[28px]"
+                style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-gray-200" aria-hidden="true"></div>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9b793a]">Cuidando tu presupuesto</p>
+                    <h3 id="budget-picker-title" className="mt-1 font-title text-lg font-bold text-dark">¿Cuánto quieres gastar?</h3>
+                    <p className="mt-1 text-[11px] text-gray-500">Desliza y elige un monto de S/ 0 a S/ 500.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsBudgetPickerOpen(false)}
+                    aria-label="Cerrar selector de presupuesto"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cream text-dark transition hover:bg-yellow-accent"
+                  >
+                    <i data-lucide="x" className="h-4 w-4"></i>
+                  </button>
+                </div>
+
+                <div className="my-4 flex items-center justify-center gap-2 rounded-2xl border border-[#f1e4c4] bg-[#fffaf0] px-4 py-2.5">
+                  <i data-lucide="wallet" className="h-4 w-4 text-brand"></i>
+                  <span className="text-[10px] font-semibold text-gray-500">Tu presupuesto</span>
+                  <strong className="font-title text-lg text-brand">S/ {budgetPickerAmount}</strong>
+                </div>
+
+                <div className="relative mx-auto w-full max-w-[220px] overflow-hidden rounded-2xl border border-[#f1e4c4] bg-white">
+                  <div
+                    ref={budgetPickerRef}
+                    role="listbox"
+                    aria-label="Presupuesto en soles"
+                    aria-activedescendant={`budget-option-${budgetPickerAmount}`}
+                    tabIndex={0}
+                    onScroll={handleBudgetPickerScroll}
+                    onKeyDown={handleBudgetPickerKeyDown}
+                    className="relative h-[220px] overflow-y-auto overscroll-contain text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand"
+                    style={{
+                      paddingTop: `${BUDGET_PICKER_ROW_HEIGHT * 2}px`,
+                      paddingBottom: `${BUDGET_PICKER_ROW_HEIGHT * 2}px`,
+                      scrollPadding: `${BUDGET_PICKER_ROW_HEIGHT * 2}px 0`,
+                      scrollSnapType: 'y mandatory'
+                    }}
+                  >
+                    {BUDGET_PICKER_AMOUNTS.map((amount) => (
+                      <div
+                        id={`budget-option-${amount}`}
+                        key={amount}
+                        role="option"
+                        aria-selected={budgetPickerAmount === amount}
+                        onClick={() => {
+                          setBudgetPickerAmount(amount);
+                          budgetPickerRef.current?.scrollTo({
+                            top: (amount - BUDGET_PICKER_MIN) * BUDGET_PICKER_ROW_HEIGHT,
+                            behavior: 'smooth'
+                          });
+                        }}
+                        className={`relative z-20 flex h-11 shrink-0 snap-center cursor-pointer items-center justify-center text-lg transition-colors ${budgetPickerAmount === amount ? 'font-bold text-brand' : 'font-medium text-gray-400'}`}
+                      >
+                        {amount}
+                      </div>
+                    ))}
+                  </div>
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-11 -translate-y-1/2 rounded-xl border-y border-brand/20 bg-[#fff2ce]/60"></div>
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-30 h-14 bg-gradient-to-b from-white to-transparent"></div>
+                  <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-30 h-14 bg-gradient-to-t from-white to-transparent"></div>
+                </div>
+                <p className="mt-2 text-center text-[10px] text-gray-500">Usa las flechas del teclado o desliza la lista.</p>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsBudgetPickerOpen(false)}
+                    className="rounded-xl border border-gray-200 bg-white py-3 text-xs font-bold text-dark transition hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmBudgetPicker}
+                    disabled={isTyping}
+                    className="rounded-xl bg-brand py-3 text-xs font-bold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Usar presupuesto
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
         </div>
       );
     }

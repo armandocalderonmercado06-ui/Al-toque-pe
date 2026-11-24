@@ -208,6 +208,15 @@ test('serves the interactive animated tutorial, stickers and mascot images', asy
   assert.match(html, /Skip \{'>>'\}/);
   assert.match(html, /altoque_tutorial_completed_v3/);
   assert.match(html, /Ver tutorial paso a paso/);
+  const budgetPickerSource = html.match(/const BUDGET_PICKER_MIN = 0;[\s\S]*?const BUDGET_PICKER_AMOUNTS = Array\.from\([\s\S]*?\n    \);/)?.[0];
+  assert.ok(budgetPickerSource, 'the budget selector should define its supported range');
+  const budgetAmounts = vm.runInNewContext(`${budgetPickerSource}; BUDGET_PICKER_AMOUNTS`);
+  assert.equal(budgetAmounts.length, 501);
+  assert.ok(budgetAmounts.every((amount, index) => amount === index));
+  assert.match(html, /aria-label="Presupuesto en soles"/);
+  assert.match(html, /fixed inset-0 z-\[110\] flex items-end justify-center/);
+  assert.match(html, /void handleSend\(`Tengo S\/ \$\{selectedAmount\}`\)/);
+  assert.match(html, /setBudgetPickerAmount\(budgetAmount\)/);
   assert.match(html, /altoque_rider_tutorial_completed_v1/);
   assert.match(html, /const RIDER_TUTORIAL_STEPS = \[/);
   assert.match(html, /brand="Tutorial del repartidor"/);
