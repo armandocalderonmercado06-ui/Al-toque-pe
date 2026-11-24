@@ -12,6 +12,11 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
   habilitado en el agente publicado de Botpress. Cada perfil y conversación
   conserva un historial separado. OpenAI sigue disponible para Copilot y otros
   flujos del servidor.
+- Las consultas de ingredientes envían a Botpress el producto coincidente y los
+  componentes publicados en los catálogos de Al Toque, Bembos y Starbucks.
+  Solo se consideran confirmados los datos publicados por fuentes oficiales;
+  si no aparece una receta completa, el asistente debe indicarlo en vez de
+  completarla con suposiciones.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade

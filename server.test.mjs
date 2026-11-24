@@ -2176,7 +2176,15 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   const page = await readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8');
   assert.match(page, /storageKey: 'altoque-\$\{searchProvider\.toLowerCase\(\)\}-\$\{conversationId\}-web-search-v1'/);
   assert.match(page, /Busca en internet usando la herramienta web habilitada en Botpress/);
-  assert.match(page, /Si preguntan por ingredientes, consulta fuentes confiables sobre el plato/);
+  assert.match(page, /Si preguntan por ingredientes, usa el contexto del menú para identificar el producto/);
+  assert.match(page, /no la completes con recetas genéricas ni suposiciones/);
+  assert.match(page, /No confirmes que un producto es apto para alergias con información incompleta/);
+  assert.match(page, /const getBotpressMenuKnowledge = \(question\) =>/);
+  assert.match(page, /STARBUCKS_FOOD_PRODUCTS\.map/);
+  assert.match(page, /STARBUCKS_PACK_PRODUCTS\.map/);
+  assert.match(page, /BEMBOS_PROMOTIONS\.map/);
+  assert.match(page, /Productos coincidentes del catálogo de la app/);
+  assert.match(page, /getBotpressMenuKnowledge\(text\)/);
   assert.match(page, /askBotpressWebSearch\(\s*text,\s*provider,\s*conversationId,/);
   assert.match(page, /const resetResponseTimer = \(\) => \{/);
   assert.match(page, /pending\?\.messages\.length/);
@@ -2205,6 +2213,62 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /if \(answer\.handoffToBotpress\)/);
   assert.match(page, /INITIAL_MENU\.find\(\(item\) => item\.id === String\(answer\.dishId\)\)/);
   assert.doesNotMatch(page, /buildLocalFallback/);
+});
+
+test('matches ingredient questions to menu products and includes their evidence for Botpress', async () => {
+  const page = await readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8');
+  const start = page.indexOf('const normalizeMenuKnowledgeText =');
+  const end = page.indexOf('const SPLASH_THEME_VARIANTS =', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+
+  const context = {
+    INITIAL_MENU: [{
+      id: '1',
+      name: 'Lomo saltado',
+      category: 'menús',
+      description: 'Arroz y ensalada fresca',
+      components: ['Lomo saltado', 'Arroz', 'Ensalada fresca']
+    }],
+    BEMBOS_PROMOTIONS: [{
+      name: 'Promo Doble Queso Tocino',
+      category: 'personales',
+      description: '1 Doble queso tocino regular, 1 papa regular y gaseosa personal'
+    }],
+    STARBUCKS_PRODUCTS: [],
+    STARBUCKS_FOOD_PRODUCTS: [{
+      name: 'Keke de Limón',
+      menuCategory: 'Pastries'
+    }],
+    STARBUCKS_PACK_PRODUCTS: [],
+    STARBUCKS_MERCH_PRODUCTS: [{
+      name: 'Espresso 250 gr.',
+      menuCategory: 'Café en Grano',
+      description: 'Café en grano • 250 gr.'
+    }, {
+      name: 'Bearista Bear Llama',
+      menuCategory: 'Merch',
+      description: 'Merch Starbucks'
+    }],
+    STARBUCKS_UPCOMING_PROMOTIONS: []
+  };
+  vm.runInNewContext(`${page.slice(start, end)}\nglobalThis.getBotpressMenuKnowledge = getBotpressMenuKnowledge;`, context);
+
+  const lomoKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes lleva el lomo saltado?');
+  assert.equal(lomoKnowledge.length, 1);
+  assert.deepEqual(Array.from(lomoKnowledge[0].listedComponents), ['Lomo saltado', 'Arroz', 'Ensalada fresca']);
+  assert.equal(lomoKnowledge[0].sourceUrl, null);
+
+  const bembosKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes tiene la Promo Doble Queso Tocino?');
+  assert.equal(bembosKnowledge[0].sourceUrl, 'https://www.bembos.com.pe/menu/promociones');
+  assert.match(bembosKnowledge[0].menuDescription, /queso tocino/i);
+
+  const starbucksKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes lleva el Keke de Limón?');
+  assert.equal(starbucksKnowledge[0].sourceUrl, 'https://www.starbucks.pe/menu/alimentos');
+  const coffeeKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes tiene Espresso 250 gr.?');
+  assert.deepEqual(Array.from(coffeeKnowledge[0].listedComponents), ['Café en grano']);
+  assert.equal(context.getBotpressMenuKnowledge('¿Qué ingredientes tiene Bearista Bear Llama?').length, 0);
+  assert.equal(context.getBotpressMenuKnowledge('Hola, ¿cómo estás?').length, 0);
 });
 
 test('uses local menu replies for food and Botpress web search for non-food ChatGPT and Gemini questions', async (t) => {

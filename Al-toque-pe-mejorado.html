@@ -5670,6 +5670,109 @@
       components: []
     }));
 
+    const normalizeMenuKnowledgeText = (value) => value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLocaleLowerCase('es');
+
+    const getBotpressMenuKnowledge = (question) => {
+      const normalizedQuestion = normalizeMenuKnowledgeText(question);
+      if (!/\b(ingredientes?|componentes?|que lleva|que llevan|que contiene|que contienen|de que esta hecho|de que se prepara|receta|preparacion|alergenos?)\b/.test(normalizedQuestion)) {
+        return [];
+      }
+
+      const products = [
+        ...INITIAL_MENU.map((product) => ({
+          brand: 'Al Toque',
+          name: product.name,
+          category: product.category,
+          catalogSection: 'Al Toque',
+          description: product.description,
+          components: product.components,
+          aliases: product.id === '1' ? ['lomo'] : product.id === '3' ? ['ceviche'] : []
+        })),
+        ...BEMBOS_PROMOTIONS.map((product) => ({
+          brand: 'Bembos',
+          name: product.name,
+          category: product.category,
+          catalogSection: 'promociones',
+          description: product.description,
+          components: [],
+          aliases: []
+        })),
+        ...STARBUCKS_PRODUCTS.map((product) => ({
+          brand: 'Starbucks',
+          name: product.name,
+          category: product.menuCategory,
+          catalogSection: 'bebidas',
+          description: '',
+          components: [],
+          aliases: []
+        })),
+        ...STARBUCKS_FOOD_PRODUCTS.map((product) => ({
+          brand: 'Starbucks',
+          name: product.name,
+          category: product.menuCategory,
+          catalogSection: 'alimentos',
+          description: '',
+          components: [],
+          aliases: []
+        })),
+        ...STARBUCKS_PACK_PRODUCTS.map((product) => ({
+          brand: 'Starbucks',
+          name: product.name,
+          category: product.menuCategory,
+          catalogSection: 'packs',
+          description: '',
+          components: [],
+          aliases: []
+        })),
+        ...STARBUCKS_MERCH_PRODUCTS
+          .filter((product) => product.menuCategory === 'Café en Grano')
+          .map((product) => ({
+            brand: 'Starbucks',
+            name: product.name,
+            category: product.menuCategory,
+            catalogSection: 'cafe-en-grano',
+            description: product.description,
+            components: ['Café en grano'],
+            aliases: []
+          })),
+        ...STARBUCKS_UPCOMING_PROMOTIONS.map((product) => ({
+          brand: 'Starbucks',
+          name: product.name,
+          category: 'Promoción de temporada',
+          catalogSection: 'promociones',
+          description: product.description || '',
+          components: [],
+          aliases: []
+        }))
+      ];
+
+      return products
+        .filter((product) => [product.name, ...product.aliases]
+          .some((term) => normalizedQuestion.includes(normalizeMenuKnowledgeText(term))))
+        .map((product) => ({
+          brand: product.brand,
+          name: product.name,
+          category: product.category,
+          catalogSection: product.catalogSection,
+          menuDescription: product.description,
+          listedComponents: product.components,
+          sourceUrl: product.brand === 'Bembos'
+            ? 'https://www.bembos.com.pe/menu/promociones'
+            : product.brand === 'Starbucks'
+              ? product.catalogSection === 'alimentos'
+                ? 'https://www.starbucks.pe/menu/alimentos'
+                : product.catalogSection === 'packs'
+                  ? 'https://www.starbucks.pe/menu'
+                  : product.catalogSection === 'promociones' || product.catalogSection === 'cafe-en-grano'
+                  ? 'https://www.starbucks.pe/menu'
+                  : 'https://www.starbucks.pe/menu/bebidas'
+              : null
+        }));
+    };
+
     const SPLASH_THEME_VARIANTS = ['brand', 'clean', 'warm', 'impact'];
     const SPLASH_THEME_OPTIONS = [
       { id: 'random', label: 'Predeterminada', description: 'Elige al azar y no repite el inicio anterior.' },
@@ -10815,7 +10918,7 @@
         botpressWebSearchFramesRef.current.delete(searchKey);
       };
 
-      const askBotpressWebSearch = (question, searchProvider, conversationId, memory, orderHistory) => new Promise((resolve, reject) => {
+      const askBotpressWebSearch = (question, searchProvider, conversationId, memory, orderHistory, menuKnowledge = []) => new Promise((resolve, reject) => {
         const searchKey = `${searchProvider}:${conversationId}`;
         const frame = getBotpressWebSearchFrame(searchProvider, conversationId);
         let pollTimer;
@@ -10913,11 +11016,14 @@
             botpressWebSearchPendingRef.current.set(searchKey, { messages: [], finish });
             resetResponseTimer();
             const botpressQuestion = [
-              'Busca en internet usando la herramienta web habilitada en Botpress para responder esta pregunta. Verifica los datos con fuentes confiables, responde en español e incluye enlaces de las fuentes consultadas. Si preguntan por ingredientes, consulta fuentes confiables sobre el plato y aclara si no confirman la receta específica de Al Toque.',
+              'Busca en internet usando la herramienta web habilitada en Botpress para responder esta pregunta. Verifica los datos con fuentes oficiales, responde en español e incluye enlaces de las fuentes consultadas. Si preguntan por ingredientes, usa el contexto del menú para identificar el producto y busca información oficial del proveedor. Distingue los ingredientes publicados de los componentes del menú. Si la fuente oficial no publica la receta completa, indícalo y no la completes con recetas genéricas ni suposiciones. No confirmes que un producto es apto para alergias con información incompleta.',
               'Si no puedes consultar internet o no encuentras fuentes útiles, indícalo claramente y no inventes citas.',
               memory ? `Preferencias de conversaciones anteriores de ${searchProvider}:\n${memory}` : '',
               orderHistory.length > 0
                 ? `Productos comprados antes: ${orderHistory.map(({ name, quantity }) => `${name} (${quantity})`).join(', ')}.`
+                : '',
+              menuKnowledge.length > 0
+                ? `Productos coincidentes del catálogo de la app (la descripción y los componentes no equivalen a una receta completa):\n${JSON.stringify(menuKnowledge)}`
                 : '',
               `Consulta: ${question}`
             ].filter(Boolean).join('\n\n');
@@ -11142,7 +11248,8 @@
               provider,
               conversationId,
               getLearnedPreferences().slice(-1600),
-              orderHistoryForAI
+              orderHistoryForAI,
+              getBotpressMenuKnowledge(text)
             );
             updateConversationMessages(conversationId, {
               sender: 'ai',
