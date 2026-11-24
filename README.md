@@ -14,9 +14,10 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
   flujos del servidor.
 - Las consultas de ingredientes envían a Botpress el producto coincidente y los
   componentes publicados en los catálogos de Al Toque, Bembos y Starbucks.
-  Solo se consideran confirmados los datos publicados por fuentes oficiales;
-  si no aparece una receta completa, el asistente debe indicarlo en vez de
-  completarla con suposiciones.
+  Botpress busca en la web: para platos preparados puede usar una receta
+  publicada del mismo plato como referencia general si no encuentra la receta
+  exacta de Al Toque, aclarando esa diferencia; para Bembos y Starbucks
+  prioriza información oficial y no inventa ingredientes no publicados.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade

@@ -2175,17 +2175,18 @@ test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => 
 test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {
   const page = await readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8');
   assert.match(page, /storageKey: 'altoque-\$\{searchProvider\.toLowerCase\(\)\}-\$\{conversationId\}-web-search-v1'/);
-  assert.match(page, /Busca en internet usando la herramienta web habilitada en Botpress/);
-  assert.match(page, /Si preguntan por ingredientes, usa el contexto del menú para identificar el producto/);
-  assert.match(page, /no la completes con recetas genéricas ni suposiciones/);
+  assert.match(page, /Busca en internet con la herramienta web de Botpress antes de responder preguntas sobre ingredientes/);
+  assert.match(page, /ofrece sus ingredientes como referencia general/);
+  assert.match(page, /no digas que vas a derivarla al equipo/);
   assert.match(page, /No confirmes que un producto es apto para alergias con información incompleta/);
-  assert.match(page, /const getBotpressMenuKnowledge = \(question\) =>/);
+  assert.match(page, /const getBotpressMenuKnowledge = \(question,\s*includeFollowUpProduct = false\) =>/);
   assert.match(page, /STARBUCKS_FOOD_PRODUCTS\.map/);
   assert.match(page, /STARBUCKS_PACK_PRODUCTS\.map/);
   assert.match(page, /BEMBOS_PROMOTIONS\.map/);
   assert.match(page, /Productos coincidentes del catálogo de la app/);
-  assert.match(page, /getBotpressMenuKnowledge\(text\)/);
-  assert.match(page, /askBotpressWebSearch\(\s*text,\s*provider,\s*conversationId,/);
+  assert.match(page, /const ingredientFollowUp = isIngredientFollowUp/);
+  assert.match(page, /getBotpressMenuKnowledge\(text,\s*ingredientFollowUp\)/);
+  assert.match(page, /askBotpressWebSearch\(\s*ingredientFollowUp/);
   assert.match(page, /const resetResponseTimer = \(\) => \{/);
   assert.match(page, /pending\?\.messages\.length/);
   assert.match(page, /\}, 90000\)/);
@@ -2252,12 +2253,25 @@ test('matches ingredient questions to menu products and includes their evidence 
     }],
     STARBUCKS_UPCOMING_PROMOTIONS: []
   };
-  vm.runInNewContext(`${page.slice(start, end)}\nglobalThis.getBotpressMenuKnowledge = getBotpressMenuKnowledge;`, context);
+  vm.runInNewContext(`${page.slice(start, end)}\nglobalThis.getBotpressMenuKnowledge = getBotpressMenuKnowledge;\nglobalThis.isIngredientFollowUp = isIngredientFollowUp;`, context);
 
   const lomoKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes lleva el lomo saltado?');
   assert.equal(lomoKnowledge.length, 1);
   assert.deepEqual(Array.from(lomoKnowledge[0].listedComponents), ['Lomo saltado', 'Arroz', 'Ensalada fresca']);
+  assert.deepEqual(Array.from(lomoKnowledge[0].ingredientReference.ingredients).slice(0, 3), ['carne de res', 'cebolla roja', 'ajo']);
+  assert.equal(lomoKnowledge[0].ingredientReference.source.url, 'https://www.recetasnestle.com.pe/recetas/lomo-saltado');
+  assert.match(lomoKnowledge[0].ingredientReference.note, /no confirma la formulación específica de Al Toque/);
   assert.equal(lomoKnowledge[0].sourceUrl, null);
+  const ingredientFollowUp = [
+    { sender: 'user', text: '¿Qué ingredientes lleva?' },
+    { sender: 'ai', text: '¿De qué plato quieres saber los ingredientes?' }
+  ];
+  assert.equal(context.isIngredientFollowUp(ingredientFollowUp), true);
+  assert.equal(context.getBotpressMenuKnowledge('lomo saltado', true).length, 1);
+  assert.equal(context.isIngredientFollowUp([
+    ...ingredientFollowUp.slice(0, 1),
+    { sender: 'ai', text: 'Voy a revisar la información.' }
+  ]), false);
 
   const bembosKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes tiene la Promo Doble Queso Tocino?');
   assert.equal(bembosKnowledge[0].sourceUrl, 'https://www.bembos.com.pe/menu/promociones');

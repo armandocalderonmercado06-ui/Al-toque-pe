@@ -5675,9 +5675,49 @@
       .replace(/[\u0300-\u036f]/g, '')
       .toLocaleLowerCase('es');
 
-    const getBotpressMenuKnowledge = (question) => {
+    const MENU_INGREDIENT_REFERENCES = {
+      'Lomo saltado': {
+        note: 'Receta publicada de referencia; no confirma la formulación específica de Al Toque.',
+        ingredients: [
+          'carne de res',
+          'cebolla roja',
+          'ajo',
+          'culantro',
+          'tomate',
+          'ají amarillo',
+          'caldo en polvo sabor carne',
+          'vinagre tinto',
+          'sillao',
+          'arroz cocido',
+          'papa amarilla',
+          'pimienta',
+          'comino',
+          'agua',
+          'aceite vegetal',
+          'maicena'
+        ],
+        source: {
+          title: 'Receta de Lomo Saltado — Recetas Nestlé Perú',
+          url: 'https://www.recetasnestle.com.pe/recetas/lomo-saltado'
+        }
+      }
+    };
+
+    const MENU_INGREDIENT_QUESTION_PATTERN = /\b(ingredientes?|componentes?|que lleva|que llevan|que contiene|que contienen|de que esta hecho|de que se prepara|receta|preparacion|alergenos?)\b/;
+
+    const isIngredientFollowUp = (messages) => {
+      if (!Array.isArray(messages) || messages.length < 2) return false;
+      const previousUserMessage = messages[messages.length - 2];
+      const lastAssistantMessage = messages[messages.length - 1];
+      return previousUserMessage.sender === 'user'
+        && MENU_INGREDIENT_QUESTION_PATTERN.test(normalizeMenuKnowledgeText(previousUserMessage.text || ''))
+        && lastAssistantMessage.sender === 'ai'
+        && String(lastAssistantMessage.text || '').includes('?');
+    };
+
+    const getBotpressMenuKnowledge = (question, includeFollowUpProduct = false) => {
       const normalizedQuestion = normalizeMenuKnowledgeText(question);
-      if (!/\b(ingredientes?|componentes?|que lleva|que llevan|que contiene|que contienen|de que esta hecho|de que se prepara|receta|preparacion|alergenos?)\b/.test(normalizedQuestion)) {
+      if (!MENU_INGREDIENT_QUESTION_PATTERN.test(normalizedQuestion) && !includeFollowUpProduct) {
         return [];
       }
 
@@ -5759,6 +5799,7 @@
           catalogSection: product.catalogSection,
           menuDescription: product.description,
           listedComponents: product.components,
+          ingredientReference: MENU_INGREDIENT_REFERENCES[product.name] || null,
           sourceUrl: product.brand === 'Bembos'
             ? 'https://www.bembos.com.pe/menu/promociones'
             : product.brand === 'Starbucks'
@@ -11016,14 +11057,14 @@
             botpressWebSearchPendingRef.current.set(searchKey, { messages: [], finish });
             resetResponseTimer();
             const botpressQuestion = [
-              'Busca en internet usando la herramienta web habilitada en Botpress para responder esta pregunta. Verifica los datos con fuentes oficiales, responde en español e incluye enlaces de las fuentes consultadas. Si preguntan por ingredientes, usa el contexto del menú para identificar el producto y busca información oficial del proveedor. Distingue los ingredientes publicados de los componentes del menú. Si la fuente oficial no publica la receta completa, indícalo y no la completes con recetas genéricas ni suposiciones. No confirmes que un producto es apto para alergias con información incompleta.',
+              'Busca en internet con la herramienta web de Botpress antes de responder preguntas sobre ingredientes. Identifica el producto con el contexto del menú y cita enlaces consultados. Para platos preparados, si no encuentras la receta exacta del local, busca una receta publicada del mismo plato y ofrece sus ingredientes como referencia general, aclarando que puede no ser la formulación de Al Toque. Para productos de Bembos o Starbucks, prioriza la ficha oficial y no inventes ingredientes que el proveedor no publique. Responde la pregunta directamente; no digas que vas a derivarla al equipo ni recomiendes contactar al personal en vez de buscar. Si no hay datos fiables tras la búsqueda, explica qué información pública sí encontraste y qué no. No confirmes que un producto es apto para alergias con información incompleta.',
               'Si no puedes consultar internet o no encuentras fuentes útiles, indícalo claramente y no inventes citas.',
               memory ? `Preferencias de conversaciones anteriores de ${searchProvider}:\n${memory}` : '',
               orderHistory.length > 0
                 ? `Productos comprados antes: ${orderHistory.map(({ name, quantity }) => `${name} (${quantity})`).join(', ')}.`
                 : '',
               menuKnowledge.length > 0
-                ? `Productos coincidentes del catálogo de la app (la descripción y los componentes no equivalen a una receta completa):\n${JSON.stringify(menuKnowledge)}`
+                ? `Productos coincidentes del catálogo de la app. Si hay una referencia web con ingredientes, úsala y cita su fuente. Los componentes anunciados no equivalen necesariamente a una receta completa:\n${JSON.stringify(menuKnowledge)}`
                 : '',
               `Consulta: ${question}`
             ].filter(Boolean).join('\n\n');
@@ -11217,6 +11258,8 @@
         if (!text.trim() || isTyping) return;
 
         const conversationId = activeConversationId;
+        const conversation = conversations.find((item) => item.id === conversationId);
+        const ingredientFollowUp = isIngredientFollowUp(conversation?.messages || []);
         const userMessage = { sender: 'user', text };
         updateConversationMessages(conversationId, userMessage);
         setInput('');
@@ -11224,32 +11267,37 @@
 
         let webSearchRequested = false;
         try {
-          const menuResponse = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              provider,
-              text,
-              assistantMode: 'menu',
-              history: [],
-              memory: getLearnedPreferences().slice(-1600),
-              orderHistory: orderHistoryForAI
-            })
-          });
-          const answer = await menuResponse.json();
-          if (!menuResponse.ok) {
-            throw new Error(answer.error || `La solicitud falló (${menuResponse.status}).`);
+          let answer = { handoffToBotpress: true };
+          if (!ingredientFollowUp) {
+            const menuResponse = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                provider,
+                text,
+                assistantMode: 'menu',
+                history: [],
+                memory: getLearnedPreferences().slice(-1600),
+                orderHistory: orderHistoryForAI
+              })
+            });
+            answer = await menuResponse.json();
+            if (!menuResponse.ok) {
+              throw new Error(answer.error || `La solicitud falló (${menuResponse.status}).`);
+            }
           }
 
           if (answer.handoffToBotpress) {
             webSearchRequested = true;
             const searchAnswer = await askBotpressWebSearch(
-              text,
+              ingredientFollowUp
+                ? `Responde la consulta de ingredientes pendiente. El usuario indicó este plato: ${text}`
+                : text,
               provider,
               conversationId,
               getLearnedPreferences().slice(-1600),
               orderHistoryForAI,
-              getBotpressMenuKnowledge(text)
+              getBotpressMenuKnowledge(text, ingredientFollowUp)
             );
             updateConversationMessages(conversationId, {
               sender: 'ai',
