@@ -208,6 +208,17 @@ test('serves the transparent Miraflores logo as a public PNG asset', async (t) =
   assert.equal(image[25], 6, 'the PNG should retain its alpha channel');
 });
 
+test('includes the Al Toque Pe source attribution logo as a public PNG asset', async () => {
+  const [serverSource, image] = await Promise.all([
+    readFile(join(process.cwd(), 'server.mjs'), 'utf8'),
+    readFile(join(process.cwd(), 'al-toque-pe-chat-logo.png'))
+  ]);
+  const publicAssets = serverSource.match(/const PUBLIC_ASSETS = new Set\(\[([\s\S]*?)\n\]\);/)?.[1] || '';
+
+  assert.ok(publicAssets.includes("'al-toque-pe-chat-logo.png'"), 'the logo must be served by the app');
+  assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+});
+
 test('shows the Miraflores delivery schedule and updates its status using Lima time', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
@@ -2167,6 +2178,7 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /getAIReplyWithoutSourceList/);
   assert.match(page, /fuentes utilizadas/);
   assert.match(page, /data-lucide="external-link"/);
+  assert.match(page, /<img src="\/al-toque-pe-chat-logo\.png" alt="Logo de Al Toque Pe"/);
   assert.match(page, /w-60 max-w-full space-y-0\.5 rounded-lg border border-brand\/20 bg-cream\/60 p-1\.5 shadow-md/);
   assert.match(page, /text-\[8px\] leading-tight text-gray-600/);
   assert.match(page, /bg-brand\/5 text-\[8px\] font-bold text-brand/);

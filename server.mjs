@@ -101,6 +101,7 @@ const PUBLIC_ASSETS = new Set([
   'google-pay-demo.png',
   'paypal-demo.png',
   'al-toque-pe-logo.png',
+  'al-toque-pe-chat-logo.png',
   'al-toque-pe-emblema.png',
   'al-toque-reel-watermark.png',
   'miraflores-logo-transparent.png',
