@@ -2126,6 +2126,8 @@ test('answers simple menu questions locally without requesting web search', () =
   assert.match(getLocalMenuAnswer('¿Qué bebidas ofrecen hoy?').reply, /Agua San Luis 600ml/);
   assert.equal(getLocalMenuAnswer('Quiero una bebida').intent, 'bebidas');
   assert.equal(getLocalMenuAnswer('Quiero un plato para almorzar').intent, 'comida');
+  assert.equal(getLocalMenuAnswer('¿Qué ingredientes lleva el lomo saltado?'), null);
+  assert.equal(shouldUseWebSearch('¿Qué ingredientes lleva el lomo saltado?'), true);
 });
 
 test('reserves web search for current or complex questions', () => {
@@ -2174,6 +2176,7 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   const page = await readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8');
   assert.match(page, /storageKey: 'altoque-\$\{searchProvider\.toLowerCase\(\)\}-\$\{conversationId\}-web-search-v1'/);
   assert.match(page, /Busca en internet usando la herramienta web habilitada en Botpress/);
+  assert.match(page, /Si preguntan por ingredientes, consulta fuentes confiables sobre el plato/);
   assert.match(page, /askBotpressWebSearch\(\s*text,\s*provider,\s*conversationId,/);
   assert.match(page, /const resetResponseTimer = \(\) => \{/);
   assert.match(page, /pending\?\.messages\.length/);
@@ -2226,6 +2229,16 @@ test('uses local menu replies for food and Botpress web search for non-food Chat
     assert.equal(foodPayload.dishId, '1');
     assert.match(foodPayload.reply, /Lomo saltado/);
     assert.equal(foodPayload.handoffToBotpress, undefined);
+
+    const ingredientsResponse = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+      body: JSON.stringify({ provider, text: '¿Qué ingredientes lleva el lomo saltado?', history: [], orderHistory: [] })
+    });
+    assert.equal(ingredientsResponse.status, 200);
+    const ingredientsPayload = await ingredientsResponse.json();
+    assert.equal(ingredientsPayload.handoffToBotpress, true);
+    assert.equal(ingredientsPayload.webSearchUsed, true);
 
     const response = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',

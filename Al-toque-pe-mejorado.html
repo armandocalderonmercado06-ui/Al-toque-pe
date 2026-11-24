@@ -10913,7 +10913,7 @@
             botpressWebSearchPendingRef.current.set(searchKey, { messages: [], finish });
             resetResponseTimer();
             const botpressQuestion = [
-              'Busca en internet usando la herramienta web habilitada en Botpress para responder esta pregunta. Verifica los datos con fuentes confiables, responde en español e incluye enlaces de las fuentes consultadas.',
+              'Busca en internet usando la herramienta web habilitada en Botpress para responder esta pregunta. Verifica los datos con fuentes confiables, responde en español e incluye enlaces de las fuentes consultadas. Si preguntan por ingredientes, consulta fuentes confiables sobre el plato y aclara si no confirman la receta específica de Al Toque.',
               'Si no puedes consultar internet o no encuentras fuentes útiles, indícalo claramente y no inventes citas.',
               memory ? `Preferencias de conversaciones anteriores de ${searchProvider}:\n${memory}` : '',
               orderHistory.length > 0
