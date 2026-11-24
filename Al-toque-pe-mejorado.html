@@ -11289,7 +11289,7 @@
                         </p>
                       ) : messages.map((message, index) => (
                           <div key={`${index}-${message.sender}`} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <p className={`max-w-[85%] whitespace-pre-wrap rounded-2xl p-3 text-xs ${message.sender === 'user' ? 'rounded-br-none bg-dark text-white' : 'rounded-bl-none bg-cream text-dark'}`}>
+                            <p className={`min-w-0 max-w-[90%] whitespace-pre-wrap break-words rounded-2xl p-3 text-xs ${message.sender === 'user' ? 'rounded-br-none bg-dark text-white' : 'rounded-bl-none bg-cream text-dark'}`} style={{ overflowWrap: 'anywhere' }}>
                               {message.text}
                             </p>
                           </div>
@@ -11331,7 +11331,7 @@
                   )}
                   {messages.map((m, idx) => (
                     <div key={idx} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
-                      <div className={`p-3 rounded-2xl max-w-[85%] text-xs ${m.sender === 'user' ? 'bg-dark text-white rounded-br-none' : m.error ? 'border border-red-200 bg-red-50 text-red-800 rounded-bl-none' : 'bg-cream text-dark rounded-bl-none'}`}>
+                      <div className={`min-w-0 p-3 rounded-2xl max-w-[90%] whitespace-pre-wrap break-words text-xs ${m.sender === 'user' ? 'bg-dark text-white rounded-br-none' : m.error ? 'border border-red-200 bg-red-50 text-red-800 rounded-bl-none' : 'bg-cream text-dark rounded-bl-none'}`} style={{ overflowWrap: 'anywhere' }}>
                         {m.text}
                       </div>
                       {m.sender === 'ai' && m.error && (
