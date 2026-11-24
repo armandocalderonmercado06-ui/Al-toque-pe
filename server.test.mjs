@@ -2188,6 +2188,9 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /bg-brand\/5 text-\[8px\] font-bold text-brand/);
   assert.match(page, /data-lucide="thumbs-up"/);
   assert.match(page, /data-lucide="thumbs-down"/);
+  assert.match(page, /previous\[feedbackKey\] === value \? '' : value/);
+  assert.match(page, /toggleSourceFeedback\(feedbackKey, 'like'\)/);
+  assert.match(page, /toggleSourceFeedback\(feedbackKey, 'dislike'\)/);
   assert.match(page, /Gracias por tus comentarios/);
   assert.match(page, /bg-green-100 px-2\.5 py-1 text-\[10px\] font-medium text-green-800/);
   assert.doesNotMatch(page, /fetch\('\/api\/chat'/);

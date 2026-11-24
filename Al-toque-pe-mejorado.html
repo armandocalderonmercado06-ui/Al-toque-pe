@@ -10146,6 +10146,12 @@
       const [promoMessageIndex, setPromoMessageIndex] = useState(0);
       const [promoFontIndex, setPromoFontIndex] = useState(() => Math.floor(Math.random() * AI_PROMO_FONTS.length));
       const [sourceFeedback, setSourceFeedback] = useState({});
+      const toggleSourceFeedback = (feedbackKey, value) => {
+        setSourceFeedback((previous) => ({
+          ...previous,
+          [feedbackKey]: previous[feedbackKey] === value ? '' : value
+        }));
+      };
       const orderHistoryForAI = useMemo(() => {
         const products = new Map();
         orderHistory
@@ -11458,7 +11464,7 @@
                                 type="button"
                                 aria-label="Me gusta esta respuesta"
                                 aria-pressed={feedback === 'like'}
-                                onClick={() => setSourceFeedback((previous) => ({ ...previous, [feedbackKey]: 'like' }))}
+                                onClick={() => toggleSourceFeedback(feedbackKey, 'like')}
                                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition ${feedback === 'like' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-100'}`}
                               >
                                 <i data-lucide="thumbs-up" className="h-4 w-4"></i>
@@ -11467,7 +11473,7 @@
                                 type="button"
                                 aria-label="No me gusta esta respuesta"
                                 aria-pressed={feedback === 'dislike'}
-                                onClick={() => setSourceFeedback((previous) => ({ ...previous, [feedbackKey]: 'dislike' }))}
+                                onClick={() => toggleSourceFeedback(feedbackKey, 'dislike')}
                                 className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition ${feedback === 'dislike' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-100'}`}
                               >
                                 <i data-lucide="thumbs-down" className="h-4 w-4"></i>
