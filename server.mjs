@@ -134,6 +134,12 @@ const PUBLIC_ASSETS = new Set([
   'combo herediano.jpg',
   'combo marino.png',
   'Captura de pantalla 2026-09-24 145818.png',
+  'tutorial-mascot-1.png',
+  'tutorial-mascot-2.png',
+  'tutorial-mascot-3.png',
+  'tutorial-mascot-4.png',
+  'tutorial-mascot-5.png',
+  'tutorial-mascot-6.png',
   'mapa-upch-offline.svg',
   ...Array.from({ length: 8 }, (_, index) => `sticker_${index + 1}.webp`),
   ...Array.from({ length: 17 }, (_, index) => `sticker_${index + 9}.png`)

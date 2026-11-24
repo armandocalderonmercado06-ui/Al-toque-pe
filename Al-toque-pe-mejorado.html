@@ -4051,6 +4051,215 @@
       animation: newRiderStickerFloat 2.2s ease-in-out infinite;
       filter: drop-shadow(0 5px 7px rgba(48, 19, 23, 0.22));
     }
+    .altoque-tutorial-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+      background: rgba(31, 19, 20, 0.72);
+      backdrop-filter: blur(6px);
+      overscroll-behavior: contain;
+    }
+    .altoque-tutorial-dialog {
+      display: flex;
+      width: min(900px, 100%);
+      max-height: min(780px, calc(100dvh - max(14px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom))));
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 28px;
+      background: #fffdf8;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+    }
+    .altoque-tutorial-header,
+    .altoque-tutorial-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 22px;
+    }
+    .altoque-tutorial-header {
+      border-bottom: 1px solid #eee6d8;
+    }
+    .altoque-tutorial-brand {
+      color: #a90000;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .altoque-tutorial-skip {
+      border: 0;
+      border-radius: 999px;
+      background: #f7eee2;
+      color: #755e50;
+      padding: 8px 13px;
+      font: 700 11px/1 Outfit, Arial, sans-serif;
+      cursor: pointer;
+    }
+    .altoque-tutorial-main {
+      display: grid;
+      min-height: 0;
+      flex: 1;
+      grid-template-columns: minmax(150px, 0.72fr) minmax(0, 1.28fr);
+      align-items: center;
+      gap: 18px;
+      overflow-y: auto;
+      padding: 24px 28px;
+    }
+    .altoque-tutorial-mascot-stage {
+      display: flex;
+      min-height: 250px;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .altoque-tutorial-mascot {
+      display: block;
+      width: min(100%, 210px);
+      max-height: 290px;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 12px rgba(55, 22, 24, 0.16));
+      animation: altoqueTutorialFloat 2.8s ease-in-out infinite;
+    }
+    .altoque-tutorial-bubble {
+      position: relative;
+      border: 1px solid #f1dfb5;
+      border-radius: 24px;
+      background: #fff4d8;
+      padding: clamp(18px, 3vw, 28px);
+      box-shadow: 0 12px 28px rgba(100, 62, 22, 0.08);
+    }
+    .altoque-tutorial-bubble::before {
+      position: absolute;
+      top: 42px;
+      left: -10px;
+      width: 18px;
+      height: 18px;
+      border-bottom: 1px solid #f1dfb5;
+      border-left: 1px solid #f1dfb5;
+      background: #fff4d8;
+      content: "";
+      transform: rotate(45deg);
+    }
+    .altoque-tutorial-section {
+      color: #a90000;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .altoque-tutorial-title {
+      margin: 8px 0 10px;
+      color: #291a19;
+      font: 700 clamp(20px, 3vw, 28px)/1.15 "Space Grotesk", Arial, sans-serif;
+    }
+    .altoque-tutorial-copy {
+      margin: 0;
+      color: #5f5651;
+      font: 500 14px/1.65 Outfit, Arial, sans-serif;
+    }
+    .altoque-tutorial-progress {
+      height: 5px;
+      overflow: hidden;
+      background: #f1eadf;
+    }
+    .altoque-tutorial-progress-fill {
+      height: 100%;
+      border-radius: 0 999px 999px 0;
+      background: linear-gradient(90deg, #a90000, #e59a32);
+      transition: width 240ms ease;
+    }
+    .altoque-tutorial-footer {
+      border-top: 1px solid #eee6d8;
+      padding-top: 12px;
+      padding-bottom: max(14px, env(safe-area-inset-bottom));
+    }
+    .altoque-tutorial-step-count {
+      color: #82776e;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .altoque-tutorial-action {
+      min-height: 40px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 17px;
+      font: 700 12px/1 Outfit, Arial, sans-serif;
+      cursor: pointer;
+      transition: transform 160ms ease, opacity 160ms ease;
+    }
+    .altoque-tutorial-action:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+    .altoque-tutorial-action:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+    .altoque-tutorial-action--back {
+      background: #f3eee6;
+      color: #594d45;
+    }
+    .altoque-tutorial-action--next {
+      background: #a90000;
+      color: white;
+      box-shadow: 0 6px 14px rgba(169, 0, 0, 0.2);
+    }
+    @keyframes altoqueTutorialFloat {
+      0%, 100% { transform: translateY(3px) rotate(-1deg); }
+      50% { transform: translateY(-7px) rotate(1deg); }
+    }
+    @media (max-width: 600px) {
+      .altoque-tutorial-dialog {
+        width: min(460px, 100%);
+        max-height: min(94dvh, calc(100dvh - max(14px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom))));
+        border-radius: 24px;
+      }
+      .altoque-tutorial-header,
+      .altoque-tutorial-footer {
+        padding-right: 15px;
+        padding-left: 15px;
+      }
+      .altoque-tutorial-main {
+        grid-template-columns: minmax(88px, 0.62fr) minmax(0, 1.38fr);
+        gap: 8px;
+        padding: 16px 14px;
+      }
+      .altoque-tutorial-mascot-stage {
+        min-height: 190px;
+      }
+      .altoque-tutorial-mascot {
+        max-height: 205px;
+      }
+      .altoque-tutorial-bubble {
+        border-radius: 20px;
+        padding: 16px 14px;
+      }
+      .altoque-tutorial-bubble::before {
+        top: 34px;
+        left: -8px;
+        width: 14px;
+        height: 14px;
+      }
+      .altoque-tutorial-copy {
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .altoque-tutorial-action {
+        min-height: 38px;
+        padding: 0 12px;
+        font-size: 11px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .altoque-tutorial-mascot { animation: none; }
+      .altoque-tutorial-progress-fill,
+      .altoque-tutorial-action { transition: none; }
+    }
     .order-item-photo {
       display: block;
       position: relative;
@@ -6750,8 +6959,297 @@
       return undefined;
     }
 
+    const TUTORIAL_STEPS = [
+      {
+        tab: 'home',
+        section: 'Bienvenida',
+        title: '¡Hola! Te acompañamos',
+        body: 'En este recorrido conocerás las funciones principales de Al Toque Pe: elegir comida, conversar con la IA, hacer pedidos y mucho más. Avanza con “Siguiente”, vuelve con “Anterior” o termina cuando quieras con “Skip >>”.',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'home',
+        section: 'Inicio · Campus',
+        title: 'Revisa el servicio y el horario',
+        body: 'La tarjeta del campus muestra si el delivery está disponible. Toca la flecha para ver el horario de pedidos y los detalles; si el servicio está activo, usa el acceso rápido para abrir el menú.',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'home',
+        section: 'Inicio · Para ti',
+        title: 'Elige cómo te sientes',
+        body: 'En el carrusel puedes seleccionar tu estado de ánimo. Los mensajes de ánimo y las recomendaciones cambian durante el día; desliza o espera un momento para descubrir las otras tarjetas.',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'home',
+        section: 'Inicio · Recomendaciones',
+        title: 'Encuentra algo rico rápido',
+        body: 'Explora “Lo más pedido” y “Combos que rinden”. Toca una tarjeta de comida para revisar sus opciones y personalizarla, o pulsa “Ver todo” para ir al menú completo.',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'home',
+        section: 'Inicio · Música',
+        title: 'Pon música mientras eliges',
+        body: 'Abre el reproductor desde el botón de música. Puedes reproducir o pausar, cambiar de pista y ajustar el volumen; si tu dispositivo lo permite, también puedes conectarlo por Bluetooth.',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'home',
+        section: 'Inicio · PartyKub',
+        title: 'Juega con PartyKub',
+        body: 'El botón con el logo de PartyKub abre el juego de integración. Sigue las instrucciones en pantalla para empezar una partida y compartir un momento con la comunidad.',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'reels',
+        section: 'Comunidad · Reels',
+        title: 'Mira y comparte Reels',
+        body: 'Explora videos, deja corazones, comenta y comparte publicaciones. También puedes crear tu perfil y publicar un video; si aparecen otras personas, revisa y acepta el aviso de derechos antes de publicarlo.',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'menu',
+        section: 'Menú · Búsqueda',
+        title: 'Encuentra lo que buscas',
+        body: 'Usa la lupa para buscar platos, combos o bebidas. Luego filtra por Todos, Desayunos, Menús, Combos o Bebidas; los resultados se actualizan con tu búsqueda y categoría.',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'menu',
+        section: 'Menú · Promociones',
+        title: 'Explora ofertas y temporadas',
+        body: 'En el menú también encontrarás promociones de Bembos y Starbucks. En Starbucks puedes cambiar entre sus categorías y revisar productos especiales de temporada cuando estén disponibles.',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'menu',
+        section: 'Menú · Personalización',
+        title: 'Ajusta tu plato a tu gusto',
+        body: 'Abre un producto para ver sus detalles. En los platos que ofrecen personalización, puedes retirar componentes antes de agregarlo; revisa el precio actualizado y confirma para enviarlo a tu pedido.',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'ai',
+        section: 'Asistente IA',
+        title: 'Pregunta sobre comida o cualquier tema',
+        body: 'En la pestaña IA puedes elegir ChatGPT, Botpress o Gemini. Pregunta por el menú o los ingredientes de un plato, o consulta otros temas: las respuestas con búsqueda web muestran enlaces de fuentes cuando están disponibles.',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'ai',
+        section: 'Asistente IA · Conversaciones',
+        title: 'Retoma tus chats y valora respuestas',
+        body: 'Abre el historial para volver a conversaciones anteriores y mantén separados tus chats por asistente. En los mensajes compatibles puedes enviar una reacción para indicar si la respuesta te ayudó.',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'cart',
+        section: 'Pedido · Revisión',
+        title: 'Revisa y edita tu pedido',
+        body: 'En “Pedido” puedes aumentar o reducir cantidades y quitar productos. Antes de continuar, comprueba los artículos, el subtotal, los cargos que correspondan y el total.',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'cart',
+        section: 'Pedido · Entrega y pago',
+        title: 'Elige recojo y forma de pago',
+        body: 'Selecciona el punto de recojo que te convenga y el método de pago disponible. Sigue las indicaciones que aparecen en pantalla y confirma solo después de revisar todos los datos.',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'cart',
+        section: 'Pedido · Seguimiento',
+        title: 'Sigue el avance de tu pedido',
+        body: 'Después de confirmar, consulta las etapas de preparación y entrega. Cuando haya un repartidor asignado, podrás revisar su información, escribirle o llamarlo desde las opciones del pedido; al finalizar, deja tu calificación.',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'affiliation',
+        section: 'Gorritos · Afiliación',
+        title: 'Afíliate a Gorritos',
+        body: 'Conoce el programa, revisa sus condiciones y completa el formulario para afiliarte. Tu saldo y actividad de Gorritos se muestran en esta sección.',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'affiliation',
+        section: 'Gorritos · Canjes',
+        title: 'Usa tus puntos en un canje',
+        body: 'Explora los productos disponibles para canjear, revisa cuántos Gorritos necesitas y confirma que tienes saldo suficiente. Los canjes se agregan como un pedido separado.',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Tus datos',
+        title: 'Personaliza tu perfil',
+        body: 'Agrega o actualiza tu foto, nombre, carrera y demás datos desde “Editar”. También puedes consultar “Mis pedidos” y cambiar las preferencias disponibles en tu perfil.',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Historial',
+        title: 'Consulta tus pedidos anteriores',
+        body: '“Mis pedidos” reúne las compras confirmadas y sus detalles en este dispositivo. La app puede usar un resumen de productos y cantidades para personalizar recomendaciones; no incluye tus datos de identidad, pago ni entrega.',
+        mascots: [3, 5]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Preferencias',
+        title: 'Ajusta notificaciones y apariencia',
+        body: 'Revisa las opciones de notificaciones, apariencia y ayuda. Si eliges recibir recomendaciones o promociones, puedes activar esa preferencia con tu correo y retirarla después.',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'profile',
+        section: 'Perfil · Ayuda',
+        title: 'Pide ayuda cuando la necesites',
+        body: 'En “Ayuda y soporte” encontrarás las vías de contacto; desde el perfil también puedes abrir el Libro de Reclamaciones. Si eres repartidor autorizado, usa “Soy repartidor Cayetano” para acceder a las herramientas de entrega.',
+        mascots: [1, 4]
+      },
+      {
+        tab: 'home',
+        section: '¡Listo!',
+        title: 'Ya conoces el recorrido',
+        body: 'Explora Al Toque a tu ritmo. Si más adelante quieres repetir el tutorial, ve a Perfil → Ayuda → “Ver tutorial paso a paso”. ¡Que disfrutes tu experiencia!',
+        mascots: [3, 5]
+      }
+    ];
+
+    function TutorialMascot({ stepIndex }) {
+      const [poseIndex, setPoseIndex] = useState(0);
+      const step = TUTORIAL_STEPS[stepIndex] || TUTORIAL_STEPS[0];
+
+      useEffect(() => {
+        setPoseIndex(0);
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+        const timer = window.setInterval(() => {
+          setPoseIndex((current) => (current + 1) % step.mascots.length);
+        }, 2200);
+        return () => window.clearInterval(timer);
+      }, [stepIndex]);
+
+      const assetIndex = step.mascots[poseIndex] ?? step.mascots[0];
+      return (
+        <img
+          key={assetIndex}
+          src={`/tutorial-mascot-${assetIndex + 1}.png`}
+          alt=""
+          aria-hidden="true"
+          className="altoque-tutorial-mascot"
+        />
+      );
+    }
+
+    function TutorialModal({ stepIndex, onStepChange, onClose }) {
+      const step = TUTORIAL_STEPS[stepIndex] || TUTORIAL_STEPS[0];
+      const dialogRef = useRef(null);
+      const nextButtonRef = useRef(null);
+      const progress = ((stepIndex + 1) / TUTORIAL_STEPS.length) * 100;
+      const advance = () => {
+        if (stepIndex === TUTORIAL_STEPS.length - 1) onClose();
+        else onStepChange(stepIndex + 1);
+      };
+
+      useEffect(() => {
+        nextButtonRef.current?.focus();
+      }, [stepIndex]);
+
+      useEffect(() => {
+        const handleKeyDown = (event) => {
+          if (event.key === 'Tab') {
+            const focusable = Array.from(dialogRef.current?.querySelectorAll('button:not([disabled])') || []);
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose();
+          } else if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            advance();
+          } else if (event.key === 'ArrowLeft' && stepIndex > 0) {
+            event.preventDefault();
+            onStepChange(stepIndex - 1);
+          }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [stepIndex, onClose, onStepChange]);
+
+      return (
+        <div className="altoque-tutorial-overlay">
+          <section
+            ref={dialogRef}
+            className="altoque-tutorial-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="altoque-tutorial-title"
+            aria-describedby="altoque-tutorial-copy"
+          >
+            <header className="altoque-tutorial-header">
+              <span className="altoque-tutorial-brand">Tutorial Al Toque Pe</span>
+              <button type="button" className="altoque-tutorial-skip" onClick={onClose} aria-label="Saltar tutorial">
+                Skip {'>>'}
+              </button>
+            </header>
+            <div className="altoque-tutorial-main">
+              <div className="altoque-tutorial-mascot-stage">
+                <TutorialMascot stepIndex={stepIndex} />
+              </div>
+              <div className="altoque-tutorial-bubble" aria-live="polite">
+                <p className="altoque-tutorial-section">{step.section}</p>
+                <h2 id="altoque-tutorial-title" className="altoque-tutorial-title">{step.title}</h2>
+                <p id="altoque-tutorial-copy" className="altoque-tutorial-copy">{step.body}</p>
+              </div>
+            </div>
+            <div className="altoque-tutorial-progress" aria-hidden="true">
+              <div className="altoque-tutorial-progress-fill" style={{ width: `${progress}%` }}></div>
+            </div>
+            <footer className="altoque-tutorial-footer">
+              <button
+                type="button"
+                className="altoque-tutorial-action altoque-tutorial-action--back"
+                onClick={() => onStepChange(stepIndex - 1)}
+                disabled={stepIndex === 0}
+              >
+                Anterior
+              </button>
+              <span className="altoque-tutorial-step-count" aria-live="polite">
+                Paso {stepIndex + 1} de {TUTORIAL_STEPS.length}
+              </span>
+              <button
+                ref={nextButtonRef}
+                type="button"
+                className="altoque-tutorial-action altoque-tutorial-action--next"
+                onClick={advance}
+              >
+                {stepIndex === TUTORIAL_STEPS.length - 1 ? 'Finalizar' : 'Siguiente'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      );
+    }
+
     function App() {
       const [showSplash, setShowSplash] = useState(true);
+      const [tutorialStep, setTutorialStep] = useState(0);
+      const [isTutorialOpen, setIsTutorialOpen] = useState(() => {
+        try {
+          return localStorage.getItem('altoque_tutorial_completed_v1') !== 'true';
+        } catch (error) {
+          console.error('No se pudo leer el estado del tutorial:', error);
+          return false;
+        }
+      });
       const [customerProfileId] = useState(getCustomerProfileId);
       const [activeTab, setActiveTab] = useState(() => localStorage.getItem(getCustomerStorageKey('altoque_current_order', customerProfileId)) ? 'cart' : 'home');
       const [deviceClockTime, setDeviceClockTime] = useState(() => {
@@ -6851,6 +7349,10 @@
       const [splashTheme, setSplashTheme] = useState(() => getStartupSplashTheme(profile.splashPreference || 'brand'));
 
       useEffect(() => {
+        if (isTutorialOpen) setActiveTab(TUTORIAL_STEPS[0].tab);
+      }, [isTutorialOpen]);
+
+      useEffect(() => {
         const updateDeviceClock = () => {
           const now = new Date();
           const hours = now.getHours() % 12 || 12;
@@ -6948,6 +7450,28 @@
         setToast(message);
         setTimeout(() => setToast(null), 3000);
       };
+      const openTutorial = () => {
+        setTutorialStep(0);
+        setActiveTab(TUTORIAL_STEPS[0].tab);
+        setIsTutorialOpen(true);
+      };
+
+      const changeTutorialStep = (nextStep) => {
+        const step = TUTORIAL_STEPS[nextStep];
+        if (!step) return;
+        setTutorialStep(nextStep);
+        setActiveTab(step.tab);
+      };
+
+      const finishTutorial = () => {
+        try {
+          localStorage.setItem('altoque_tutorial_completed_v1', 'true');
+        } catch (error) {
+          console.error('No se pudo guardar el estado del tutorial:', error);
+        }
+        setIsTutorialOpen(false);
+      };
+
 
       const addToCart = (item, removedComponents = []) => {
         if (cart.some((cartItem) => cartItem.gorritosRedemption)) {
@@ -7222,6 +7746,7 @@
                 setProfile={setProfile}
                 orderHistory={orderHistory}
                 orderHistoryStorageError={orderHistoryStorageError}
+                onStartTutorial={openTutorial}
                 onClearOrderHistory={() => setOrderHistory([])}
                 onBecomeRider={() => setAppMode('rider')}
                 onRestoreClassicHome={() => {
@@ -7307,6 +7832,14 @@
                 setIsOctoberPromoOpen(false);
                 setActiveTab('menu');
               }}
+            />
+          )}
+
+          {isTutorialOpen && (
+            <TutorialModal
+              stepIndex={tutorialStep}
+              onStepChange={changeTutorialStep}
+              onClose={finishTutorial}
             />
           )}
 
@@ -15814,7 +16347,7 @@
       );
     }
 
-    function ProfileScreen({ onNavigate, onBecomeRider, onRestoreClassicHome, notifications, setNotifications, profile, setProfile, orderHistory, orderHistoryStorageError, onClearOrderHistory }) {
+    function ProfileScreen({ onNavigate, onBecomeRider, onRestoreClassicHome, onStartTutorial, notifications, setNotifications, profile, setProfile, orderHistory, orderHistoryStorageError, onClearOrderHistory }) {
       const [showQuestionnaire, setShowQuestionnaire] = useState(!profile.privacyAccepted);
       const [showThankYou, setShowThankYou] = useState(false);
       const [isSendingMarketingConfirmation, setIsSendingMarketingConfirmation] = useState(false);
@@ -16614,6 +17147,20 @@
                   </button>
                 </div>
                 <p className="text-xs text-gray-500">Estamos para ayudarte con tus pedidos, pagos y afiliación.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowHelp(false);
+                    onStartTutorial();
+                  }}
+                  className="flex w-full items-center justify-between rounded-2xl border border-[#f1dfb5] bg-[#fff4d8] p-3 text-left transition hover:bg-[#ffedc5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a90000]"
+                >
+                  <span>
+                    <span className="block text-xs font-bold text-dark">Ver tutorial paso a paso</span>
+                    <span className="mt-0.5 block text-[10px] text-gray-500">Recorre las funciones principales de la app</span>
+                  </span>
+                  <i data-lucide="play" className="h-4 w-4 text-[#a90000]"></i>
+                </button>
                 <a href="tel:967059396" className="flex items-center gap-3 rounded-2xl bg-cream/60 p-3 text-xs font-bold text-dark">
                   <i data-lucide="phone" className="w-4 h-4 text-brand"></i>
                   967 059 396

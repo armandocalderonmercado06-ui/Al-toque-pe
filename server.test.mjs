@@ -196,6 +196,29 @@ test('serves the PartyKub logo and includes its launcher on the home screen', as
   assert.match(html, /\.partykub-launcher\s*\{\s*display:\s*grid;\s*width:\s*52px;\s*height:\s*52px;/);
 });
 
+test('serves the animated tutorial and its mascot images', async (t) => {
+  const testDataDir = await createReelsTestDirectory();
+  const server = await createReelsTestServer(t, testDataDir);
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const pageResponse = await fetch(baseUrl);
+  const html = await pageResponse.text();
+
+  assert.equal(pageResponse.status, 200);
+  assert.match(html, /function TutorialModal/);
+  assert.match(html, /Skip \{'>>'\}/);
+  assert.match(html, /altoque_tutorial_completed_v1/);
+  assert.match(html, /Ver tutorial paso a paso/);
+
+  for (let index = 1; index <= 6; index += 1) {
+    const response = await fetch(`${baseUrl}/tutorial-mascot-${index}.png`);
+    const image = Buffer.from(await response.arrayBuffer());
+
+    assert.equal(response.status, 200, `tutorial mascot ${index} should be served`);
+    assert.equal(response.headers.get('content-type'), 'image/png');
+    assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  }
+});
+
 test('serves the transparent Miraflores logo as a public PNG asset', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
