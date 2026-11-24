@@ -2120,10 +2120,6 @@ async function handleRequest(request, response, orders, riderLocations, idempote
     if (!['menu', 'rider-support'].includes(assistantMode)) {
       return json(response, 400, { error: 'El tipo de asistente solicitado no es válido.' });
     }
-    if (assistantMode === 'menu' && (provider === 'ChatGPT' || provider === 'Gemini')) {
-      return json(response, 200, createWebSearchPlan(provider, assistantMode, text).handoff);
-    }
-
     const orderHistory = body.orderHistory === undefined ? [] : body.orderHistory;
     if (!Array.isArray(orderHistory) || orderHistory.length > 100 || orderHistory.some((item) => (
       !item || typeof item.name !== 'string' || !item.name.trim() || item.name.length > 120
@@ -2147,6 +2143,10 @@ async function handleRequest(request, response, orders, riderLocations, idempote
         local: true,
         engine: 'Al Toque'
       });
+    }
+
+    if (assistantMode === 'menu' && (provider === 'ChatGPT' || provider === 'Gemini')) {
+      return json(response, 200, createWebSearchPlan(provider, assistantMode, text).handoff);
     }
 
     const intent = assistantMode === 'menu' ? detectMenuIntent(text) : 'ninguna';

@@ -11106,31 +11106,75 @@
         setInput('');
         setIsTyping(true);
 
+        let webSearchRequested = false;
         try {
-          const searchAnswer = await askBotpressWebSearch(
-            text,
-            provider,
-            conversationId,
-            getLearnedPreferences().slice(-1600),
-            orderHistoryForAI
-          );
+          const menuResponse = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              provider,
+              text,
+              assistantMode: 'menu',
+              history: [],
+              memory: getLearnedPreferences().slice(-1600),
+              orderHistory: orderHistoryForAI
+            })
+          });
+          const answer = await menuResponse.json();
+          if (!menuResponse.ok) {
+            throw new Error(answer.error || `La solicitud falló (${menuResponse.status}).`);
+          }
+
+          if (answer.handoffToBotpress) {
+            webSearchRequested = true;
+            const searchAnswer = await askBotpressWebSearch(
+              text,
+              provider,
+              conversationId,
+              getLearnedPreferences().slice(-1600),
+              orderHistoryForAI
+            );
+            updateConversationMessages(conversationId, {
+              sender: 'ai',
+              text: searchAnswer.reply,
+              webSearchUsed: true,
+              engine: 'Botpress Web Search',
+              persona: provider,
+              sources: searchAnswer.sources
+            });
+            return;
+          }
+
+          if (typeof answer.reply !== 'string') {
+            throw new Error('El asistente devolvió una respuesta inválida.');
+          }
+          const dish = answer.dishId
+            ? INITIAL_MENU.find((item) => item.id === String(answer.dishId))
+            : null;
+          if (answer.dishId && !dish) {
+            throw new Error('No se encontró el producto del menú para agregarlo al pedido.');
+          }
           updateConversationMessages(conversationId, {
             sender: 'ai',
-            text: searchAnswer.reply,
-            webSearchUsed: true,
-            engine: 'Botpress Web Search',
+            text: answer.reply,
+            webSearchUsed: answer.webSearchUsed === true,
+            engine: answer.engine || 'Al Toque',
+            local: answer.local === true,
             persona: provider,
-            sources: searchAnswer.sources
+            dish,
+            sources: Array.isArray(answer.sources) ? answer.sources : []
           });
         } catch (error) {
-          console.error('No se pudo completar la búsqueda web con Botpress:', error);
+          console.error(webSearchRequested
+            ? 'No se pudo completar la búsqueda web con Botpress:'
+            : 'No se pudo obtener la respuesta del menú:', error);
           updateConversationMessages(conversationId, {
             sender: 'ai',
-            text: `No pude consultar internet con Botpress: ${error.message || 'error desconocido'}`,
-            webSearchUsed: false,
-            engine: 'Botpress Web Search',
+            text: `${webSearchRequested ? 'No pude consultar internet con Botpress' : 'No pude consultar el menú'}: ${error.message || 'error desconocido'}`,
+            webSearchUsed: webSearchRequested,
+            engine: webSearchRequested ? 'Botpress Web Search' : 'Al Toque',
             persona: provider,
-            error: true
+            error: webSearchRequested
           });
         } finally {
           setIsTyping(false);

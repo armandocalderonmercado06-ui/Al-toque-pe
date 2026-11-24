@@ -2140,7 +2140,7 @@ test('reserves web search for current or complex questions', () => {
   assert.equal(shouldUseWebSearch('¿Cuál es el origen histórico del ceviche?'), true);
 });
 
-test('routes every ChatGPT and Gemini menu question through Botpress', () => {
+test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => {
   const expectedHandoff = {
     reply: '',
     sources: [],
@@ -2151,7 +2151,7 @@ test('routes every ChatGPT and Gemini menu question through Botpress', () => {
     engine: 'Botpress Web Search'
   };
   for (const provider of ['ChatGPT', 'Gemini']) {
-    for (const text of ['Hola', '¿Qué incluye el Combo Fitness?', '¿Cuál es el precio del dólar hoy en Perú?']) {
+    for (const text of ['Hola', '¿Qué noticias hay hoy?', '¿Cuál es el precio del dólar hoy en Perú?']) {
       const plan = createWebSearchPlan(provider, 'menu', text);
       assert.equal(plan.webSearch, true);
       assert.equal(plan.openAIWebSearch, false);
@@ -2195,11 +2195,13 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /bg-green-100 px-2\.5 py-1 text-\[10px\] font-medium text-green-800/);
   assert.match(page, /Perfil \{m\.persona\}/);
   assert.doesNotMatch(page, /Perfil \{m\.persona\} · \{m\.engine/);
-  assert.doesNotMatch(page, /fetch\('\/api\/chat'/);
+  assert.match(page, /fetch\('\/api\/chat'/);
+  assert.match(page, /if \(answer\.handoffToBotpress\)/);
+  assert.match(page, /INITIAL_MENU\.find\(\(item\) => item\.id === String\(answer\.dishId\)\)/);
   assert.doesNotMatch(page, /buildLocalFallback/);
 });
 
-test('hands legacy ChatGPT and Gemini menu API requests to Botpress without contacting a model provider', async (t) => {
+test('uses local menu replies for food and Botpress web search for non-food ChatGPT and Gemini questions', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const requestedUrls = [];
   const server = await createReelsTestServer(t, testDataDir, undefined, async (url) => {
@@ -2209,10 +2211,23 @@ test('hands legacy ChatGPT and Gemini menu API requests to Botpress without cont
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
 
   for (const provider of ['ChatGPT', 'Gemini']) {
+    const foodResponse = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+      body: JSON.stringify({ provider, text: 'Quiero lomo saltado', history: [], orderHistory: [] })
+    });
+    assert.equal(foodResponse.status, 200, await foodResponse.clone().text());
+    const foodPayload = await foodResponse.json();
+    assert.equal(foodPayload.local, true);
+    assert.equal(foodPayload.webSearchUsed, false);
+    assert.equal(foodPayload.dishId, '1');
+    assert.match(foodPayload.reply, /Lomo saltado/);
+    assert.equal(foodPayload.handoffToBotpress, undefined);
+
     const response = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Origin: baseUrl },
-      body: JSON.stringify({ provider, text: '¿Qué noticias hay hoy?', history: [] })
+      body: JSON.stringify({ provider, text: '¿Qué noticias hay hoy?', history: [], orderHistory: [] })
     });
     assert.equal(response.status, 200);
     const payload = await response.json();
