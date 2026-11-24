@@ -216,10 +216,11 @@ test('serves the interactive animated tutorial, stickers and mascot images', asy
   assert.ok(tutorialMarkupStart >= 0 && tutorialMarkupEnd > tutorialMarkupStart);
   const tutorialMarkup = html.slice(tutorialMarkupStart, tutorialMarkupEnd);
   const bubbleIndex = tutorialMarkup.indexOf('className="altoque-tutorial-bubble"');
-  const footerIndex = tutorialMarkup.indexOf('className="altoque-tutorial-footer"');
   const characterIndex = tutorialMarkup.indexOf('className="altoque-tutorial-character"');
-  assert.ok(bubbleIndex >= 0 && bubbleIndex < footerIndex);
-  assert.ok(footerIndex >= 0 && footerIndex < characterIndex);
+  const footerIndex = tutorialMarkup.indexOf('className="altoque-tutorial-footer"');
+  assert.ok(bubbleIndex >= 0 && bubbleIndex < characterIndex);
+  assert.ok(characterIndex < footerIndex);
+  assert.match(html, /\.altoque-tutorial-bubble-content\s*\{[^}]*display:\s*grid/);
   assert.match(html, /altoque-tutorial-action\s*\{[^}]*animation:\s*altoqueTutorialNavPulse/);
   assert.match(html, /@keyframes altoqueTutorialNavPulse/);
   assert.match(html, /activeOrderOnly: true/);
