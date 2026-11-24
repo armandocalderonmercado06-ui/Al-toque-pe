@@ -14782,17 +14782,11 @@
                   aria-label="Video horizontal de demostración de pago VISA"
                   className="mx-auto aspect-video max-h-[75vh] w-full rounded-2xl bg-black object-contain shadow-2xl"
                 />
-                <p className="text-sm font-bold" role="status">
-                  {isSubmittingOrder ? 'Registrando tu pedido…' : visaPaymentVideoError || 'Demostración VISA: al terminar, continuarás al seguimiento del pedido. No se realizará un cobro real.'}
-                </p>
-                <button
-                  type="button"
-                  onClick={continueVisaPaymentWithoutVideo}
-                  disabled={isSubmittingOrder}
-                  className="rounded-xl bg-[#a90000] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
-                >
-                  {isSubmittingOrder ? 'Registrando pedido…' : 'Omitir video y continuar'}
-                </button>
+                {(isSubmittingOrder || visaPaymentVideoError) && (
+                  <p className="text-sm font-bold" role="status">
+                    {isSubmittingOrder ? 'Registrando tu pedido…' : visaPaymentVideoError}
+                  </p>
+                )}
                 {visaPaymentVideoFailed && (
                   <button
                     type="button"

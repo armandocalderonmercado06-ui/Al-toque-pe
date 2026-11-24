@@ -1063,6 +1063,9 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /if \(visaPaymentMediaRef\.current\.completed\) return/);
   assert.match(html, /if \(!isVisaPaymentVideoOpen \|\| isLandscapeViewport\) return/);
   assert.match(checkout, /invisible flex items-center justify-center/);
+  assert.doesNotMatch(checkout, /Demostración VISA: al terminar, continuarás al seguimiento del pedido/);
+  assert.doesNotMatch(checkout, /Omitir video y continuar/);
+  assert.doesNotMatch(checkout, /onClick=\{continueVisaPaymentWithoutVideo\}/);
   assert.match(checkout, /Reintentar video y sonido/);
   assert.match(checkout, /Guardar \(demo\)/);
   assert.match(checkout, /Pagar \(demo\)/);
