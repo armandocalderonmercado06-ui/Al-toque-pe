@@ -11375,13 +11375,13 @@
                           {m.sender === 'ai' && firstSource && (
                             <>
                               {' '}
-                              <details className="mt-1 inline-block max-w-full align-middle">
+                              <details className="relative mt-1 inline-block max-w-full align-middle">
                                 <summary className="inline-flex max-w-full cursor-pointer list-none items-center gap-1 rounded-full border border-brand/20 bg-brand/5 px-1.5 py-0.5 text-[9px] font-semibold text-brand">
                                   <i data-lucide="globe" className="h-2.5 w-2.5 shrink-0"></i>
                                   <span className="max-w-[130px] truncate">{firstSourceLabel}</span>
                                   {sources.length > 1 && <span className="shrink-0">+{sources.length - 1}</span>}
                                 </summary>
-                                <div className="mt-1.5 w-60 max-w-full space-y-0.5 rounded-lg border border-brand/20 bg-cream/60 p-1.5 shadow-md">
+                                <div className="absolute bottom-full left-0 z-30 mb-2 w-60 max-w-full space-y-0.5 rounded-xl border border-gray-200 bg-white p-2 shadow-xl">
                                   {sources.map((source, sourceIndex) => (
                                     <a
                                       key={source.url}
@@ -11389,7 +11389,7 @@
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       title={source.url}
-                                      className="flex min-w-0 items-center gap-1.5 rounded-md p-1 text-left no-underline transition hover:bg-cream"
+                                      className="flex min-w-0 items-center gap-1.5 rounded-md p-1 text-left no-underline transition hover:bg-gray-50"
                                     >
                                       <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/5 text-[8px] font-bold text-brand">{sourceIndex + 1}</span>
                                       <span className="min-w-0 flex-1">
