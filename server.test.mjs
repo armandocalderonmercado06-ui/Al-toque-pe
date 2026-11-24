@@ -2176,6 +2176,8 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /Busca en internet usando la herramienta web habilitada en Botpress/);
   assert.match(page, /askBotpressWebSearch\(\s*text,\s*provider,\s*conversationId,/);
   assert.match(page, /getAIReplyWithoutSourceList/);
+  assert.match(page, /getAISourceFaviconUrl/);
+  assert.match(page, /www\.google\.com\/s2\/favicons\?domain=/);
   assert.match(page, /fuentes utilizadas/);
   assert.match(page, /data-lucide="external-link"/);
   assert.match(page, /<img src="\/al-toque-pe-chat-logo\.png" alt="Logo de Al Toque Pe"/);
@@ -2184,6 +2186,10 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /absolute bottom-full left-0 z-30 mb-2 w-60 max-w-\[calc\(100vw_-_2rem\)\] space-y-0\.5 rounded-xl border border-gray-200 bg-white p-2 shadow-xl/);
   assert.match(page, /text-\[8px\] leading-tight text-gray-600/);
   assert.match(page, /bg-brand\/5 text-\[8px\] font-bold text-brand/);
+  assert.match(page, /data-lucide="thumbs-up"/);
+  assert.match(page, /data-lucide="thumbs-down"/);
+  assert.match(page, /Gracias por tus comentarios/);
+  assert.match(page, /bg-green-100 px-2\.5 py-1 text-\[10px\] font-medium text-green-800/);
   assert.doesNotMatch(page, /fetch\('\/api\/chat'/);
   assert.doesNotMatch(page, /buildLocalFallback/);
 });

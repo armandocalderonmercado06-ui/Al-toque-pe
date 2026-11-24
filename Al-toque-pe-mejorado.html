@@ -10116,6 +10116,15 @@
       }
     }
 
+    function getAISourceFaviconUrl(source) {
+      try {
+        const hostname = new URL(source.url).hostname;
+        return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=32`;
+      } catch {
+        return '';
+      }
+    }
+
     function getAIReplyWithoutSourceList(text, sourceCount) {
       if (sourceCount === 0) return text;
       const sourceStart = text.search(/\b(?:fuentes?|sources?)(?:\s+(?:consultadas?|utilizadas?|used))?\s*[:\-–—]/i);
@@ -10136,6 +10145,7 @@
       const [clockStyleIndex, setClockStyleIndex] = useState(0);
       const [promoMessageIndex, setPromoMessageIndex] = useState(0);
       const [promoFontIndex, setPromoFontIndex] = useState(() => Math.floor(Math.random() * AI_PROMO_FONTS.length));
+      const [sourceFeedback, setSourceFeedback] = useState({});
       const orderHistoryForAI = useMemo(() => {
         const products = new Map();
         orderHistory
@@ -11368,6 +11378,8 @@
                     const reply = m.sender === 'ai' ? getAIReplyWithoutSourceList(m.text, sources.length) : m.text;
                     const firstSource = sources[0];
                     const firstSourceLabel = firstSource ? getAISourceLabel(firstSource) : '';
+                    const feedbackKey = `${activeConversationId}:${idx}`;
+                    const feedback = sourceFeedback[feedbackKey] || '';
                     return (
                       <div key={idx} className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}>
                         <div className={`min-w-0 p-3 rounded-2xl max-w-[90%] whitespace-pre-wrap break-words text-xs ${m.sender === 'user' ? 'bg-dark text-white rounded-br-none' : m.error ? 'border border-red-200 bg-red-50 text-red-800 rounded-bl-none' : 'bg-cream text-dark rounded-bl-none'}`} style={{ overflowWrap: 'anywhere' }}>
@@ -11429,13 +11441,43 @@
                               <span>{sources.length} {sources.length === 1 ? 'fuente utilizada' : 'fuentes utilizadas'}</span>
                               <span className="flex -space-x-1">
                                 {sources.slice(0, 3).map((source) => (
-                                  <span key={source.url} title={getAISourceLabel(source)} className="flex h-4 w-4 items-center justify-center rounded-full border border-brand/20 bg-brand/5 text-[8px] font-bold text-brand">
+                                  <span key={source.url} title={getAISourceLabel(source)} className="relative flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-brand/20 bg-brand/5 text-[8px] font-bold text-brand">
                                     {getAISourceLabel(source).charAt(0).toUpperCase()}
+                                    <img
+                                      src={getAISourceFaviconUrl(source)}
+                                      alt=""
+                                      loading="lazy"
+                                      className="absolute inset-0 h-full w-full bg-white object-contain"
+                                      onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                                    />
                                   </span>
                                 ))}
                               </span>
                               {sources.length > 3 && <span>+{sources.length - 3}</span>}
+                              <button
+                                type="button"
+                                aria-label="Me gusta esta respuesta"
+                                aria-pressed={feedback === 'like'}
+                                onClick={() => setSourceFeedback((previous) => ({ ...previous, [feedbackKey]: 'like' }))}
+                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition ${feedback === 'like' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-100'}`}
+                              >
+                                <i data-lucide="thumbs-up" className="h-4 w-4"></i>
+                              </button>
+                              <button
+                                type="button"
+                                aria-label="No me gusta esta respuesta"
+                                aria-pressed={feedback === 'dislike'}
+                                onClick={() => setSourceFeedback((previous) => ({ ...previous, [feedbackKey]: 'dislike' }))}
+                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition ${feedback === 'dislike' ? 'bg-green-100 text-green-700' : 'text-gray-500 hover:bg-gray-100'}`}
+                              >
+                                <i data-lucide="thumbs-down" className="h-4 w-4"></i>
+                              </button>
                           </div>
+                        )}
+                        {m.sender === 'ai' && sources.length > 0 && feedback && (
+                          <span role="status" aria-live="polite" className="mt-1.5 inline-flex rounded-lg border border-green-200 bg-green-100 px-2.5 py-1 text-[10px] font-medium text-green-800">
+                            Gracias por tus comentarios
+                          </span>
                         )}
                       </div>
                     );
