@@ -206,7 +206,7 @@ test('serves the interactive animated tutorial, stickers and mascot images', asy
   assert.equal(pageResponse.status, 200);
   assert.match(html, /function TutorialModal/);
   assert.match(html, /Skip \{'>>'\}/);
-  assert.match(html, /altoque_tutorial_completed_v1/);
+  assert.match(html, /altoque_tutorial_completed_v2/);
   assert.match(html, /Ver tutorial paso a paso/);
   assert.match(html, /data-tutorial-action="tutorial-open-music"/);
   assert.match(html, /data-tutorial-action="tutorial-select-track"/);

@@ -6948,6 +6948,7 @@
       return undefined;
     }
 
+    const TUTORIAL_COMPLETION_STORAGE_KEY = 'altoque_tutorial_completed_v2';
     const TUTORIAL_STEPS = [
       {
         tab: 'home',
@@ -7387,7 +7388,7 @@
       const [tutorialStep, setTutorialStep] = useState(0);
       const [isTutorialOpen, setIsTutorialOpen] = useState(() => {
         try {
-          return localStorage.getItem('altoque_tutorial_completed_v1') !== 'true';
+          return localStorage.getItem(TUTORIAL_COMPLETION_STORAGE_KEY) !== 'true';
         } catch (error) {
           console.error('No se pudo leer el estado del tutorial:', error);
           return false;
@@ -7621,7 +7622,7 @@
 
       const finishTutorial = () => {
         try {
-          localStorage.setItem('altoque_tutorial_completed_v1', 'true');
+          localStorage.setItem(TUTORIAL_COMPLETION_STORAGE_KEY, 'true');
         } catch (error) {
           console.error('No se pudo guardar el estado del tutorial:', error);
         }
