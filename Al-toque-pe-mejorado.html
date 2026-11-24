@@ -13316,6 +13316,7 @@
       const [isLandscapeViewport, setIsLandscapeViewport] = useState(readLandscapeOrientation);
       const [isVisaPaymentVideoOpen, setIsVisaPaymentVideoOpen] = useState(false);
       const [visaPaymentVideoError, setVisaPaymentVideoError] = useState('');
+      const [visaPaymentVideoFailed, setVisaPaymentVideoFailed] = useState(false);
       const [demoCardFormNotice, setDemoCardFormNotice] = useState('');
       const [demoCardBrand, setDemoCardBrand] = useState('visa');
       const [demoCardLast4, setDemoCardLast4] = useState('0000');
@@ -14112,9 +14113,18 @@
 
       const handleVisaPaymentMediaError = (mediaType, error) => {
         console.error(`No se pudo reproducir ${mediaType} de demostración VISA:`, error);
+        if (mediaType === 'sonido VISA') {
+          visaPaymentSoundRef.current?.pause();
+          const mediaState = visaPaymentMediaRef.current;
+          mediaState.audioEnded = true;
+          setVisaPaymentVideoError('No se pudo reproducir el sonido VISA; el video continuará sin sonido.');
+          if (mediaState.videoEnded) finishVisaPaymentMedia('audio');
+          return;
+        }
         visaPaymentVideoRef.current?.pause();
         visaPaymentSoundRef.current?.pause();
-        setVisaPaymentVideoError('No se pudo reproducir el video con sonido. Puedes continuar al seguimiento sin la animación.');
+        setVisaPaymentVideoFailed(true);
+        setVisaPaymentVideoError('No se pudo iniciar el video VISA. Puedes reintentarlo o continuar sin la animación.');
       };
 
       const startVisaPaymentVideo = () => {
@@ -14122,6 +14132,7 @@
         const sound = visaPaymentSoundRef.current;
         visaPaymentMediaRef.current = { videoEnded: false, audioEnded: false, completed: false };
         setVisaPaymentVideoError('');
+        setVisaPaymentVideoFailed(false);
         setIsVisaPaymentVideoOpen(true);
         if (!video || !sound) {
           handleVisaPaymentMediaError('video o sonido', new Error('No se encontraron los elementos multimedia.'));
@@ -14133,11 +14144,16 @@
         sound.currentTime = 0;
         video.muted = true;
         try {
-          Promise.all([video.play(), sound.play()]).catch((error) => {
-            handleVisaPaymentMediaError('video o sonido', error);
-          });
+          const videoPlayback = video.play();
+          videoPlayback?.catch((error) => handleVisaPaymentMediaError('video', error));
         } catch (error) {
-          handleVisaPaymentMediaError('video o sonido', error);
+          handleVisaPaymentMediaError('video', error);
+        }
+        try {
+          const soundPlayback = sound.play();
+          soundPlayback?.catch((error) => handleVisaPaymentMediaError('sonido VISA', error));
+        } catch (error) {
+          handleVisaPaymentMediaError('sonido VISA', error);
         }
       };
 
@@ -14746,7 +14762,9 @@
             {demoCardFormNotice && <p className="rounded-xl border border-[#e7c98e] bg-[#fff4df] p-3 text-[11px] text-[#7d1025]" role="status">{demoCardFormNotice}</p>}
 
             <div
-              className={isVisaPaymentVideoOpen ? 'fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-3 sm:p-6' : 'hidden'}
+              className={isVisaPaymentVideoOpen
+                ? 'fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-3 sm:p-6'
+                : 'pointer-events-none fixed inset-0 z-[120] invisible flex items-center justify-center bg-black/90 p-3 opacity-0 sm:p-6'}
               role="dialog"
               aria-modal={isVisaPaymentVideoOpen}
               aria-hidden={!isVisaPaymentVideoOpen}
@@ -14775,6 +14793,16 @@
                 >
                   {isSubmittingOrder ? 'Registrando pedido…' : 'Omitir video y continuar'}
                 </button>
+                {visaPaymentVideoFailed && (
+                  <button
+                    type="button"
+                    onClick={startVisaPaymentVideo}
+                    disabled={isSubmittingOrder}
+                    className="block mx-auto rounded-xl border border-white/60 px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+                  >
+                    Reintentar video y sonido
+                  </button>
+                )}
                 <audio
                   ref={visaPaymentSoundRef}
                   src="/visa-payment-sound.mp3"

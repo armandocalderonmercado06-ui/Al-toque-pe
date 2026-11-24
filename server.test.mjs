@@ -1056,10 +1056,14 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(checkout, /src="\/visa-payment-sound\.mp3"/);
   assert.match(checkout, /onEnded=\{\(\) => finishVisaPaymentMedia\('video'\)\}/);
   assert.match(checkout, /onEnded=\{\(\) => finishVisaPaymentMedia\('audio'\)\}/);
-  assert.match(html, /Promise\.all\(\[video\.play\(\), sound\.play\(\)\]\)/);
+  assert.match(html, /const videoPlayback = video\.play\(\)/);
+  assert.match(html, /const soundPlayback = sound\.play\(\)/);
+  assert.doesNotMatch(html, /Promise\.all\(\[video\.play\(\), sound\.play\(\)\]\)/);
   assert.match(html, /video\.muted = true/);
   assert.match(html, /if \(visaPaymentMediaRef\.current\.completed\) return/);
   assert.match(html, /if \(!isVisaPaymentVideoOpen \|\| isLandscapeViewport\) return/);
+  assert.match(checkout, /invisible flex items-center justify-center/);
+  assert.match(checkout, /Reintentar video y sonido/);
   assert.match(checkout, /Guardar \(demo\)/);
   assert.match(checkout, /Pagar \(demo\)/);
   assert.match(checkout, /onClick=\{\(event\) => handleDemoCardPayment\(event\.currentTarget\.form\)\}/);
