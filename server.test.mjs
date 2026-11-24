@@ -2193,6 +2193,8 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /toggleSourceFeedback\(feedbackKey, 'dislike'\)/);
   assert.match(page, /Gracias por tus comentarios/);
   assert.match(page, /bg-green-100 px-2\.5 py-1 text-\[10px\] font-medium text-green-800/);
+  assert.match(page, /Perfil \{m\.persona\}/);
+  assert.doesNotMatch(page, /Perfil \{m\.persona\} · \{m\.engine/);
   assert.doesNotMatch(page, /fetch\('\/api\/chat'/);
   assert.doesNotMatch(page, /buildLocalFallback/);
 });
