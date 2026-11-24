@@ -2180,7 +2180,7 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /data-lucide="external-link"/);
   assert.match(page, /<img src="\/al-toque-pe-chat-logo\.png" alt="Logo de Al Toque Pe"/);
   assert.match(page, /details className="relative mt-1 inline-block max-w-full align-middle"/);
-  assert.match(page, /absolute bottom-full left-0 z-30 mb-2 w-60 max-w-full space-y-0\.5 rounded-xl border border-gray-200 bg-white p-2 shadow-xl/);
+  assert.match(page, /absolute bottom-full left-0 z-30 mb-2 w-60 max-w-\[calc\(100vw_-_2rem\)\] space-y-0\.5 rounded-xl border border-gray-200 bg-white p-2 shadow-xl/);
   assert.match(page, /text-\[8px\] leading-tight text-gray-600/);
   assert.match(page, /bg-brand\/5 text-\[8px\] font-bold text-brand/);
   assert.doesNotMatch(page, /fetch\('\/api\/chat'/);
