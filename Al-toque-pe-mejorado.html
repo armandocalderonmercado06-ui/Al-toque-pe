@@ -13310,6 +13310,12 @@
       const [redirectUrl, setRedirectUrl] = useState('');
       const [isCardCheckoutOpen, setIsCardCheckoutOpen] = useState(false);
       const [isDemoCardFormOpen, setIsDemoCardFormOpen] = useState(false);
+      const readLandscapeOrientation = () => window.matchMedia
+        ? window.matchMedia('(orientation: landscape)').matches
+        : window.innerWidth > window.innerHeight;
+      const [isLandscapeViewport, setIsLandscapeViewport] = useState(readLandscapeOrientation);
+      const [isVisaPaymentVideoOpen, setIsVisaPaymentVideoOpen] = useState(false);
+      const [visaPaymentVideoError, setVisaPaymentVideoError] = useState('');
       const [demoCardFormNotice, setDemoCardFormNotice] = useState('');
       const [demoCardBrand, setDemoCardBrand] = useState('visa');
       const [demoCardLast4, setDemoCardLast4] = useState('0000');
@@ -13354,6 +13360,9 @@
       const [cancellationPolicyZoom, setCancellationPolicyZoom] = useState(1);
       const cancellationPolicyPagesRef = useRef(null);
       const cancellationPolicyScrollRef = useRef(null);
+      const visaPaymentVideoRef = useRef(null);
+      const visaPaymentSoundRef = useRef(null);
+      const visaPaymentMediaRef = useRef({ videoEnded: false, audioEnded: false, completed: false });
       const [orderPickedUpAt, setOrderPickedUpAt] = useState(null);
       const [orderDeliveredAt, setOrderDeliveredAt] = useState(null);
       const [lateDeliveryRewardOrderId, setLateDeliveryRewardOrderId] = useState('');
@@ -13383,6 +13392,16 @@
         });
         return () => window.cancelAnimationFrame(frame);
       }, [contentRef, isCardCheckoutOpen]);
+      useEffect(() => {
+        const updateOrientation = () => setIsLandscapeViewport(readLandscapeOrientation());
+        window.addEventListener('resize', updateOrientation);
+        window.addEventListener('orientationchange', updateOrientation);
+        updateOrientation();
+        return () => {
+          window.removeEventListener('resize', updateOrientation);
+          window.removeEventListener('orientationchange', updateOrientation);
+        };
+      }, []);
       const saveDeliveryProgress = (phase, startedAt) => {
         if (!deliveryProgressKey) return;
         try {
@@ -14077,10 +14096,82 @@
         completeOrderConfirmation(selectedPaymentMethod);
       };
 
+      const completeVisaPaymentOrder = async () => {
+        await completeOrderConfirmation('tarjeta');
+        setIsVisaPaymentVideoOpen(false);
+      };
+
+      const finishVisaPaymentMedia = (mediaType) => {
+        const mediaState = visaPaymentMediaRef.current;
+        if (mediaType === 'video') mediaState.videoEnded = true;
+        else mediaState.audioEnded = true;
+        if (!mediaState.videoEnded || !mediaState.audioEnded || mediaState.completed) return;
+        mediaState.completed = true;
+        void completeVisaPaymentOrder();
+      };
+
+      const handleVisaPaymentMediaError = (mediaType, error) => {
+        console.error(`No se pudo reproducir ${mediaType} de demostración VISA:`, error);
+        visaPaymentVideoRef.current?.pause();
+        visaPaymentSoundRef.current?.pause();
+        setVisaPaymentVideoError('No se pudo reproducir el video con sonido. Puedes continuar al seguimiento sin la animación.');
+      };
+
+      const startVisaPaymentVideo = () => {
+        const video = visaPaymentVideoRef.current;
+        const sound = visaPaymentSoundRef.current;
+        visaPaymentMediaRef.current = { videoEnded: false, audioEnded: false, completed: false };
+        setVisaPaymentVideoError('');
+        setIsVisaPaymentVideoOpen(true);
+        if (!video || !sound) {
+          handleVisaPaymentMediaError('video o sonido', new Error('No se encontraron los elementos multimedia.'));
+          return;
+        }
+        video.pause();
+        sound.pause();
+        video.currentTime = 0;
+        sound.currentTime = 0;
+        video.muted = true;
+        try {
+          Promise.all([video.play(), sound.play()]).catch((error) => {
+            handleVisaPaymentMediaError('video o sonido', error);
+          });
+        } catch (error) {
+          handleVisaPaymentMediaError('video o sonido', error);
+        }
+      };
+
+      const continueVisaPaymentWithoutVideo = () => {
+        if (visaPaymentMediaRef.current.completed) return;
+        visaPaymentMediaRef.current.completed = true;
+        visaPaymentVideoRef.current?.pause();
+        visaPaymentSoundRef.current?.pause();
+        void completeVisaPaymentOrder();
+      };
+
+      useEffect(() => {
+        if (!isVisaPaymentVideoOpen || isLandscapeViewport) return;
+        continueVisaPaymentWithoutVideo();
+      }, [isLandscapeViewport, isVisaPaymentVideoOpen]);
+
       const handleDemoCardPayment = (form) => {
+        if (tutorialMode) {
+          setOrderSubmitNotice('El tutorial no registra ni cobra pedidos. Cierra la guía para realizar un pedido real.');
+          return;
+        }
+        const selectedCardBrand = demoCardBrand;
         if (form) form.reset();
         closeDemoCardForm();
         setDemoCardFormNotice('');
+        if (selectedCardBrand === 'visa') {
+          setOrderSubmitError('');
+          if (!isLandscapeViewport) {
+            void completeOrderConfirmation('tarjeta');
+            return;
+          }
+          startVisaPaymentVideo();
+          return;
+        }
         handleConfirmOrder('transferencia');
       };
 
@@ -14654,6 +14745,48 @@
 
             {demoCardFormNotice && <p className="rounded-xl border border-[#e7c98e] bg-[#fff4df] p-3 text-[11px] text-[#7d1025]" role="status">{demoCardFormNotice}</p>}
 
+            <div
+              className={isVisaPaymentVideoOpen ? 'fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-3 sm:p-6' : 'hidden'}
+              role="dialog"
+              aria-modal={isVisaPaymentVideoOpen}
+              aria-hidden={!isVisaPaymentVideoOpen}
+              aria-label="Demostración de pago VISA"
+            >
+              <section className="w-full max-w-5xl space-y-3 text-center text-white">
+                <video
+                  ref={visaPaymentVideoRef}
+                  src="/visa-payment-demo.mp4"
+                  preload="auto"
+                  playsInline
+                  muted
+                  onEnded={() => finishVisaPaymentMedia('video')}
+                  onError={(event) => handleVisaPaymentMediaError('video', event.currentTarget.error)}
+                  aria-label="Video horizontal de demostración de pago VISA"
+                  className="mx-auto aspect-video max-h-[75vh] w-full rounded-2xl bg-black object-contain shadow-2xl"
+                />
+                <p className="text-sm font-bold" role="status">
+                  {isSubmittingOrder ? 'Registrando tu pedido…' : visaPaymentVideoError || 'Demostración VISA: al terminar, continuarás al seguimiento del pedido. No se realizará un cobro real.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={continueVisaPaymentWithoutVideo}
+                  disabled={isSubmittingOrder}
+                  className="rounded-xl bg-[#a90000] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+                >
+                  {isSubmittingOrder ? 'Registrando pedido…' : 'Omitir video y continuar'}
+                </button>
+                <audio
+                  ref={visaPaymentSoundRef}
+                  src="/visa-payment-sound.mp3"
+                  preload="auto"
+                  onEnded={() => finishVisaPaymentMedia('audio')}
+                  onError={(event) => handleVisaPaymentMediaError('sonido VISA', event.currentTarget.error)}
+                  aria-hidden="true"
+                  className="hidden"
+                />
+              </section>
+            </div>
+
             {isDemoCardFormOpen && (
               <div
                 className="fixed inset-0 z-[100] flex items-center justify-center bg-[#211716]/60 p-3"
@@ -14845,6 +14978,13 @@
                     <p className="text-xs leading-relaxed text-gray-600">
                       Formulario solo visual. Usa datos ficticios: Al Toque no realiza cobros ni guarda o envía esta información.
                     </p>
+                    {demoCardBrand === 'visa' && (
+                      <p className="rounded-xl bg-[#fff4df] p-3 text-xs leading-relaxed text-[#7d1025]" role="status">
+                        {isLandscapeViewport
+                          ? 'Al pagar en horizontal, se reproducirá el video VISA con su sonido y después continuarás al seguimiento.'
+                          : 'El video VISA solo está disponible en horizontal. En vertical, el pedido continuará directamente al seguimiento.'}
+                      </p>
+                    )}
                     <div className="flex flex-col-reverse justify-end gap-2 sm:flex-row">
                       <button type="submit" className="rounded-lg border border-[#a90000] px-6 py-3 text-sm font-bold text-[#a90000] hover:bg-[#fff0d6]">
                         Guardar (demo)
