@@ -196,7 +196,7 @@ test('serves the PartyKub logo and includes its launcher on the home screen', as
   assert.match(html, /\.partykub-launcher\s*\{\s*display:\s*grid;\s*width:\s*52px;\s*height:\s*52px;/);
 });
 
-test('serves the animated tutorial and its mascot images', async (t) => {
+test('serves the interactive animated tutorial, stickers and mascot images', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -208,6 +208,13 @@ test('serves the animated tutorial and its mascot images', async (t) => {
   assert.match(html, /Skip \{'>>'\}/);
   assert.match(html, /altoque_tutorial_completed_v1/);
   assert.match(html, /Ver tutorial paso a paso/);
+  assert.match(html, /data-tutorial-action="tutorial-open-music"/);
+  assert.match(html, /data-tutorial-action="tutorial-select-track"/);
+  assert.match(html, /data-tutorial-action="tutorial-add-dish"/);
+  assert.match(html, /activeOrderOnly: true/);
+  assert.match(html, /orderConfirmed \? !step\.requiresPracticeOrder : !step\.activeOrderOnly/);
+  assert.match(html, /disabled=\{tutorialMode \|\| isSubmittingOrder/);
+  assert.match(html, /src="\/tutorial-stickers\.mp4"/);
 
   for (let index = 1; index <= 6; index += 1) {
     const response = await fetch(`${baseUrl}/tutorial-mascot-${index}.png`);
@@ -217,6 +224,15 @@ test('serves the animated tutorial and its mascot images', async (t) => {
     assert.equal(response.headers.get('content-type'), 'image/png');
     assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
   }
+
+  const stickerResponse = await fetch(`${baseUrl}/tutorial-stickers.mp4`, {
+    headers: { Range: 'bytes=0-63' }
+  });
+  const stickerBytes = Buffer.from(await stickerResponse.arrayBuffer());
+
+  assert.equal(stickerResponse.status, 206);
+  assert.equal(stickerResponse.headers.get('content-type'), 'video/mp4');
+  assert.equal(stickerBytes.length, 64);
 });
 
 test('serves the transparent Miraflores logo as a public PNG asset', async (t) => {

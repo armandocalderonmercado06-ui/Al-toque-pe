@@ -140,6 +140,7 @@ const PUBLIC_ASSETS = new Set([
   'tutorial-mascot-4.png',
   'tutorial-mascot-5.png',
   'tutorial-mascot-6.png',
+  'tutorial-stickers.mp4',
   'mapa-upch-offline.svg',
   ...Array.from({ length: 8 }, (_, index) => `sticker_${index + 1}.webp`),
   ...Array.from({ length: 17 }, (_, index) => `sticker_${index + 9}.png`)

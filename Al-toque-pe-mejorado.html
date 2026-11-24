@@ -4054,38 +4054,34 @@
     .altoque-tutorial-overlay {
       position: fixed;
       inset: 0;
-      z-index: 100;
-      display: grid;
-      place-items: center;
-      padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
-      background: rgba(31, 19, 20, 0.72);
-      backdrop-filter: blur(6px);
-      overscroll-behavior: contain;
+      z-index: 110;
+      pointer-events: none;
     }
     .altoque-tutorial-dialog {
+      position: fixed;
       display: flex;
-      width: min(900px, 100%);
-      max-height: min(780px, calc(100dvh - max(14px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom))));
       flex-direction: column;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.7);
-      border-radius: 28px;
-      background: #fffdf8;
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+      gap: 7px;
+      width: min(350px, calc(100vw - 24px));
+      max-height: min(370px, calc(100dvh - 24px));
+      overflow-y: auto;
+      padding: 8px;
+      pointer-events: none;
     }
-    .altoque-tutorial-header,
-    .altoque-tutorial-footer {
+    .altoque-tutorial-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 14px 22px;
-    }
-    .altoque-tutorial-header {
-      border-bottom: 1px solid #eee6d8;
+      padding: 0 2px;
+      pointer-events: auto;
     }
     .altoque-tutorial-brand {
+      border-radius: 999px;
+      background: #fffdf8;
       color: #a90000;
+      padding: 7px 10px;
+      box-shadow: 0 3px 12px rgba(40, 20, 15, 0.12);
       font-size: 10px;
       font-weight: 800;
       letter-spacing: 0.12em;
@@ -4099,51 +4095,42 @@
       padding: 8px 13px;
       font: 700 11px/1 Outfit, Arial, sans-serif;
       cursor: pointer;
-    }
-    .altoque-tutorial-main {
-      display: grid;
-      min-height: 0;
-      flex: 1;
-      grid-template-columns: minmax(150px, 0.72fr) minmax(0, 1.28fr);
-      align-items: center;
-      gap: 18px;
-      overflow-y: auto;
-      padding: 24px 28px;
-    }
-    .altoque-tutorial-mascot-stage {
-      display: flex;
-      min-height: 250px;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
-    .altoque-tutorial-mascot {
-      display: block;
-      width: min(100%, 210px);
-      max-height: 290px;
-      object-fit: contain;
-      filter: drop-shadow(0 10px 12px rgba(55, 22, 24, 0.16));
-      animation: altoqueTutorialFloat 2.8s ease-in-out infinite;
+      box-shadow: 0 3px 12px rgba(40, 20, 15, 0.12);
     }
     .altoque-tutorial-bubble {
       position: relative;
       border: 1px solid #f1dfb5;
-      border-radius: 24px;
-      background: #fff4d8;
-      padding: clamp(18px, 3vw, 28px);
-      box-shadow: 0 12px 28px rgba(100, 62, 22, 0.08);
+      border-radius: 22px;
+      background: #fffdf8;
+      padding: 14px 16px;
+      box-shadow: 0 10px 28px rgba(37, 22, 16, 0.2);
+      pointer-events: auto;
     }
-    .altoque-tutorial-bubble::before {
+    .altoque-tutorial-bubble::after {
       position: absolute;
-      top: 42px;
-      left: -10px;
+      bottom: -9px;
+      left: 38px;
       width: 18px;
-      height: 18px;
-      border-bottom: 1px solid #f1dfb5;
-      border-left: 1px solid #f1dfb5;
-      background: #fff4d8;
+      height: 10px;
+      background: #fffdf8;
+      clip-path: polygon(0 0, 100% 0, 50% 100%);
       content: "";
-      transform: rotate(45deg);
+    }
+    .altoque-tutorial-character {
+      display: flex;
+      min-height: 88px;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .altoque-tutorial-mascot {
+      display: block;
+      width: min(190px, 80%);
+      height: 96px;
+      object-fit: contain;
+      filter: drop-shadow(0 6px 8px rgba(55, 22, 24, 0.2));
+      animation: altoqueTutorialFloat 2.8s ease-in-out infinite;
     }
     .altoque-tutorial-section {
       color: #a90000;
@@ -4153,18 +4140,19 @@
       text-transform: uppercase;
     }
     .altoque-tutorial-title {
-      margin: 8px 0 10px;
+      margin: 5px 0 6px;
       color: #291a19;
-      font: 700 clamp(20px, 3vw, 28px)/1.15 "Space Grotesk", Arial, sans-serif;
+      font: 700 18px/1.15 "Space Grotesk", Arial, sans-serif;
     }
     .altoque-tutorial-copy {
       margin: 0;
       color: #5f5651;
-      font: 500 14px/1.65 Outfit, Arial, sans-serif;
+      font: 500 12px/1.5 Outfit, Arial, sans-serif;
     }
     .altoque-tutorial-progress {
       height: 5px;
       overflow: hidden;
+      border-radius: 999px;
       background: #f1eadf;
     }
     .altoque-tutorial-progress-fill {
@@ -4174,22 +4162,26 @@
       transition: width 240ms ease;
     }
     .altoque-tutorial-footer {
-      border-top: 1px solid #eee6d8;
-      padding-top: 12px;
-      padding-bottom: max(14px, env(safe-area-inset-bottom));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: auto;
     }
     .altoque-tutorial-step-count {
+      flex: 1;
       color: #82776e;
       font-size: 11px;
       font-weight: 700;
       white-space: nowrap;
+      text-align: center;
     }
     .altoque-tutorial-action {
-      min-height: 40px;
+      min-height: 34px;
       border: 0;
       border-radius: 999px;
-      padding: 0 17px;
-      font: 700 12px/1 Outfit, Arial, sans-serif;
+      padding: 0 12px;
+      font: 700 11px/1 Outfit, Arial, sans-serif;
       cursor: pointer;
       transition: transform 160ms ease, opacity 160ms ease;
     }
@@ -4209,54 +4201,49 @@
       color: white;
       box-shadow: 0 6px 14px rgba(169, 0, 0, 0.2);
     }
+    .altoque-tutorial-action--next:disabled {
+      background: #e7ddd0;
+      color: #74675b;
+      box-shadow: none;
+      opacity: 1;
+    }
+    .altoque-tutorial-arrow {
+      position: fixed;
+      inset: 0;
+      z-index: 109;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .altoque-tutorial-target-highlight {
+      position: relative !important;
+      z-index: 80 !important;
+      outline: 3px solid #ffc45b !important;
+      outline-offset: 3px;
+      box-shadow: 0 0 0 7px rgba(255, 196, 91, 0.28), 0 0 20px rgba(255, 196, 91, 0.75) !important;
+      animation: altoqueTutorialTargetPulse 1.4s ease-in-out infinite;
+    }
     @keyframes altoqueTutorialFloat {
       0%, 100% { transform: translateY(3px) rotate(-1deg); }
       50% { transform: translateY(-7px) rotate(1deg); }
     }
+    @keyframes altoqueTutorialTargetPulse {
+      0%, 100% { outline-offset: 3px; }
+      50% { outline-offset: 6px; }
+    }
     @media (max-width: 600px) {
       .altoque-tutorial-dialog {
-        width: min(460px, 100%);
-        max-height: min(94dvh, calc(100dvh - max(14px, env(safe-area-inset-top)) - max(14px, env(safe-area-inset-bottom))));
-        border-radius: 24px;
-      }
-      .altoque-tutorial-header,
-      .altoque-tutorial-footer {
-        padding-right: 15px;
-        padding-left: 15px;
-      }
-      .altoque-tutorial-main {
-        grid-template-columns: minmax(88px, 0.62fr) minmax(0, 1.38fr);
-        gap: 8px;
-        padding: 16px 14px;
-      }
-      .altoque-tutorial-mascot-stage {
-        min-height: 190px;
+        width: min(320px, calc(100vw - 20px));
+        max-height: min(350px, calc(100dvh - 20px));
       }
       .altoque-tutorial-mascot {
-        max-height: 205px;
-      }
-      .altoque-tutorial-bubble {
-        border-radius: 20px;
-        padding: 16px 14px;
-      }
-      .altoque-tutorial-bubble::before {
-        top: 34px;
-        left: -8px;
-        width: 14px;
-        height: 14px;
-      }
-      .altoque-tutorial-copy {
-        font-size: 12px;
-        line-height: 1.55;
-      }
-      .altoque-tutorial-action {
-        min-height: 38px;
-        padding: 0 12px;
-        font-size: 11px;
+        height: 78px;
       }
     }
     @media (prefers-reduced-motion: reduce) {
-      .altoque-tutorial-mascot { animation: none; }
+      .altoque-tutorial-mascot,
+      .altoque-tutorial-target-highlight { animation: none; }
       .altoque-tutorial-progress-fill,
       .altoque-tutorial-action { transition: none; }
     }
@@ -6395,6 +6382,8 @@
                   onClick={() => setActiveTab(item.id)}
                   aria-current={isActive ? 'page' : undefined}
                   className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-1.5 text-[10px] font-bold transition ${item.id === 'ai' ? 'bottom-nav-ai-option' : isActive ? 'text-[#a90000]' : 'text-gray-500 hover:text-gray-600'}`}
+                  data-tutorial-target={item.id === 'menu' ? 'menu-tab' : undefined}
+                  data-tutorial-action={item.id === 'menu' ? 'tutorial-open-menu' : undefined}
                 >
                   <span className={`relative inline-flex items-center justify-center ${item.id === 'affiliation' || item.id === 'ai' ? 'h-7 w-7' : 'h-4 w-4'} ${item.id === 'ai' ? 'bottom-nav-ai-icon' : ''}`}>
                     {item.id === 'affiliation' ? (
@@ -6991,9 +6980,28 @@
       {
         tab: 'home',
         section: 'Inicio · Música',
-        title: 'Pon música mientras eliges',
-        body: 'Abre el reproductor desde el botón de música. Puedes reproducir o pausar, cambiar de pista y ajustar el volumen; si tu dispositivo lo permite, también puedes conectarlo por Bluetooth.',
+        title: 'Abre el reproductor',
+        body: 'Toca el control resaltado para desplegar la música. La guía esperará a que lo abras y luego te mostrará dónde elegir una canción.',
+        target: 'music-toggle',
+        action: 'tutorial-open-music',
         mascots: [3, 5]
+      },
+      {
+        tab: 'home',
+        section: 'Inicio · Música',
+        title: 'Elige una canción',
+        body: 'Toca una canción de la lista resaltada. El reproductor se abrirá en la app; el control de reproducción puede depender del servicio de música.',
+        target: 'music-track',
+        action: 'tutorial-select-track',
+        mascots: [0, 2]
+      },
+      {
+        tab: 'home',
+        section: 'Inicio · Música',
+        title: 'Escucha y continúa',
+        body: 'Pulsa reproducir en el reproductor de música. Cuando empiece la canción, toca “Siguiente” aquí para seguir con el recorrido.',
+        target: 'music-player',
+        mascots: [1, 4]
       },
       {
         tab: 'home',
@@ -7003,17 +7011,26 @@
         mascots: [1, 4]
       },
       {
-        tab: 'reels',
+        tab: 'home',
         section: 'Comunidad · Reels',
         title: 'Mira y comparte Reels',
-        body: 'Explora videos, deja corazones, comenta y comparte publicaciones. También puedes crear tu perfil y publicar un video; si aparecen otras personas, revisa y acepta el aviso de derechos antes de publicarlo.',
+        body: 'En Reels puedes ver videos, reaccionar, comentar, compartir y publicar. Si aparecen otras personas, revisa el aviso de derechos antes de subir el video.',
         mascots: [3, 5]
+      },
+      {
+        tab: 'home',
+        section: 'Menú',
+        title: 'Abre el menú',
+        body: 'Toca “Menú” en la navegación para ver los platos disponibles. La guía avanzará al abrir esa sección.',
+        target: 'menu-tab',
+        action: 'tutorial-open-menu',
+        mascots: [0, 2]
       },
       {
         tab: 'menu',
         section: 'Menú · Búsqueda',
-        title: 'Encuentra lo que buscas',
-        body: 'Usa la lupa para buscar platos, combos o bebidas. Luego filtra por Todos, Desayunos, Menús, Combos o Bebidas; los resultados se actualizan con tu búsqueda y categoría.',
+        title: 'Busca y filtra platos',
+        body: 'Usa la lupa para buscar. Después filtra por categoría para acotar los resultados y encontrar un plato.',
         mascots: [0, 2]
       },
       {
@@ -7026,9 +7043,22 @@
       {
         tab: 'menu',
         section: 'Menú · Personalización',
-        title: 'Ajusta tu plato a tu gusto',
-        body: 'Abre un producto para ver sus detalles. En los platos que ofrecen personalización, puedes retirar componentes antes de agregarlo; revisa el precio actualizado y confirma para enviarlo a tu pedido.',
+        title: 'Elige un plato para practicar',
+        body: 'Toca el botón resaltado de un plato. Se abrirá su panel de personalización; el producto se agregará solo a un pedido de práctica temporal.',
+        target: 'menu-add',
+        action: 'tutorial-select-dish',
+        requiresPracticeOrder: true,
         mascots: [3, 5]
+      },
+      {
+        tab: 'menu',
+        section: 'Menú · Personalización',
+        title: 'Agrégalo al pedido de práctica',
+        body: 'Puedes retirar ingredientes si deseas. Luego toca “Agregar al pedido”; el tutorial guardará tu carrito anterior y no enviará ni cobrará este pedido de práctica.',
+        target: 'dish-add',
+        action: 'tutorial-add-dish',
+        requiresPracticeOrder: true,
+        mascots: [1, 4]
       },
       {
         tab: 'ai',
@@ -7048,21 +7078,55 @@
         tab: 'cart',
         section: 'Pedido · Revisión',
         title: 'Revisa y edita tu pedido',
-        body: 'En “Pedido” puedes aumentar o reducir cantidades y quitar productos. Antes de continuar, comprueba los artículos, el subtotal, los cargos que correspondan y el total.',
+        body: 'Prueba el control resaltado para cambiar la cantidad. También puedes quitar un producto; esta práctica no altera el carrito que tenías antes de iniciar.',
+        target: 'cart-quantity',
+        action: 'tutorial-change-quantity',
+        requiresPracticeOrder: true,
         mascots: [3, 5]
       },
       {
         tab: 'cart',
         section: 'Pedido · Entrega y pago',
-        title: 'Elige recojo y forma de pago',
-        body: 'Selecciona el punto de recojo que te convenga y el método de pago disponible. Sigue las indicaciones que aparecen en pantalla y confirma solo después de revisar todos los datos.',
+        title: 'Selecciona el punto de recojo',
+        body: 'Toca el punto resaltado para indicar dónde te encontrarías con el repartidor. En un pedido real, elige el punto que prefieras.',
+        target: 'pickup-point',
+        action: 'tutorial-select-pickup',
+        requiresPracticeOrder: true,
+        mascots: [0, 2]
+      },
+      {
+        tab: 'cart',
+        section: 'Pedido · Pago',
+        title: 'Elige cómo pagar',
+        body: 'Toca un método de pago para ver cómo se selecciona. No confirmes el botón de pago: la guía bloquea el envío de pedidos.',
+        target: 'payment-method',
+        action: 'tutorial-select-payment',
+        requiresPracticeOrder: true,
+        mascots: [3, 5]
+      },
+      {
+        tab: 'cart',
+        section: 'Pedido · Revisión final',
+        title: 'Revisa antes de confirmar',
+        body: 'Aquí comprobarías el total y continuarías con un pedido real. Durante el tutorial el envío y el pago están desactivados. Al terminar, se elimina el pedido de práctica y se restaura tu carrito anterior.',
+        target: 'cart-checkout',
+        requiresPracticeOrder: true,
+        mascots: [1, 4]
+      },
+      {
+        tab: 'cart',
+        section: 'Pedido · En curso',
+        title: 'Tu pedido actual no se modifica',
+        body: 'Como ya tienes un pedido en curso, la guía no añadirá productos ni cambiará su estado. Puedes revisar aquí el seguimiento y continuar con el resto del recorrido.',
+        activeOrderOnly: true,
         mascots: [0, 2]
       },
       {
         tab: 'cart',
         section: 'Pedido · Seguimiento',
         title: 'Sigue el avance de tu pedido',
-        body: 'Después de confirmar, consulta las etapas de preparación y entrega. Cuando haya un repartidor asignado, podrás revisar su información, escribirle o llamarlo desde las opciones del pedido; al finalizar, deja tu calificación.',
+        body: 'En un pedido real, tras confirmarlo, aquí verás la preparación y la entrega. Con un repartidor asignado, podrás consultar su información, escribirle o llamarlo y, al finalizar, dejar tu calificación.',
+        requiresPracticeOrder: true,
         mascots: [1, 4]
       },
       {
@@ -7116,83 +7180,156 @@
       }
     ];
 
-    function TutorialMascot({ stepIndex }) {
-      const [poseIndex, setPoseIndex] = useState(0);
-      const step = TUTORIAL_STEPS[stepIndex] || TUTORIAL_STEPS[0];
+    function TutorialMascot({ stepIndex, step }) {
+      const posterIndex = step?.mascots?.[0] ?? stepIndex % 6;
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      useEffect(() => {
-        setPoseIndex(0);
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
-        const timer = window.setInterval(() => {
-          setPoseIndex((current) => (current + 1) % step.mascots.length);
-        }, 2200);
-        return () => window.clearInterval(timer);
-      }, [stepIndex]);
-
-      const assetIndex = step.mascots[poseIndex] ?? step.mascots[0];
       return (
-        <img
-          key={assetIndex}
-          src={`/tutorial-mascot-${assetIndex + 1}.png`}
-          alt=""
-          aria-hidden="true"
+        <video
           className="altoque-tutorial-mascot"
-        />
+          src="/tutorial-stickers.mp4"
+          poster={`/tutorial-mascot-${posterIndex + 1}.png`}
+          autoPlay={!reduceMotion}
+          loop
+          muted
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+          tabIndex={-1}
+        ></video>
       );
     }
 
-    function TutorialModal({ stepIndex, onStepChange, onClose }) {
-      const step = TUTORIAL_STEPS[stepIndex] || TUTORIAL_STEPS[0];
+    function TutorialModal({ steps, stepIndex, onStepChange, onClose }) {
+      const step = steps[stepIndex] || steps[0];
       const dialogRef = useRef(null);
-      const nextButtonRef = useRef(null);
-      const progress = ((stepIndex + 1) / TUTORIAL_STEPS.length) * 100;
+      const highlightedTargetRef = useRef(null);
+      const [targetPosition, setTargetPosition] = useState({ left: 12, top: 12, path: '' });
+      const [targetUnavailable, setTargetUnavailable] = useState(false);
+      const progress = ((stepIndex + 1) / steps.length) * 100;
       const advance = () => {
-        if (stepIndex === TUTORIAL_STEPS.length - 1) onClose();
+        if (stepIndex === steps.length - 1) onClose();
         else onStepChange(stepIndex + 1);
       };
 
       useEffect(() => {
-        nextButtonRef.current?.focus();
-      }, [stepIndex]);
+        let frame = 0;
+        const previousTarget = highlightedTargetRef.current;
+        if (previousTarget) previousTarget.classList.remove('altoque-tutorial-target-highlight');
+        highlightedTargetRef.current = null;
+        setTargetUnavailable(false);
 
-      useEffect(() => {
+        const findTarget = () => {
+          if (!step.target) return null;
+          return Array.from(document.querySelectorAll(`[data-tutorial-target="${step.target}"]`))
+            .find((element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.width > 0 && rect.height > 0;
+            }) || null;
+        };
+        const target = findTarget();
+        if (target) {
+          highlightedTargetRef.current = target;
+          target.classList.add('altoque-tutorial-target-highlight');
+          target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+        } else {
+          setTargetUnavailable(Boolean(step.target));
+        }
+
+        const measure = () => {
+          const currentTarget = highlightedTargetRef.current;
+          const targetRect = currentTarget?.isConnected ? currentTarget.getBoundingClientRect() : null;
+          const panel = dialogRef.current;
+          const panelRect = panel?.getBoundingClientRect();
+          const width = panelRect?.width || Math.min(350, window.innerWidth - 24);
+          const height = panelRect?.height || 300;
+          const viewportPadding = 12;
+
+          if (!targetRect) {
+            setTargetPosition({
+              left: Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
+              top: Math.max(viewportPadding, window.innerHeight - height - viewportPadding),
+              path: ''
+            });
+            return;
+          }
+
+          const gap = 14;
+          const placeAbove = targetRect.top >= height + gap + viewportPadding
+            || targetRect.bottom + height + gap > window.innerHeight && targetRect.top > height;
+          const left = Math.max(
+            viewportPadding,
+            Math.min(
+              targetRect.left + targetRect.width / 2 - width / 2,
+              window.innerWidth - width - viewportPadding
+            )
+          );
+          const top = placeAbove
+            ? Math.max(viewportPadding, targetRect.top - height - gap)
+            : Math.min(window.innerHeight - height - viewportPadding, targetRect.bottom + gap);
+          const startX = Math.max(left + 18, Math.min(targetRect.left + targetRect.width / 2, left + width - 18));
+          const startY = placeAbove ? top + height : top;
+          const endX = targetRect.left + targetRect.width / 2;
+          const endY = placeAbove ? targetRect.top : targetRect.bottom;
+          const controlX = (startX + endX) / 2;
+          const controlY = (startY + endY) / 2;
+
+          setTargetPosition({
+            left,
+            top,
+            path: `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`
+          });
+        };
+        const scheduleMeasure = () => {
+          window.cancelAnimationFrame(frame);
+          frame = window.requestAnimationFrame(measure);
+        };
+        scheduleMeasure();
+        document.addEventListener('scroll', scheduleMeasure, true);
+        window.addEventListener('resize', scheduleMeasure);
+
+        const handleAction = (event) => {
+          if (!step.action || !(event.target instanceof Element)) return;
+          const actionTarget = event.target.closest('[data-tutorial-action]');
+          if (actionTarget?.getAttribute('data-tutorial-action') === step.action) advance();
+        };
         const handleKeyDown = (event) => {
-          if (event.key === 'Tab') {
-            const focusable = Array.from(dialogRef.current?.querySelectorAll('button:not([disabled])') || []);
-            if (focusable.length === 0) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-              event.preventDefault();
-              last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-              event.preventDefault();
-              first.focus();
-            }
-          } else if (event.key === 'Escape') {
+          if (event.key === 'Escape') {
             event.preventDefault();
             onClose();
-          } else if (event.key === 'ArrowRight') {
-            event.preventDefault();
-            advance();
-          } else if (event.key === 'ArrowLeft' && stepIndex > 0) {
-            event.preventDefault();
-            onStepChange(stepIndex - 1);
           }
         };
+        document.addEventListener('click', handleAction);
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-      }, [stepIndex, onClose, onStepChange]);
+
+        return () => {
+          window.cancelAnimationFrame(frame);
+          document.removeEventListener('scroll', scheduleMeasure, true);
+          window.removeEventListener('resize', scheduleMeasure);
+          document.removeEventListener('click', handleAction);
+          window.removeEventListener('keydown', handleKeyDown);
+          highlightedTargetRef.current?.classList.remove('altoque-tutorial-target-highlight');
+          highlightedTargetRef.current = null;
+        };
+      }, [stepIndex, step.target, step.action, onClose, onStepChange]);
 
       return (
         <div className="altoque-tutorial-overlay">
+          {targetPosition.path && (
+            <svg className="altoque-tutorial-arrow" aria-hidden="true">
+              <defs>
+                <marker id="altoque-tutorial-arrow-head" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L6,3 z" fill="#e49a32"></path>
+                </marker>
+              </defs>
+              <path d={targetPosition.path} fill="none" stroke="#e49a32" strokeWidth="3" strokeDasharray="5 5" markerEnd="url(#altoque-tutorial-arrow-head)"></path>
+            </svg>
+          )}
           <section
             ref={dialogRef}
             className="altoque-tutorial-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="altoque-tutorial-title"
-            aria-describedby="altoque-tutorial-copy"
+            style={{ left: `${targetPosition.left}px`, top: `${targetPosition.top}px` }}
+            aria-label="Guía interactiva de Al Toque Pe"
           >
             <header className="altoque-tutorial-header">
               <span className="altoque-tutorial-brand">Tutorial Al Toque Pe</span>
@@ -7200,15 +7337,21 @@
                 Skip {'>>'}
               </button>
             </header>
-            <div className="altoque-tutorial-main">
-              <div className="altoque-tutorial-mascot-stage">
-                <TutorialMascot stepIndex={stepIndex} />
-              </div>
-              <div className="altoque-tutorial-bubble" aria-live="polite">
-                <p className="altoque-tutorial-section">{step.section}</p>
-                <h2 id="altoque-tutorial-title" className="altoque-tutorial-title">{step.title}</h2>
-                <p id="altoque-tutorial-copy" className="altoque-tutorial-copy">{step.body}</p>
-              </div>
+            <div className="altoque-tutorial-bubble" aria-live="polite">
+              <p className="altoque-tutorial-section">{step.section}</p>
+              <h2 id="altoque-tutorial-title" className="altoque-tutorial-title">{step.title}</h2>
+              <p id="altoque-tutorial-copy" className="altoque-tutorial-copy">{step.body}</p>
+              {step.action && !targetUnavailable && (
+                <p className="mt-2 text-[10px] font-bold text-[#a90000]">Toca el control resaltado para avanzar.</p>
+              )}
+              {targetUnavailable && (
+                <p className="mt-2 text-[10px] font-bold text-[#a90000]" role="status">
+                  No se encontró este control en la pantalla. Puedes continuar con el botón.
+                </p>
+              )}
+            </div>
+            <div className="altoque-tutorial-character">
+              <TutorialMascot stepIndex={stepIndex} step={step} />
             </div>
             <div className="altoque-tutorial-progress" aria-hidden="true">
               <div className="altoque-tutorial-progress-fill" style={{ width: `${progress}%` }}></div>
@@ -7223,15 +7366,15 @@
                 Anterior
               </button>
               <span className="altoque-tutorial-step-count" aria-live="polite">
-                Paso {stepIndex + 1} de {TUTORIAL_STEPS.length}
+                Paso {stepIndex + 1} de {steps.length}
               </span>
               <button
-                ref={nextButtonRef}
                 type="button"
                 className="altoque-tutorial-action altoque-tutorial-action--next"
                 onClick={advance}
+                disabled={Boolean(step.action && !targetUnavailable)}
               >
-                {stepIndex === TUTORIAL_STEPS.length - 1 ? 'Finalizar' : 'Siguiente'}
+                {stepIndex === steps.length - 1 ? 'Finalizar' : targetUnavailable ? 'Continuar' : 'Siguiente'}
               </button>
             </footer>
           </section>
@@ -7307,6 +7450,7 @@
       const [orderHistoryStorageError, setOrderHistoryStorageError] = useState('');
       const [customizingDish, setCustomizingDish] = useState(null);
       const [pickupPoint, setPickupPoint] = useState('En la puerta principal');
+      const tutorialCartSnapshotRef = useRef(null);
       const [notifications, setNotifications] = useState(true);
       const [toast, setToast] = useState(null);
       const [orderConfirmed, setOrderConfirmed] = useState(() => Boolean(localStorage.getItem(getCustomerStorageKey('altoque_current_order', customerProfileId))));
@@ -7347,9 +7491,20 @@
         }
       });
       const [splashTheme, setSplashTheme] = useState(() => getStartupSplashTheme(profile.splashPreference || 'brand'));
+      const tutorialSteps = useMemo(() => TUTORIAL_STEPS.filter((step) => (
+        orderConfirmed ? !step.requiresPracticeOrder : !step.activeOrderOnly
+      )), [orderConfirmed]);
 
       useEffect(() => {
-        if (isTutorialOpen) setActiveTab(TUTORIAL_STEPS[0].tab);
+        if (!isTutorialOpen) return;
+        setActiveTab('home');
+        if (!tutorialCartSnapshotRef.current) {
+          tutorialCartSnapshotRef.current = { cart, pickupPoint };
+          if (!orderConfirmed) {
+            setCart([]);
+            setPickupPoint('En la puerta principal');
+          }
+        }
       }, [isTutorialOpen]);
 
       useEffect(() => {
@@ -7391,8 +7546,9 @@
       }, [showSplash, appMode, activeTab, isOctoberPromoDay]);
 
       useEffect(() => {
+        if (isTutorialOpen) return;
         localStorage.setItem(getCustomerStorageKey('altoque_cart', customerProfileId), JSON.stringify(cart));
-      }, [cart, customerProfileId]);
+      }, [cart, customerProfileId, isTutorialOpen]);
 
       useEffect(() => {
         try {
@@ -7452,12 +7608,12 @@
       };
       const openTutorial = () => {
         setTutorialStep(0);
-        setActiveTab(TUTORIAL_STEPS[0].tab);
+        setActiveTab(tutorialSteps[0].tab);
         setIsTutorialOpen(true);
       };
 
       const changeTutorialStep = (nextStep) => {
-        const step = TUTORIAL_STEPS[nextStep];
+        const step = tutorialSteps[nextStep];
         if (!step) return;
         setTutorialStep(nextStep);
         setActiveTab(step.tab);
@@ -7468,6 +7624,11 @@
           localStorage.setItem('altoque_tutorial_completed_v1', 'true');
         } catch (error) {
           console.error('No se pudo guardar el estado del tutorial:', error);
+        }
+        if (tutorialCartSnapshotRef.current) {
+          setCart(tutorialCartSnapshotRef.current.cart);
+          setPickupPoint(tutorialCartSnapshotRef.current.pickupPoint);
+          tutorialCartSnapshotRef.current = null;
         }
         setIsTutorialOpen(false);
       };
@@ -7720,6 +7881,7 @@
             {activeTab === 'cart' && (
               <CartScreen
                 cart={cart}
+                tutorialMode={isTutorialOpen}
                 updateQuantity={updateQuantity}
                 removeFromCart={removeFromCart}
                 onNavigate={setActiveTab}
@@ -7837,6 +7999,7 @@
 
           {isTutorialOpen && (
             <TutorialModal
+              steps={tutorialSteps}
               stepIndex={tutorialStep}
               onStepChange={changeTutorialStep}
               onClose={finishTutorial}
@@ -8072,6 +8235,8 @@
                   }}
                   aria-current={(currentTrack.audio || currentTrack.url) === (track.audio || track.url) ? 'true' : undefined}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${(currentTrack.audio || currentTrack.url) === (track.audio || track.url) ? 'bg-[#fff0ec] text-[#1e2538]' : 'bg-[#edf1f7] text-[#4b5563] hover:bg-[#e2e7f0]'}`}
+                  data-tutorial-target="music-track"
+                  data-tutorial-action="tutorial-select-track"
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#ff542e] text-white" aria-hidden="true">
                     <svg className="h-4 w-4 translate-x-[1px]" viewBox="0 0 24 24">
@@ -8086,7 +8251,10 @@
               ))}
             </div>
           )}
-          <div className={isCompact ? (isLocalTrack ? 'overflow-hidden rounded-[22px]' : 'h-[250px] overflow-hidden rounded-[22px]') : `mb-3 overflow-hidden rounded-[18px] border border-[#e6e9ee] bg-[#f9fafb] ${isLocalTrack ? 'border-0 bg-transparent' : 'min-h-[250px]'}`}>
+          <div
+            data-tutorial-target="music-player"
+            className={isCompact ? (isLocalTrack ? 'overflow-hidden rounded-[22px]' : 'h-[250px] overflow-hidden rounded-[22px]') : `mb-3 overflow-hidden rounded-[18px] border border-[#e6e9ee] bg-[#f9fafb] ${isLocalTrack ? 'border-0 bg-transparent' : 'min-h-[250px]'}`}
+          >
             {isLocalTrack ? (
               <>
                 <audio
@@ -9837,6 +10005,8 @@
                 aria-pressed={isMusicPlayerOpen}
                 title={isMusicPlayerOpen ? 'Ocultar reproductor de música' : 'Abrir reproductor de música'}
                 className="music-launcher-button flex h-11 w-11 items-center justify-center rounded-2xl transition-transform hover:scale-105 active:scale-95"
+                data-tutorial-target="music-toggle"
+                data-tutorial-action="tutorial-open-music"
               >
                 <span className="music-launcher-icon" aria-hidden="true">
                   <i data-lucide="music-2" className="music-launcher-note h-5 w-5"></i>
@@ -10582,7 +10752,13 @@
                       <i data-lucide="clock" className="w-3.5 h-3.5 mr-1"></i>
                       {dish.time}
                     </span>
-                    <button onClick={() => onOpenCustomize(pricedDish)} aria-label={`Añadir ${dish.name}`} className="menu-add-button w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95">
+                    <button
+                      onClick={() => onOpenCustomize(pricedDish)}
+                      aria-label={`Añadir ${dish.name}`}
+                      className="menu-add-button w-8 h-8 rounded-xl flex items-center justify-center transition active:scale-95"
+                      data-tutorial-target="menu-add"
+                      data-tutorial-action="tutorial-select-dish"
+                    >
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
                         <path d="M12 5v14M5 12h14" />
                       </svg>
@@ -10713,7 +10889,12 @@
               <span className="font-title text-xl font-bold text-yellow-accent">S/{finalPrice.toFixed(2)}</span>
             </div>
 
-            <button onClick={() => onAdd(removed)} className="w-full bg-brand text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-lg active:scale-98 transition">
+            <button
+              onClick={() => onAdd(removed)}
+              className="w-full bg-brand text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-lg active:scale-98 transition"
+              data-tutorial-target="dish-add"
+              data-tutorial-action="tutorial-add-dish"
+            >
               <span>Agregar al pedido</span>
               <i data-lucide="arrow-right" className="w-4 h-4"></i>
             </button>
@@ -12705,7 +12886,7 @@
       return '';
     }
 
-    function CartScreen({ cart, updateQuantity, removeFromCart, onNavigate, orderConfirmed, setOrderConfirmed, liveOrderId, setLiveOrderId, clearCart, pickupPoint, setPickupPoint, profile, setProfile, customerProfileId, onOrderRegistered, contentRef }) {
+    function CartScreen({ cart, updateQuantity, removeFromCart, onNavigate, orderConfirmed, setOrderConfirmed, liveOrderId, setLiveOrderId, clearCart, pickupPoint, setPickupPoint, profile, setProfile, customerProfileId, onOrderRegistered, contentRef, tutorialMode = false }) {
       const deliveryDuration = DELIVERY_DURATION_MS;
       const deliveryProgressKey = liveOrderId ? getCustomerStorageKey(`altoque_delivery_progress_${liveOrderId}`, customerProfileId) : '';
       const readSavedDeliveryProgress = () => {
@@ -13384,6 +13565,10 @@
       };
 
       const completeOrderConfirmation = async (selectedPaymentMethod = orderPaymentMethod) => {
+        if (tutorialMode) {
+          setOrderSubmitNotice('El tutorial no registra ni cobra pedidos. Cierra la guía para realizar un pedido real.');
+          return;
+        }
         setOrderSubmitError('');
         setOrderSubmitNotice('');
         setIsSubmittingOrder(true);
@@ -13409,6 +13594,10 @@
       };
 
       const handleConfirmOrder = (paymentMethodOverride = orderPaymentMethod) => {
+        if (tutorialMode) {
+          setOrderSubmitNotice('El tutorial no registra ni cobra pedidos. Cierra la guía para realizar un pedido real.');
+          return;
+        }
         const selectedPaymentMethod = paymentMethodOverride || orderPaymentMethod;
         if (isSubmittingOrder || isRedirecting) return;
         if (hasMixedProviders) {
@@ -14633,6 +14822,11 @@
               </span>
             )}
           </div>
+          {tutorialMode && (
+            <p className="rounded-2xl border border-[#f1dfb5] bg-[#fff4d8] px-3 py-2 text-[10px] font-semibold text-[#755e50]" role="status">
+              Pedido de práctica: no se enviará ni cobrará. Al terminar el tutorial, se restaurará tu carrito anterior.
+            </p>
+          )}
 
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
@@ -14706,7 +14900,13 @@
                       <div className="flex items-center space-x-1 bg-cream rounded-lg p-1">
                         <button onClick={() => updateQuantity(item.cartId, -1)} className="w-11 h-11 bg-white rounded flex items-center justify-center font-bold text-xs">-</button>
                         <span className="text-xs font-bold px-1">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.cartId, 1)} className="w-11 h-11 bg-white rounded flex items-center justify-center font-bold text-xs">+</button>
+                        <button
+                          onClick={() => updateQuantity(item.cartId, 1)}
+                          aria-label={`Aumentar cantidad de ${item.name}`}
+                          className="w-11 h-11 bg-white rounded flex items-center justify-center font-bold text-xs"
+                          data-tutorial-target="cart-quantity"
+                          data-tutorial-action="tutorial-change-quantity"
+                        >+</button>
                       </div>
                       <button onClick={() => removeFromCart(item.cartId)} aria-label="Eliminar producto" className="text-gray-500 hover:text-red-500 p-1">
                         <i data-lucide="trash-2" className="w-4 h-4"></i>
@@ -14738,6 +14938,8 @@
                       className={`flex min-h-[44px] items-center justify-center space-x-2 p-2.5 rounded-2xl border transition ${['yape', 'plin', 'tarjeta'].includes(method.id) ? 'payment-globe-button' : ''} ${method.id === 'yape' ? 'payment-globe-button--yape' : ''} ${method.id === 'tarjeta' ? 'payment-globe-button--cards' : ''} ${
                         paymentMethod === method.id ? 'border-brand bg-brand/5 text-brand font-bold' : 'border-gray-200 bg-white text-gray-600'
                       }`}
+                      data-tutorial-target="payment-method"
+                      data-tutorial-action="tutorial-select-payment"
                     >
                       {['yape', 'plin', 'tarjeta'].includes(method.id) ? (
                         <img
@@ -14779,6 +14981,8 @@
                       className={`pickup-point-option flex min-h-14 w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition ${
                         pickupPoint === option.name ? 'border-brand bg-brand/5 text-brand shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:border-brand/40'
                       }`}
+                      data-tutorial-target="pickup-point"
+                      data-tutorial-action="tutorial-select-pickup"
                     >
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cream text-xl" aria-hidden="true">
                         <span className="pickup-point-emoji">{option.emoji}</span>
@@ -14824,7 +15028,7 @@
                 document.documentElement.scrollTop = 0;
                 window.scrollTo(0, 0);
                 setIsCardCheckoutOpen(true);
-              } : () => handleConfirmOrder()} disabled={isSubmittingOrder || isRedirecting || hasMixedProviders || hasInvalidGorritosMix} className="w-full bg-brand text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-lg active:scale-98 transition disabled:opacity-60">
+              } : () => handleConfirmOrder()} disabled={tutorialMode || isSubmittingOrder || isRedirecting || hasMixedProviders || hasInvalidGorritosMix} className="w-full bg-brand text-white font-bold py-3.5 rounded-2xl flex items-center justify-center space-x-2 shadow-lg active:scale-98 transition disabled:opacity-60" data-tutorial-target="cart-checkout">
                 <span>
                   {isSubmittingOrder ? 'Registrando pedido…' : isGorritosOrder
                     ? `Canjear pedido (${gorritosCost} Gorritos)`
