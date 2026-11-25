@@ -11173,10 +11173,22 @@
       const [historyOpen, setHistoryOpen] = useState(false);
       const [input, setInput] = useState('');
       const [isTyping, setIsTyping] = useState(false);
+      const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+      const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
+      const [isSendingBotpressVoiceDraft, setIsSendingBotpressVoiceDraft] = useState(false);
+      const [voiceError, setVoiceError] = useState('');
+      const [botpressVoiceDraft, setBotpressVoiceDraft] = useState('');
       const [budgetAmount, setBudgetAmount] = useState(15);
       const [isBudgetPickerOpen, setIsBudgetPickerOpen] = useState(false);
       const [budgetPickerAmount, setBudgetPickerAmount] = useState(15);
       const [foodMode, setFoodMode] = useState(false);
+      const voiceRecorderRef = useRef(null);
+      const voiceStreamRef = useRef(null);
+      const voiceChunksRef = useRef([]);
+      const voiceStartingRef = useRef(false);
+      const voiceRecordingTimerRef = useRef(null);
+      const voiceAbortControllerRef = useRef(null);
+      const voiceMountedRef = useRef(true);
       const chatMessagesRef = useRef(null);
       const budgetPickerRef = useRef(null);
       const budgetPickerFrameRef = useRef(0);
@@ -11209,10 +11221,22 @@
       const botpressArchiveRef = useRef(isBotpressArchive);
       botpressArchiveRef.current = isBotpressArchive;
 
-      useEffect(() => () => {
-        botpressWebSearchRequestsRef.current.forEach((cancel) => cancel(new Error('Se cerró la conversación.')));
-        botpressWebSearchFramesRef.current.forEach((frame) => frame.remove());
-        botpressWebSearchFramesRef.current.clear();
+      useEffect(() => {
+        voiceMountedRef.current = true;
+        return () => {
+          voiceMountedRef.current = false;
+          if (voiceRecordingTimerRef.current) window.clearTimeout(voiceRecordingTimerRef.current);
+          voiceAbortControllerRef.current?.abort();
+          const recorder = voiceRecorderRef.current;
+          if (recorder && recorder.state !== 'inactive') {
+            recorder.onstop = null;
+            recorder.stop();
+          }
+          voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+          botpressWebSearchRequestsRef.current.forEach((cancel) => cancel(new Error('Se cerró la conversación.')));
+          botpressWebSearchFramesRef.current.forEach((frame) => frame.remove());
+          botpressWebSearchFramesRef.current.clear();
+        };
       }, []);
 
       useEffect(() => {
@@ -12075,7 +12099,7 @@
 
       const handleSend = async (textToSend) => {
         const text = textToSend || input;
-        if (!text.trim() || isTyping) return;
+        if (!text.trim() || isTyping || isRecordingVoice || isTranscribingVoice) return;
 
         const conversationId = activeConversationId;
         const userMessage = { sender: 'user', text };
@@ -12163,6 +12187,147 @@
           });
         } finally {
           setIsTyping(false);
+        }
+      };
+
+      const stopVoiceRecording = () => {
+        if (voiceRecordingTimerRef.current) window.clearTimeout(voiceRecordingTimerRef.current);
+        voiceRecordingTimerRef.current = null;
+        const recorder = voiceRecorderRef.current;
+        if (recorder && recorder.state !== 'inactive') recorder.stop();
+      };
+
+      const startVoiceRecording = async () => {
+        setVoiceError('');
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof window.MediaRecorder !== 'function') {
+          setVoiceError('El dictado requiere HTTPS y un navegador compatible con grabación de audio.');
+          return;
+        }
+        if (voiceStartingRef.current || isRecordingVoice || isTranscribingVoice || isSendingBotpressVoiceDraft) return;
+        voiceStartingRef.current = true;
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              autoGainControl: true,
+              channelCount: { ideal: 1 },
+              echoCancellation: true,
+              noiseSuppression: true,
+              sampleRate: { ideal: 48000 }
+            }
+          });
+          if (!voiceMountedRef.current) {
+            stream.getTracks().forEach((track) => track.stop());
+            return;
+          }
+          const preferredType = ['audio/webm;codecs=opus', 'audio/mp4']
+            .find((type) => window.MediaRecorder.isTypeSupported?.(type));
+          const recorder = preferredType
+            ? new window.MediaRecorder(stream, { mimeType: preferredType })
+            : new window.MediaRecorder(stream);
+          const targetProvider = provider;
+          voiceRecorderRef.current = recorder;
+          voiceStreamRef.current = stream;
+          voiceChunksRef.current = [];
+          recorder.ondataavailable = (event) => {
+            if (event.data.size > 0) voiceChunksRef.current.push(event.data);
+          };
+          recorder.onerror = () => {
+            if (voiceMountedRef.current) setVoiceError('No se pudo grabar el audio. Revisa el micrófono e inténtalo otra vez.');
+            if (recorder.state !== 'inactive') recorder.stop();
+          };
+          recorder.onstop = async () => {
+            stream.getTracks().forEach((track) => track.stop());
+            if (voiceRecorderRef.current === recorder) voiceRecorderRef.current = null;
+            if (voiceStreamRef.current === stream) voiceStreamRef.current = null;
+            if (voiceMountedRef.current) setIsRecordingVoice(false);
+            const chunks = voiceChunksRef.current;
+            const audio = new Blob(chunks, { type: recorder.mimeType || chunks[0]?.type || '' });
+            voiceChunksRef.current = [];
+            if (!voiceMountedRef.current) return;
+            if (!audio.size) {
+              setVoiceError('No se capturó audio. Revisa el micrófono e inténtalo de nuevo.');
+              return;
+            }
+            if (audio.size > 10 * 1024 * 1024) {
+              setVoiceError('El audio supera 10 MB. Graba una consulta más corta.');
+              return;
+            }
+            const audioType = audio.type.split(';')[0].trim().toLowerCase();
+            if (!audioType) {
+              setVoiceError('El navegador no generó un formato de audio compatible.');
+              return;
+            }
+            const controller = new AbortController();
+            voiceAbortControllerRef.current = controller;
+            let transcriptionTimedOut = false;
+            const transcriptionTimer = window.setTimeout(() => {
+              transcriptionTimedOut = true;
+              controller.abort();
+            }, 100_000);
+            setIsTranscribingVoice(true);
+            try {
+              const response = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: { 'Content-Type': audioType },
+                body: audio,
+                signal: controller.signal
+              });
+              const payload = await response.json().catch(() => ({}));
+              if (!response.ok) throw new Error(payload.error || `No se pudo transcribir el audio (${response.status}).`);
+              if (typeof payload.text !== 'string' || !payload.text.trim()) {
+                throw new Error('No se reconoció voz clara. Inténtalo en un lugar silencioso y habla cerca del micrófono.');
+              }
+              if (!voiceMountedRef.current) return;
+              if (targetProvider === 'Botpress') {
+                setBotpressVoiceDraft((previous) => [previous.trim(), payload.text.trim()].filter(Boolean).join(' '));
+              } else {
+                setInput((previous) => [previous.trim(), payload.text.trim()].filter(Boolean).join(' '));
+              }
+            } catch (error) {
+              if (voiceMountedRef.current) {
+                setVoiceError(transcriptionTimedOut
+                  ? 'La transcripción tardó demasiado. Inténtalo otra vez.'
+                  : error.message || 'No se pudo transcribir el audio.');
+              }
+            } finally {
+              window.clearTimeout(transcriptionTimer);
+              if (voiceAbortControllerRef.current === controller) voiceAbortControllerRef.current = null;
+              if (voiceMountedRef.current) setIsTranscribingVoice(false);
+            }
+          };
+          recorder.start();
+          setIsRecordingVoice(true);
+          voiceRecordingTimerRef.current = window.setTimeout(stopVoiceRecording, 60_000);
+        } catch (error) {
+          voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
+          voiceStreamRef.current = null;
+          voiceRecorderRef.current = null;
+          setVoiceError(error.name === 'NotAllowedError'
+            ? 'Permite el acceso al micrófono para dictar tu consulta.'
+            : `No se pudo iniciar la grabación: ${error.message}`);
+        } finally {
+          voiceStartingRef.current = false;
+        }
+      };
+
+      const sendBotpressVoiceDraft = async () => {
+        const text = botpressVoiceDraft.trim();
+        const botpress = window.botpress;
+        if (!text || provider !== 'Botpress' || isBotpressArchive) return;
+        if (!botpress?.initialized || !botpress.conversationId || typeof botpress.sendMessage !== 'function') {
+          setVoiceError('Botpress todavía no está listo para recibir la consulta.');
+          return;
+        }
+        setVoiceError('');
+        setIsSendingBotpressVoiceDraft(true);
+        try {
+          botpress.open?.();
+          await Promise.resolve(botpress.sendMessage(text));
+          setBotpressVoiceDraft('');
+        } catch (error) {
+          setVoiceError(error.message || 'No se pudo enviar la transcripción a Botpress.');
+        } finally {
+          setIsSendingBotpressVoiceDraft(false);
         }
       };
 
@@ -12387,9 +12552,10 @@
               ].map((p) => (
                 <button
                   key={p.name}
+                  disabled={isRecordingVoice || isTranscribingVoice || isSendingBotpressVoiceDraft}
                   onClick={() => selectProvider(p.name)}
                   aria-label={p.name === 'Botpress' ? 'Abrir asistente Botpress' : `Seleccionar ${p.name}`}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition ${provider === p.name ? 'bg-brand text-white' : 'bg-white border border-gray-200 text-gray-600'}`}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${provider === p.name ? 'bg-brand text-white' : 'bg-white border border-gray-200 text-gray-600'}`}
                 >
                   <i data-lucide={p.icon} className="w-3.5 h-3.5"></i>
                   <span>{p.name}</span>
@@ -12445,6 +12611,53 @@
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+                {!isBotpressArchive && (
+                  <div className="space-y-2 p-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+                        disabled={isTranscribingVoice || isSendingBotpressVoiceDraft}
+                        aria-label={isRecordingVoice ? 'Detener grabación y transcribir' : 'Dictar consulta para Botpress'}
+                        title={isRecordingVoice ? 'Detener y transcribir' : 'Dictar consulta'}
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
+                      >
+                        <i data-lucide={isRecordingVoice ? 'square' : 'mic'} className="h-5 w-5"></i>
+                      </button>
+                      <div className="min-w-0">
+                        {isRecordingVoice ? (
+                          <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · máximo 60 segundos</p>
+                        ) : isTranscribingVoice ? (
+                          <p role="status" className="text-[10px] font-semibold text-brand">Transcribiendo con OpenAI…</p>
+                        ) : (
+                          <p className="text-[10px] font-semibold text-dark">Dicta tu consulta y revisa el texto antes de enviarlo.</p>
+                        )}
+                        <p className="text-[9px] leading-relaxed text-gray-500">El audio se envía a OpenAI para transcribirlo; la app no guarda la grabación.</p>
+                      </div>
+                    </div>
+                    {botpressVoiceDraft && (
+                      <div className="space-y-2">
+                        <textarea
+                          value={botpressVoiceDraft}
+                          onChange={(event) => setBotpressVoiceDraft(event.target.value)}
+                          maxLength={1500}
+                          rows={3}
+                          aria-label="Revisar transcripción para Botpress"
+                          className="w-full resize-y rounded-xl border border-cream bg-cream/40 p-2.5 text-xs text-dark focus:border-brand focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={sendBotpressVoiceDraft}
+                          disabled={!botpressVoiceDraft.trim() || isTranscribingVoice || isSendingBotpressVoiceDraft}
+                          className="w-full rounded-full bg-brand px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isSendingBotpressVoiceDraft ? 'Enviando…' : 'Enviar consulta a Botpress'}
+                        </button>
+                      </div>
+                    )}
+                    {voiceError && <p role="alert" className="text-[10px] text-red-700">{voiceError}</p>}
                   </div>
                 )}
               </>
@@ -12589,10 +12802,32 @@
                     placeholder="Escribe tu antojo o presupuesto..."
                     className="flex-1 bg-cream/50 border border-cream rounded-2xl px-3.5 py-2 text-xs focus:outline-none focus:border-brand"
                   />
-                  <button onClick={() => handleSend()} aria-label="Enviar mensaje" className="w-9 h-9 bg-cream rounded-full flex items-center justify-center text-dark font-bold hover:bg-yellow-accent transition">
+                  <button
+                    type="button"
+                    onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+                    disabled={isTyping || isTranscribingVoice}
+                    aria-label={isRecordingVoice ? 'Detener grabación y transcribir' : 'Dictar consulta por micrófono'}
+                    title={isRecordingVoice ? 'Detener y transcribir' : 'Dictar consulta'}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
+                  >
+                    <i data-lucide={isRecordingVoice ? 'square' : 'mic'} className="h-4 w-4"></i>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSend()}
+                    disabled={!input.trim() || isTyping || isRecordingVoice || isTranscribingVoice}
+                    aria-label="Enviar mensaje"
+                    className="w-9 h-9 bg-cream rounded-full flex items-center justify-center text-dark font-bold hover:bg-yellow-accent transition disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     <i data-lucide="arrow-up" className="w-4 h-4"></i>
                   </button>
                 </div>
+                <p className="pt-1 text-[9px] leading-relaxed text-gray-500">
+                  Dicta hasta 60 segundos. El audio se envía a OpenAI para transcribirlo y la app no guarda la grabación; revisa el texto antes de enviarlo.
+                </p>
+                {isRecordingVoice && <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · pulsa el micrófono para transcribir</p>}
+                {isTranscribingVoice && <p role="status" className="text-[10px] font-semibold text-brand">Transcribiendo con OpenAI…</p>}
+                {voiceError && <p role="alert" className="text-[10px] text-red-700">{voiceError}</p>}
               </>
             )}
           </div>

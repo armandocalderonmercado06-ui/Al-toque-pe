@@ -17,6 +17,10 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
 - Las instrucciones que se envían a las conversaciones de ChatGPT y Gemini
   también están en el código de la app. Las instrucciones del chat directo de
   Botpress se administran por separado en el panel de Botpress.
+- Los tres chats permiten dictar consultas con el micrófono. La grabación se
+  transcribe en español con `gpt-transcribe` de OpenAI y se muestra para
+  revisarla antes de enviarla; el audio no se guarda en la app. Configura
+  `OPENAI_API_KEY` en el servidor para habilitar esta función.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade

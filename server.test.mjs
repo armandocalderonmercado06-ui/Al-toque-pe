@@ -9,14 +9,15 @@ import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { composePrompt, createAlToqueServer, createWebSearchPlan, detectMenuIntent, getAssistantPersona, getLocalMenuAnswer, makeRiderSupportInstructions, selectMenuItem, shouldUseWebSearch, styleLocalAnswer } from './server.mjs';
 
-async function createReelsTestServer(t, testDataDir, reelsDeletePassword = 'test-reels-delete-password', fetchImpl = fetch) {
+async function createReelsTestServer(t, testDataDir, reelsDeletePassword = 'test-reels-delete-password', fetchImpl = fetch, serverOptions = {}) {
   const server = createAlToqueServer({
     ordersFile: join(testDataDir, 'orders.json'),
     reelsFile: join(testDataDir, 'reels.json'),
     complaintsFile: join(testDataDir, 'complaints.json'),
     reelsVideosDir: join(testDataDir, 'reels-videos'),
     reelsDeletePassword,
-    fetchImpl
+    fetchImpl,
+    ...serverOptions
   });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -31,6 +32,51 @@ async function createReelsTestServer(t, testDataDir, reelsDeletePassword = 'test
     await rm(testDataDir, { recursive: true, force: true });
   });
   return server;
+}
+
+function createRequestTestServer(t, testDataDir, fetchImpl = fetch, serverOptions = {}) {
+  const server = createAlToqueServer({
+    ordersFile: join(testDataDir, 'orders.json'),
+    reelsFile: join(testDataDir, 'reels.json'),
+    complaintsFile: join(testDataDir, 'complaints.json'),
+    reelsVideosDir: join(testDataDir, 'reels-videos'),
+    fetchImpl,
+    ...serverOptions
+  });
+  t.after(async () => {
+    await rm(testDataDir, { recursive: true, force: true });
+  });
+  return server;
+}
+
+function invokeRequestHandler(server, { method, pathname, headers, body }) {
+  return new Promise((resolve, reject) => {
+    const request = {
+      method,
+      url: pathname,
+      headers,
+      socket: { remoteAddress: '127.0.0.1', encrypted: false },
+      async *[Symbol.asyncIterator]() {
+        if (body.length) yield body;
+      }
+    };
+    const response = {
+      headersSent: false,
+      writeHead(statusCode, responseHeaders) {
+        this.statusCode = statusCode;
+        this.headers = responseHeaders;
+        this.headersSent = true;
+      },
+      end(responseBody) {
+        resolve({ statusCode: this.statusCode, body: responseBody });
+      }
+    };
+    try {
+      server.listeners('request')[0](request, response);
+    } catch (error) {
+      reject(error);
+    }
+  });
 }
 
 test('uses and serves the tablet app photos for the mobile order catalog', async () => {
@@ -2457,6 +2503,78 @@ test('routes ChatGPT and Gemini menu questions to Botpress and searches only whe
   assert.equal(status.providers.gemini, true);
   assert.equal(status.capabilities.botpressWebSearch, true);
   assert.equal(status.engine, 'Botpress Web Search');
+});
+
+test('transcribes Spanish voice recordings with the configured OpenAI model', async (t) => {
+  const testDataDir = await createReelsTestDirectory();
+  let upstreamRequest;
+  const server = createRequestTestServer(
+    t,
+    testDataDir,
+    async (url, options) => {
+      upstreamRequest = { url, options };
+      return new Response(JSON.stringify({ text: '¿Qué incluye el Combo Herediano?' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    },
+    { openAIApiKey: 'test-openai-key' }
+  );
+  const response = await invokeRequestHandler(server, {
+    method: 'POST',
+    pathname: '/api/transcribe',
+    headers: {
+      host: 'localhost:4173',
+      origin: 'http://localhost:4173',
+      'content-type': 'audio/webm;codecs=opus',
+      'content-length': '10'
+    },
+    body: Buffer.from('mock audio')
+  });
+  assert.equal(response.statusCode, 200, response.body);
+  assert.deepEqual(JSON.parse(response.body), {
+    text: '¿Qué incluye el Combo Herediano?',
+    model: 'gpt-transcribe'
+  });
+  assert.equal(upstreamRequest.url, 'https://api.openai.com/v1/audio/transcriptions');
+  assert.equal(upstreamRequest.options.headers.Authorization, 'Bearer test-openai-key');
+  assert.equal(upstreamRequest.options.body.get('model'), 'gpt-transcribe');
+  assert.equal(upstreamRequest.options.body.get('language'), 'es');
+  assert.match(upstreamRequest.options.body.get('prompt'), /Combo Herediano/);
+  const uploadedAudio = upstreamRequest.options.body.get('file');
+  assert.equal(uploadedAudio.type, 'audio/webm');
+  assert.equal(uploadedAudio.name, 'consulta.webm');
+});
+
+test('rejects unsupported voice formats and requires the server transcription key', async (t) => {
+  const testDataDir = await createReelsTestDirectory();
+  const server = createRequestTestServer(t, testDataDir, fetch, { openAIApiKey: '' });
+  const unsupportedResponse = await invokeRequestHandler(server, {
+    method: 'POST',
+    pathname: '/api/transcribe',
+    headers: {
+      host: 'localhost:4173',
+      origin: 'http://localhost:4173',
+      'content-type': 'application/octet-stream',
+      'content-length': '5'
+    },
+    body: Buffer.from('audio')
+  });
+  assert.equal(unsupportedResponse.statusCode, 415);
+
+  const missingKeyResponse = await invokeRequestHandler(server, {
+    method: 'POST',
+    pathname: '/api/transcribe',
+    headers: {
+      host: 'localhost:4173',
+      origin: 'http://localhost:4173',
+      'content-type': 'audio/webm',
+      'content-length': '5'
+    },
+    body: Buffer.from('audio')
+  });
+  assert.equal(missingKeyResponse.statusCode, 503);
+  assert.match(JSON.parse(missingKeyResponse.body).error, /OPENAI_API_KEY/);
 });
 
 test('keeps server-side assistant personas distinct', () => {
