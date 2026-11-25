@@ -12037,7 +12037,7 @@
           }
 
           voiceAudioDraftsRef.current = voiceAudioDraftsRef.current.filter((draft) => draft.provider !== 'Botpress');
-          setBotpressVoiceDraft('');
+          setIsVoiceAudioDraftReady(false);
           newConversationButton.click();
           const conversationDeadline = Date.now() + 15000;
           let remoteId = '';
@@ -12073,7 +12073,7 @@
         if (nextProvider === 'Botpress') {
           if (nextProvider !== provider) {
             voiceAudioDraftsRef.current = [];
-            setBotpressVoiceDraft('');
+            setIsVoiceAudioDraftReady(false);
           }
           botpressArchiveSelectionRef.current = false;
           const remoteConversationId = window.botpress?.conversationId;
@@ -12093,7 +12093,7 @@
         }
         if (nextProvider === provider) return;
         voiceAudioDraftsRef.current = [];
-        setBotpressVoiceDraft('');
+        setIsVoiceAudioDraftReady(false);
         const selectedId = activeConversationByProvider[nextProvider];
         const existing = conversations.find((conversation) => (
           conversation.id === selectedId && conversation.provider === nextProvider
@@ -13008,7 +13008,7 @@
                         type="button"
                         onClick={() => {
                           voiceAudioDraftsRef.current = [];
-                          setBotpressVoiceDraft('');
+                          setIsVoiceAudioDraftReady(false);
                           if (provider === 'Botpress') {
                             botpressArchiveSelectionRef.current = Boolean(
                               conversation.botpressConversationId
