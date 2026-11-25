@@ -976,13 +976,14 @@ test('offers animated WhatsApp support for the Al Toque help phone number', asyn
 });
 
 test('opens the Al Toque demo checkout from card and keeps transfers pending', async () => {
-  const [html, serverSource, applePayAsset, googlePayAsset, paypalAsset, mastercardPaymentVideo, visaPaymentVideo, visaPortraitVideo, visaPaymentSound] = await Promise.all([
+  const [html, serverSource, applePayAsset, googlePayAsset, paypalAsset, mastercardPaymentVideo, mastercardPaymentSound, visaPaymentVideo, visaPortraitVideo, visaPaymentSound] = await Promise.all([
     readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
     readFile(join(process.cwd(), 'server.mjs'), 'utf8'),
     readFile(join(process.cwd(), 'apple-pay-demo.png')),
     readFile(join(process.cwd(), 'google-pay-demo.png')),
     readFile(join(process.cwd(), 'paypal-demo.png')),
     readFile(join(process.cwd(), 'mastercard-payment-demo.mp4')),
+    readFile(join(process.cwd(), 'mastercard-payment-sound.mp3')),
     readFile(join(process.cwd(), 'visa-payment-demo.mp4')),
     readFile(join(process.cwd(), 'visa-pago-9x16.mp4')),
     readFile(join(process.cwd(), 'visa-payment-sound.mp3'))
@@ -1010,11 +1011,13 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(serverSource, /'google-pay-demo\.png'/);
   assert.match(serverSource, /'paypal-demo\.png'/);
   assert.match(serverSource, /'mastercard-payment-demo\.mp4'/);
+  assert.match(serverSource, /'mastercard-payment-sound\.mp3'/);
   assert.match(serverSource, /'visa-payment-demo\.mp4'/);
   assert.match(serverSource, /'visa-pago-9x16\.mp4'/);
   assert.match(serverSource, /'visa-payment-sound\.mp3'/);
   assert.equal(mastercardPaymentVideo.subarray(4, 8).toString('ascii'), 'ftyp');
   assert.ok(mastercardPaymentVideo.toString('latin1').includes('soun'));
+  assert.ok(mastercardPaymentSound.length > 10_000);
   assert.equal(visaPaymentVideo.subarray(4, 8).toString('ascii'), 'ftyp');
   assert.equal(visaPortraitVideo.subarray(4, 8).toString('ascii'), 'ftyp');
   assert.ok(visaPortraitVideo.toString('latin1').includes('soun'));
@@ -1062,9 +1065,10 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /window\.matchMedia\('\(orientation: landscape\)'\)/);
   assert.match(html, /window\.addEventListener\('orientationchange', updateOrientation\)/);
   assert.match(html, /cardBrand === 'mastercard'[\s\S]*?'\/mastercard-payment-demo\.mp4'/);
+  assert.match(html, /cardBrand === 'mastercard' \? '\/mastercard-payment-sound\.mp3'/);
   assert.match(html, /isLandscapeVideo \? '\/visa-payment-demo\.mp4' : '\/visa-pago-9x16\.mp4'/);
   assert.match(checkout, /src=\{paymentDemoVideoSrc\}/);
-  assert.match(checkout, /src="\/visa-payment-sound\.mp3"/);
+  assert.match(checkout, /src=\{paymentDemoSoundSrc\}/);
   assert.match(checkout, /isPortraitPaymentDemoVideo\s*\?\s*'absolute inset-0 z-\[120\] flex items-center justify-center overflow-hidden bg-black'/);
   assert.match(checkout, /'absolute inset-0 h-full w-full bg-black object-cover'/);
   assert.match(checkout, /'relative h-full w-full max-w-none overflow-hidden text-center text-white'/);
@@ -1074,8 +1078,9 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /const videoPlayback = video\.play\(\)/);
   assert.match(html, /const soundPlayback = sound\.play\(\)/);
   assert.doesNotMatch(html, /Promise\.all\(\[video\.play\(\), sound\.play\(\)\]\)/);
-  assert.match(html, /usesSeparateSound = cardBrand === 'visa' && isLandscapeVideo/);
+  assert.match(html, /usesSeparateSound = isLandscapeVideo && \(cardBrand === 'visa' \|\| cardBrand === 'mastercard'\)/);
   assert.match(html, /video\.muted = usesSeparateSound/);
+  assert.match(checkout, /muted=\{paymentDemoUsesSeparateSound\}/);
   assert.match(html, /audioEnded: !usesSeparateSound/);
   assert.match(html, /if \(usesSeparateSound\) \{\s*try \{\s*const soundPlayback = sound\.play\(\)/);
   assert.match(html, /if \(!mediaState\.videoEnded \|\| !mediaState\.audioEnded \|\| mediaState\.completed\) return/);

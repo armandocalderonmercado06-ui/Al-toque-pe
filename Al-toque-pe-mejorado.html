@@ -13318,6 +13318,9 @@
       const [paymentDemoVideoSrc, setPaymentDemoVideoSrc] = useState('/visa-payment-demo.mp4');
       const isPortraitPaymentDemoVideo = paymentDemoVideoSrc === '/visa-pago-9x16.mp4';
       const isMastercardPaymentDemoVideo = paymentDemoVideoSrc === '/mastercard-payment-demo.mp4';
+      const paymentDemoUsesSeparateSound = paymentDemoVideoSrc === '/visa-payment-demo.mp4'
+        || paymentDemoVideoSrc === '/mastercard-payment-demo.mp4';
+      const [paymentDemoSoundSrc, setPaymentDemoSoundSrc] = useState('/visa-payment-sound.mp3');
       const [paymentDemoVideoError, setPaymentDemoVideoError] = useState('');
       const [paymentDemoVideoFailed, setPaymentDemoVideoFailed] = useState(false);
       const [demoCardFormNotice, setDemoCardFormNotice] = useState('');
@@ -14134,12 +14137,14 @@
         const video = paymentDemoVideoRef.current;
         const sound = paymentDemoSoundRef.current;
         const isLandscapeVideo = isLandscapeViewport;
-        const usesSeparateSound = cardBrand === 'visa' && isLandscapeVideo;
+        const usesSeparateSound = isLandscapeVideo && (cardBrand === 'visa' || cardBrand === 'mastercard');
         const videoSource = cardBrand === 'mastercard'
           ? '/mastercard-payment-demo.mp4'
           : isLandscapeVideo ? '/visa-payment-demo.mp4' : '/visa-pago-9x16.mp4';
+        const soundSource = cardBrand === 'mastercard' ? '/mastercard-payment-sound.mp3' : '/visa-payment-sound.mp3';
         paymentDemoMediaRef.current = { videoEnded: false, audioEnded: !usesSeparateSound, completed: false };
         setPaymentDemoVideoSrc(videoSource);
+        setPaymentDemoSoundSrc(soundSource);
         setPaymentDemoVideoError('');
         setPaymentDemoVideoFailed(false);
         setIsPaymentDemoVideoOpen(true);
@@ -14152,6 +14157,10 @@
         if (video.getAttribute('src') !== videoSource) {
           video.src = videoSource;
           video.load();
+        }
+        if (sound.getAttribute('src') !== soundSource) {
+          sound.src = soundSource;
+          sound.load();
         }
         video.currentTime = 0;
         sound.currentTime = 0;
@@ -14778,7 +14787,7 @@
                   src={paymentDemoVideoSrc}
                   preload="auto"
                   playsInline
-                  muted={paymentDemoVideoSrc === '/visa-payment-demo.mp4'}
+                  muted={paymentDemoUsesSeparateSound}
                   onEnded={() => finishCardPaymentMedia('video')}
                   onError={(event) => handleCardPaymentMediaError('video', event.currentTarget.error)}
                   aria-label={isMastercardPaymentDemoVideo
@@ -14811,7 +14820,7 @@
                 )}
                 <audio
                   ref={paymentDemoSoundRef}
-                  src="/visa-payment-sound.mp3"
+                  src={paymentDemoSoundSrc}
                   preload="auto"
                   onEnded={() => finishCardPaymentMedia('audio')}
                   onError={(event) => handleCardPaymentMediaError('sonido adicional', event.currentTarget.error)}
