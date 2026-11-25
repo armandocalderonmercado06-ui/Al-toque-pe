@@ -1111,9 +1111,12 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.doesNotMatch(html, /Promise\.all\(\[video\.play\(\), sound\.play\(\)\]\)/);
   assert.match(html, /cardBrand === 'mastercard'[\s\S]*?cardBrand === 'visa' && isLandscapeVideo[\s\S]*?cardBrand === 'amex' && isLandscapeVideo/);
   assert.match(html, /video\.muted = usesSeparateSound/);
-  assert.match(checkout, /muted=\{paymentDemoUsesSeparateSound\}/);
+  assert.match(checkout, /muted=\{paymentDemoUsesSeparateSound && !paymentDemoSoundFallback\}/);
   assert.match(html, /audioEnded: !usesSeparateSound/);
-  assert.match(html, /if \(usesSeparateSound\) \{\s*try \{\s*const soundPlayback = sound\.play\(\)/);
+  assert.match(html, /if \(!usesSeparateSound\) return;\s*try \{\s*const soundPlayback = sound\.play\(\)/);
+  assert.match(html, /video\.readyState >= HTMLMediaElement\.HAVE_FUTURE_DATA[\s\S]*?video\.addEventListener\('canplay', startPlayback, \{ once: true \}\)/);
+  assert.match(html, /setPaymentDemoSoundFallback\(true\)/);
+  assert.doesNotMatch(html, /No se pudo reproducir el sonido adicional; el video continuará sin sonido\./);
   assert.match(html, /if \(!mediaState\.videoEnded \|\| !mediaState\.audioEnded \|\| mediaState\.completed\) return/);
   assert.doesNotMatch(html, /continueVisaPaymentWithoutVideo/);
   assert.match(checkout, /invisible flex items-center justify-center/);

@@ -13338,6 +13338,7 @@
       const [paymentDemoSoundSrc, setPaymentDemoSoundSrc] = useState('/visa-payment-sound.mp3');
       const [paymentDemoVideoError, setPaymentDemoVideoError] = useState('');
       const [paymentDemoVideoFailed, setPaymentDemoVideoFailed] = useState(false);
+      const [paymentDemoSoundFallback, setPaymentDemoSoundFallback] = useState(false);
       const [demoCardFormNotice, setDemoCardFormNotice] = useState('');
       const [demoCardBrand, setDemoCardBrand] = useState('visa');
       const [demoCardLast4, setDemoCardLast4] = useState('0000');
@@ -14138,7 +14139,9 @@
           paymentDemoSoundRef.current?.pause();
           const mediaState = paymentDemoMediaRef.current;
           mediaState.audioEnded = true;
-          setPaymentDemoVideoError('No se pudo reproducir el sonido adicional; el video continuará sin sonido.');
+          if (paymentDemoVideoRef.current) paymentDemoVideoRef.current.muted = false;
+          setPaymentDemoSoundFallback(true);
+          setPaymentDemoVideoError('');
           if (mediaState.videoEnded) finishCardPaymentMedia('audio');
           return;
         }
@@ -14163,11 +14166,13 @@
         const soundSource = cardBrand === 'mastercard'
           ? '/mastercard-payment-sound.mp3'
           : cardBrand === 'amex' ? '/amex-payment-sound.mp3' : '/visa-payment-sound.mp3';
-        paymentDemoMediaRef.current = { videoEnded: false, audioEnded: !usesSeparateSound, completed: false };
+        const mediaState = { videoEnded: false, audioEnded: !usesSeparateSound, completed: false };
+        paymentDemoMediaRef.current = mediaState;
         setPaymentDemoVideoSrc(videoSource);
         setPaymentDemoSoundSrc(soundSource);
         setPaymentDemoVideoError('');
         setPaymentDemoVideoFailed(false);
+        setPaymentDemoSoundFallback(false);
         setIsPaymentDemoVideoOpen(true);
         if (!video || !sound) {
           handleCardPaymentMediaError('video o sonido', new Error('No se encontraron los elementos multimedia.'));
@@ -14186,19 +14191,29 @@
         video.currentTime = 0;
         sound.currentTime = 0;
         video.muted = usesSeparateSound;
-        try {
-          const videoPlayback = video.play();
-          videoPlayback?.catch((error) => handleCardPaymentMediaError('video', error));
-        } catch (error) {
-          handleCardPaymentMediaError('video', error);
-        }
-        if (usesSeparateSound) {
-          try {
-            const soundPlayback = sound.play();
-            soundPlayback?.catch((error) => handleCardPaymentMediaError('sonido adicional', error));
-          } catch (error) {
-            handleCardPaymentMediaError('sonido adicional', error);
-          }
+        const startPlayback = () => {
+          if (paymentDemoMediaRef.current !== mediaState || mediaState.completed) return;
+          requestAnimationFrame(() => {
+            if (paymentDemoMediaRef.current !== mediaState || mediaState.completed) return;
+            try {
+              const videoPlayback = video.play();
+              videoPlayback?.catch((error) => handleCardPaymentMediaError('video', error));
+            } catch (error) {
+              handleCardPaymentMediaError('video', error);
+            }
+            if (!usesSeparateSound) return;
+            try {
+              const soundPlayback = sound.play();
+              soundPlayback?.catch((error) => handleCardPaymentMediaError('sonido adicional', error));
+            } catch (error) {
+              handleCardPaymentMediaError('sonido adicional', error);
+            }
+          });
+        };
+        if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+          startPlayback();
+        } else {
+          video.addEventListener('canplay', startPlayback, { once: true });
         }
       };
 
@@ -14817,7 +14832,7 @@
                   src={paymentDemoVideoSrc}
                   preload="auto"
                   playsInline
-                  muted={paymentDemoUsesSeparateSound}
+                  muted={paymentDemoUsesSeparateSound && !paymentDemoSoundFallback}
                   onEnded={() => finishCardPaymentMedia('video')}
                   onError={(event) => handleCardPaymentMediaError('video', event.currentTarget.error)}
                   aria-label={isMastercardPaymentDemoVideo
