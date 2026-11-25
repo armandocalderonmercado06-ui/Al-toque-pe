@@ -11506,7 +11506,12 @@
           const saved = window.localStorage.getItem(getCustomerStorageKey(CHAT_STORAGE_KEY, customerProfileId));
           if (!saved) {
             const firstConversation = createConversation('ChatGPT');
-            return { conversations: [firstConversation], activeByProvider: { ChatGPT: firstConversation.id }, error: '' };
+            return {
+              conversations: [firstConversation],
+              activeByProvider: { ChatGPT: firstConversation.id },
+              deletedBotpressConversationBaselines: {},
+              error: ''
+            };
           }
           const parsed = JSON.parse(saved);
           if (!parsed || !Array.isArray(parsed.conversations)) throw new Error('El formato guardado no es válido.');
@@ -11532,6 +11537,14 @@
             }
             return active;
           }, {});
+          const savedDeletionBaselines = parsed.deletedBotpressConversationBaselines;
+          const deletedBotpressConversationBaselines = savedDeletionBaselines
+            && typeof savedDeletionBaselines === 'object'
+            && !Array.isArray(savedDeletionBaselines)
+            ? Object.fromEntries(Object.entries(savedDeletionBaselines).filter(([, count]) => (
+              Number.isSafeInteger(count) && count >= 0
+            )))
+            : {};
           AI_PROVIDERS.forEach((name) => {
             if (!activeByProvider[name]) {
               const mostRecent = [...conversations]
@@ -11540,18 +11553,20 @@
               if (mostRecent) activeByProvider[name] = mostRecent.id;
             }
           });
-          return { conversations, activeByProvider, error: '' };
+          return { conversations, activeByProvider, deletedBotpressConversationBaselines, error: '' };
         } catch (error) {
           const firstConversation = createConversation('ChatGPT');
           return {
             conversations: [firstConversation],
             activeByProvider: { ChatGPT: firstConversation.id },
+            deletedBotpressConversationBaselines: {},
             error: `No se pudo leer el historial guardado: ${error.message}`
           };
         }
       });
       const [conversations, setConversations] = useState(storedChats.conversations);
       const [activeConversationByProvider, setActiveConversationByProvider] = useState(storedChats.activeByProvider);
+      const [deletedBotpressConversationBaselines, setDeletedBotpressConversationBaselines] = useState(storedChats.deletedBotpressConversationBaselines);
       const [storageError, setStorageError] = useState(storedChats.error);
       const [historyOpen, setHistoryOpen] = useState(false);
       const [input, setInput] = useState('');
@@ -11580,6 +11595,8 @@
       const botpressWebSearchPendingRef = useRef(new Map());
       const botpressWebSearchRequestsRef = useRef(new Map());
       const botpressTranscriptSignatureRef = useRef('');
+      const deletedBotpressConversationBaselinesRef = useRef(deletedBotpressConversationBaselines);
+      deletedBotpressConversationBaselinesRef.current = deletedBotpressConversationBaselines;
       const botpressRestartInProgressRef = useRef(false);
       const botpressArchiveSelectionRef = useRef(false);
       const activeConversationId = activeConversationByProvider[provider];
@@ -11922,15 +11939,34 @@
         return () => clearInterval(timer);
       }, []);
 
+      const readBotpressRenderedMessages = (root) => {
+        if (!root) return [];
+        return [...root.querySelectorAll('.bpMessageContainer[data-direction="outgoing"], .bpMessageContainer[data-direction="incoming"]')]
+          .map((message) => {
+            const sender = message.dataset.direction === 'outgoing' ? 'user' : 'ai';
+            const text = [...message.querySelectorAll(`.bpMessageBlocksBubble[data-direction="${message.dataset.direction}"]`)]
+              .map((bubble) => bubble.innerText.trim())
+              .filter(Boolean)
+              .join('\n')
+              .trim();
+            return text ? { sender, text } : null;
+          })
+          .filter(Boolean);
+      };
+
       useEffect(() => {
         if (storageError) return;
         try {
-          window.localStorage.setItem(getCustomerStorageKey(CHAT_STORAGE_KEY, customerProfileId), JSON.stringify({ conversations, activeByProvider: activeConversationByProvider }));
+          window.localStorage.setItem(getCustomerStorageKey(CHAT_STORAGE_KEY, customerProfileId), JSON.stringify({
+            conversations,
+            activeByProvider: activeConversationByProvider,
+            deletedBotpressConversationBaselines
+          }));
           window.localStorage.removeItem('altoque-ai-memory-enabled-v1');
         } catch (error) {
           setStorageError(`No se pudo guardar el historial en este navegador: ${error.message}`);
         }
-      }, [conversations, activeConversationByProvider, customerProfileId, storageError]);
+      }, [conversations, activeConversationByProvider, customerProfileId, deletedBotpressConversationBaselines, storageError]);
 
       useEffect(() => {
         if (provider !== 'Botpress') return undefined;
@@ -11977,18 +12013,13 @@
             conversation.provider === 'Botpress'
             && conversation.botpressConversationId === remoteConversationId
           )) || active || createConversation('Botpress', remoteConversationId);
-          const renderedMessages = [...root.querySelectorAll('.bpMessageContainer[data-direction="outgoing"], .bpMessageContainer[data-direction="incoming"]')]
-            .map((message) => {
-              const sender = message.dataset.direction === 'outgoing' ? 'user' : 'ai';
-              const text = [...message.querySelectorAll(`.bpMessageBlocksBubble[data-direction="${message.dataset.direction}"]`)]
-                .map((bubble) => bubble.innerText.trim())
-                .filter(Boolean)
-                .join('\n')
-                .trim();
-              return text ? { sender, text } : null;
-            })
-            .filter(Boolean);
-          const signature = `${target.id}:${remoteConversationId}:${JSON.stringify(renderedMessages)}`;
+          const renderedMessages = readBotpressRenderedMessages(root);
+          const deletedBaseline = deletedBotpressConversationBaselinesRef.current[remoteConversationId];
+          const messagesToSave = Number.isSafeInteger(deletedBaseline)
+            ? renderedMessages.slice(deletedBaseline)
+            : renderedMessages;
+          if (Number.isSafeInteger(deletedBaseline) && messagesToSave.length === 0) return;
+          const signature = `${target.id}:${remoteConversationId}:${JSON.stringify(messagesToSave)}`;
           if (botpressTranscriptSignatureRef.current === signature) return;
           botpressTranscriptSignatureRef.current = signature;
 
@@ -11998,7 +12029,7 @@
           setConversations((previous) => {
             const exists = previous.some((conversation) => conversation.id === target.id);
             const current = previous.find((conversation) => conversation.id === target.id) || target;
-            const nextMessages = renderedMessages.length > 0 ? renderedMessages : current.messages;
+            const nextMessages = messagesToSave.length > 0 ? messagesToSave : current.messages;
             const firstUserMessage = nextMessages.find((message) => message.sender === 'user');
             const title = current.title === 'Nueva conversación' && firstUserMessage
               ? firstUserMessage.text.trim().slice(0, 42) || current.title
@@ -12011,8 +12042,9 @@
             const updated = {
               ...current,
               botpressConversationId: remoteConversationId,
+              ...(messagesToSave.length > 0 ? { botpressHistoryDeleted: false } : {}),
               title,
-              updatedAt: renderedMessages.length > 0 ? Date.now() : current.updatedAt,
+              updatedAt: messagesToSave.length > 0 ? Date.now() : current.updatedAt,
               messages: nextMessages
             };
             return exists
@@ -12081,34 +12113,37 @@
         setHistoryOpen(false);
       };
 
-      const deleteConversation = async (conversationId) => {
+      const deleteConversation = (conversationId) => {
         botpressArchiveSelectionRef.current = false;
         const conversationToDelete = conversations.find((conversation) => conversation.id === conversationId);
         if (conversationToDelete && ['ChatGPT', 'Gemini'].includes(conversationToDelete.provider)) {
           disposeBotpressWebSearchFrame(conversationToDelete.provider, conversationId);
         }
+        const liveRemoteId = window.botpress?.conversationId || botpressLiveConversationId;
+        const activeRemoteId = liveRemoteId || conversationToDelete?.botpressConversationId || '';
         const deletingCurrentBotpressChat = provider === 'Botpress'
           && conversationId === activeConversationId
           && (!conversationToDelete?.botpressConversationId
-            || conversationToDelete.botpressConversationId === botpressLiveConversationId);
+            || !liveRemoteId
+            || conversationToDelete.botpressConversationId === liveRemoteId);
         let replacement = null;
         if (deletingCurrentBotpressChat) {
-          setIsRestartingBotpress(true);
-          botpressRestartInProgressRef.current = true;
-          try {
-            const remoteId = await restartBotpressConversation();
-            replacement = createConversation('Botpress', remoteId);
-            setBotpressLiveConversationId(remoteId);
-            botpressTranscriptSignatureRef.current = '';
-            setBotpressHistoryError('');
-          } catch (error) {
-            console.error('No se pudo borrar la conversación activa de Botpress:', error);
-            setBotpressHistoryError(`No se pudo borrar la conversación activa: ${error.message}`);
-            return;
-          } finally {
-            window.setTimeout(() => { botpressRestartInProgressRef.current = false; }, 300);
-            setIsRestartingBotpress(false);
+          if (activeRemoteId) {
+            const liveMessages = readBotpressRenderedMessages(document.getElementById('fab-root')?.shadowRoot);
+            const nextBaselines = {
+              ...deletedBotpressConversationBaselinesRef.current,
+              [activeRemoteId]: Math.max(conversationToDelete?.messages?.length || 0, liveMessages.length)
+            };
+            deletedBotpressConversationBaselinesRef.current = nextBaselines;
+            setDeletedBotpressConversationBaselines(nextBaselines);
+            setBotpressLiveConversationId(activeRemoteId);
           }
+          replacement = {
+            ...createConversation('Botpress', activeRemoteId || null),
+            ...(activeRemoteId ? { botpressHistoryDeleted: true } : {})
+          };
+          botpressTranscriptSignatureRef.current = '';
+          setBotpressHistoryError('');
         }
 
         const remaining = conversations.filter((conversation) => conversation.id !== conversationId);
@@ -13339,7 +13374,7 @@
                   {isRestartingBotpress ? 'Iniciando conversación…' : 'Nueva conversación'}
                 </button>
                 <div className="max-h-[55vh] space-y-2 overflow-y-auto">
-                  {conversations.filter((conversation) => conversation.provider === provider).sort((a, b) => b.updatedAt - a.updatedAt).map((conversation) => (
+                  {conversations.filter((conversation) => conversation.provider === provider && !conversation.botpressHistoryDeleted).sort((a, b) => b.updatedAt - a.updatedAt).map((conversation) => (
                     <div key={conversation.id} className={`flex items-center gap-2 rounded-2xl border p-2 ${conversation.id === activeConversationId ? 'border-brand/40 bg-cream/40' : 'border-gray-100 bg-white'}`}>
                       <button
                         type="button"
@@ -13365,7 +13400,6 @@
                       <button
                         type="button"
                         onClick={() => deleteConversation(conversation.id)}
-                        disabled={isRestartingBotpress}
                         aria-label={`Borrar conversación ${conversation.title}`}
                         title="Borrar conversación"
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
@@ -13376,6 +13410,9 @@
                       </button>
                     </div>
                   ))}
+                  {!conversations.some((conversation) => conversation.provider === provider && !conversation.botpressHistoryDeleted) && (
+                    <p className="py-4 text-center text-xs text-gray-500">No hay conversaciones guardadas.</p>
+                  )}
                 </div>
                 <p className="text-center text-[10px] text-gray-500">
                   {provider === 'Botpress'

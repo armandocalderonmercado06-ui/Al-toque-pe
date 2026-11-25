@@ -2397,6 +2397,23 @@ test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => 
   assert.equal(riderSupport.handoff, null);
 });
 
+test('deletes Botpress history copies without waiting for a remote restart', async () => {
+  const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
+  const deleteStart = html.indexOf('const deleteConversation = (conversationId) => {');
+  const deleteEnd = html.indexOf('const getBotpressWebSearchFrame', deleteStart);
+  assert.ok(deleteStart >= 0 && deleteEnd > deleteStart);
+  const deleteHandler = html.slice(deleteStart, deleteEnd);
+
+  assert.doesNotMatch(deleteHandler, /await restartBotpressConversation\(\)/);
+  assert.match(deleteHandler, /deletedBotpressConversationBaselinesRef\.current/);
+  assert.match(deleteHandler, /botpressHistoryDeleted:\s*true/);
+  assert.match(html, /const messagesToSave = Number\.isSafeInteger\(deletedBaseline\)[\s\S]*?renderedMessages\.slice\(deletedBaseline\)/);
+  assert.match(html, /activeByProvider: activeConversationByProvider,\s*deletedBotpressConversationBaselines/);
+  assert.match(html, /messagesToSave\.length > 0 \? \{ botpressHistoryDeleted: false \} : \{\}/);
+  assert.match(html, /conversation\.provider === provider && !conversation\.botpressHistoryDeleted/);
+  assert.doesNotMatch(html, /onClick=\{\(\) => deleteConversation\(conversation\.id\)\}\s*disabled=\{isRestartingBotpress\}/);
+});
+
 test('uses Deepgram for Botpress voice input instead of the native microphone', async () => {
   const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
 
