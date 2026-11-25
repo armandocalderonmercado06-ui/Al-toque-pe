@@ -11174,10 +11174,9 @@
       const [input, setInput] = useState('');
       const [isTyping, setIsTyping] = useState(false);
       const [isRecordingVoice, setIsRecordingVoice] = useState(false);
-      const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
       const [isSendingBotpressVoiceDraft, setIsSendingBotpressVoiceDraft] = useState(false);
+      const [isVoiceAudioDraftReady, setIsVoiceAudioDraftReady] = useState(false);
       const [voiceError, setVoiceError] = useState('');
-      const [botpressVoiceDraft, setBotpressVoiceDraft] = useState('');
       const [budgetAmount, setBudgetAmount] = useState(15);
       const [isBudgetPickerOpen, setIsBudgetPickerOpen] = useState(false);
       const [budgetPickerAmount, setBudgetPickerAmount] = useState(15);
@@ -11185,9 +11184,6 @@
       const voiceRecorderRef = useRef(null);
       const voiceStreamRef = useRef(null);
       const voiceChunksRef = useRef([]);
-      const voiceRecognitionRef = useRef(null);
-      const voiceRecognitionResultRef = useRef(null);
-      const voiceRecognitionStopRequestedRef = useRef(false);
       const voiceAudioDraftsRef = useRef([]);
       const voiceStartingRef = useRef(false);
       const voiceRecordingTimerRef = useRef(null);
@@ -11229,9 +11225,6 @@
         return () => {
           voiceMountedRef.current = false;
           if (voiceRecordingTimerRef.current) window.clearTimeout(voiceRecordingTimerRef.current);
-          voiceRecognitionRef.current?.abort?.();
-          voiceRecognitionRef.current = null;
-          voiceRecognitionResultRef.current = null;
           voiceAudioDraftsRef.current = [];
           const recorder = voiceRecorderRef.current;
           if (recorder && recorder.state !== 'inactive') {
@@ -11840,11 +11833,14 @@
           });
         }
         await Promise.resolve(botpress.sendEvent({
-          type: 'altoque_voice_message',
-          version: 1,
-          sourceProvider,
-          transcript,
-          audioClips
+          type: 'custom',
+          payload: {
+            type: 'altoque_voice_message',
+            version: 1,
+            sourceProvider,
+            transcript: transcript.trim(),
+            audioClips
+          }
         }));
       };
 
@@ -11878,7 +11874,7 @@
             reject(new Error('Botpress no devolvió una respuesta de búsqueda.'));
             return;
           }
-          const sourcesSection = webSearchRequested
+          const sourcesSection = (webSearchRequested || voiceAudioDrafts.length > 0)
             ? rawReply.match(/(?:^|\n)\s*\*{0,2}Fuentes\*{0,2}\s*:?\s*([\s\S]*)$/i)?.[1] || ''
             : '';
           const sources = [...new Set([...sourcesSection.matchAll(/https?:\/\/[^\s<>"'`]+/g)]
@@ -11899,8 +11895,10 @@
                 : new URL(url).hostname;
               return { title, url };
             });
-          const reply = rawReply
-            .replace(/(?:^|\n)\s*\*{0,2}Fuentes\*{0,2}\s*:?\s*[\s\S]*$/i, '')
+          const replyContent = webSearchRequested || voiceAudioDrafts.length > 0
+            ? rawReply.replace(/(?:^|\n)\s*\*{0,2}Fuentes\*{0,2}\s*:?\s*[\s\S]*$/i, '')
+            : rawReply;
+          const reply = replyContent
             .replace(/\*\*(.+?)\*\*/g, '$1')
             .replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1')
             .replace(/https?:\/\/[^\s<>"'`]+/g, '')
@@ -11967,7 +11965,10 @@
               `Consulta: ${question}`
             ].filter(Boolean).join('\n\n');
             Promise.resolve().then(async () => {
-              await sendBotpressVoiceAudio(botpress, voiceAudioDrafts, question, searchProvider);
+              if (voiceAudioDrafts.length) {
+                await sendBotpressVoiceAudio(botpress, voiceAudioDrafts, question, searchProvider);
+                return;
+              }
               await botpress.sendMessage(botpressQuestion);
             }).catch((error) => finish(error));
           } catch (error) {
@@ -12172,7 +12173,7 @@
 
       const handleSend = async (textToSend) => {
         const text = textToSend || input;
-        if (!text.trim() || isTyping || isRecordingVoice || isTranscribingVoice) return;
+        if (!text.trim() || isTyping || isRecordingVoice || isSendingBotpressVoiceDraft) return;
 
         const conversationId = activeConversationId;
         const userMessage = { sender: 'user', text };
@@ -12182,6 +12183,7 @@
 
         let botpressRequested = false;
         let webSearchRequested = false;
+        let voiceAudioDrafts = [];
         try {
           const menuResponse = await fetch('/api/chat', {
             method: 'POST',
@@ -12203,14 +12205,18 @@
           if (answer.handoffToBotpress) {
             botpressRequested = true;
             webSearchRequested = answer.webSearchUsed === true;
+            voiceAudioDrafts = takeVoiceAudioDrafts(provider, conversationId);
             const searchAnswer = await askBotpressWebSearch(
               text,
               provider,
               conversationId,
               getLearnedPreferences().slice(-1600),
               webSearchRequested,
-              takeVoiceAudioDrafts(provider, conversationId)
+              voiceAudioDrafts
             );
+            setIsVoiceAudioDraftReady(voiceAudioDraftsRef.current.some((draft) => (
+              draft.provider === provider && draft.conversationId === conversationId
+            )));
             updateConversationMessages(conversationId, {
               sender: 'ai',
               text: searchAnswer.reply,
@@ -12225,8 +12231,8 @@
           if (voiceAudioDraftsRef.current.some((draft) => (
             draft.provider === provider && draft.conversationId === conversationId
           ))) {
-            takeVoiceAudioDrafts(provider, conversationId);
-            throw new Error('No se pudo enviar el audio a Botpress. Dicta la consulta nuevamente.');
+            voiceAudioDrafts = takeVoiceAudioDrafts(provider, conversationId);
+            throw new Error('No se pudo enviar el audio a Botpress. Inténtalo nuevamente.');
           }
 
           if (typeof answer.reply !== 'string') {
@@ -12249,6 +12255,10 @@
             sources: Array.isArray(answer.sources) ? answer.sources : []
           });
         } catch (error) {
+          if (voiceAudioDrafts.length) {
+            voiceAudioDraftsRef.current = [...voiceAudioDrafts, ...voiceAudioDraftsRef.current];
+            setIsVoiceAudioDraftReady(true);
+          }
           console.error(botpressRequested
             ? webSearchRequested
               ? 'No se pudo completar la búsqueda web con Botpress:'
@@ -12274,17 +12284,6 @@
       const stopVoiceRecording = () => {
         if (voiceRecordingTimerRef.current) window.clearTimeout(voiceRecordingTimerRef.current);
         voiceRecordingTimerRef.current = null;
-        const recognition = voiceRecognitionRef.current;
-        if (recognition && !voiceRecognitionStopRequestedRef.current) {
-          voiceRecognitionStopRequestedRef.current = true;
-          try {
-            recognition.stop();
-          } catch (error) {
-            if (error.name !== 'InvalidStateError') {
-              setVoiceError(`No se pudo detener el reconocimiento de voz: ${error.message}`);
-            }
-          }
-        }
         const recorder = voiceRecorderRef.current;
         if (recorder && recorder.state !== 'inactive') recorder.stop();
       };
@@ -12295,12 +12294,7 @@
           setVoiceError('El dictado requiere HTTPS y un navegador compatible con grabación de audio.');
           return;
         }
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (typeof SpeechRecognition !== 'function') {
-          setVoiceError('El dictado requiere un navegador compatible con reconocimiento de voz en español.');
-          return;
-        }
-        if (voiceStartingRef.current || isRecordingVoice || isTranscribingVoice || isSendingBotpressVoiceDraft) return;
+        if (voiceStartingRef.current || isRecordingVoice || isSendingBotpressVoiceDraft || isTyping) return;
         voiceStartingRef.current = true;
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -12327,52 +12321,6 @@
             setVoiceError('Botpress todavía no está listo para recibir la consulta.');
             return;
           }
-
-          const recognition = new SpeechRecognition();
-          const recognitionResult = {
-            transcript: '',
-            error: '',
-            promise: null,
-            resolve: null
-          };
-          recognitionResult.promise = new Promise((resolve) => {
-            recognitionResult.resolve = resolve;
-          });
-          recognition.lang = 'es-PE';
-          recognition.continuous = true;
-          recognition.interimResults = false;
-          recognition.maxAlternatives = 1;
-          recognition.onresult = (event) => {
-            const finalResults = [];
-            for (let index = event.resultIndex; index < event.results.length; index += 1) {
-              const result = event.results[index];
-              if (result.isFinal && result[0]?.transcript) finalResults.push(result[0].transcript.trim());
-            }
-            if (finalResults.length) {
-              recognitionResult.transcript = [recognitionResult.transcript, ...finalResults].filter(Boolean).join(' ');
-            }
-          };
-          recognition.onerror = (event) => {
-            if (event.error === 'aborted') return;
-            const messages = {
-              'no-speech': 'No se reconoció voz clara. Inténtalo en un lugar silencioso y habla cerca del micrófono.',
-              'not-allowed': 'Permite el acceso al micrófono para dictar tu consulta.',
-              network: 'No se pudo completar el reconocimiento de voz. Revisa tu conexión e inténtalo otra vez.',
-              'language-not-supported': 'El reconocimiento de voz en español no está disponible en este navegador.'
-            };
-            recognitionResult.error = messages[event.error] || 'No se pudo reconocer la voz. Inténtalo otra vez.';
-          };
-          recognition.onend = () => {
-            if (voiceRecognitionRef.current === recognition) voiceRecognitionRef.current = null;
-            recognitionResult.resolve({
-              transcript: recognitionResult.transcript.trim(),
-              error: recognitionResult.error
-            });
-          };
-          voiceRecognitionResultRef.current = recognitionResult;
-          voiceRecognitionRef.current = recognition;
-          voiceRecognitionStopRequestedRef.current = false;
-          recognition.start();
 
           const recorderOptions = { audioBitsPerSecond: 32_000 };
           if (preferredType) recorderOptions.mimeType = preferredType;
@@ -12407,76 +12355,29 @@
               setVoiceError('El navegador no generó un formato de audio compatible.');
               return;
             }
-
-            setIsTranscribingVoice(true);
-            let recognitionTimeout;
-            try {
-              const result = await Promise.race([
-                voiceRecognitionResultRef.current?.promise || Promise.resolve({
-                  transcript: '',
-                  error: 'No se pudo completar el reconocimiento de voz.'
-                }),
-                new Promise((resolve) => {
-                  recognitionTimeout = window.setTimeout(() => {
-                    voiceRecognitionRef.current?.abort?.();
-                    resolve({
-                      transcript: '',
-                      error: 'El reconocimiento de voz tardó demasiado. Inténtalo otra vez.'
-                    });
-                  }, 10_000);
-                })
-              ]);
-              if (!voiceMountedRef.current) return;
-              if (result.error) {
-                setVoiceError(result.error);
-                return;
-              }
-              if (!result.transcript) {
-                setVoiceError('No se reconoció voz clara. Inténtalo en un lugar silencioso y habla cerca del micrófono.');
-                return;
-              }
-              const existingDrafts = voiceAudioDraftsRef.current.filter((draft) => (
-                draft.provider === targetProvider && draft.conversationId === targetConversationId
-              ));
-              const existingAudioBytes = existingDrafts.reduce((total, draft) => total + draft.audio.size, 0);
-              if (existingAudioBytes + audio.size > MAX_BOTPRESS_VOICE_AUDIO_BYTES) {
-                setVoiceError('El audio supera el límite para enviarlo a Botpress. Graba una consulta más corta.');
-                return;
-              }
-              voiceAudioDraftsRef.current = [
-                ...voiceAudioDraftsRef.current,
-                {
-                  audio,
-                  transcript: result.transcript,
-                  provider: targetProvider,
-                  conversationId: targetConversationId
-                }
-              ];
-              if (targetProvider === 'Botpress') {
-                setBotpressVoiceDraft((previous) => [previous.trim(), result.transcript].filter(Boolean).join(' '));
-              } else {
-                setInput((previous) => [previous.trim(), result.transcript].filter(Boolean).join(' '));
-              }
-            } catch (error) {
-              if (voiceMountedRef.current) {
-                setVoiceError(error.message || 'No se pudo reconocer la voz.');
-              }
-            } finally {
-              window.clearTimeout(recognitionTimeout);
-              if (voiceRecognitionResultRef.current === recognitionResult) {
-                voiceRecognitionResultRef.current = null;
-              }
-              voiceRecognitionStopRequestedRef.current = false;
-              if (voiceMountedRef.current) setIsTranscribingVoice(false);
+            const existingDrafts = voiceAudioDraftsRef.current.filter((draft) => (
+              draft.provider === targetProvider && draft.conversationId === targetConversationId
+            ));
+            const existingAudioBytes = existingDrafts.reduce((total, draft) => total + draft.audio.size, 0);
+            if (existingAudioBytes + audio.size > MAX_BOTPRESS_VOICE_AUDIO_BYTES) {
+              setVoiceError('El audio supera el límite para enviarlo a Botpress. Graba una consulta más corta.');
+              return;
             }
+            voiceAudioDraftsRef.current = [
+              ...voiceAudioDraftsRef.current,
+              {
+                audio,
+                transcript: '',
+                provider: targetProvider,
+                conversationId: targetConversationId
+              }
+            ];
+            setIsVoiceAudioDraftReady(true);
           };
           recorder.start();
           setIsRecordingVoice(true);
           voiceRecordingTimerRef.current = window.setTimeout(stopVoiceRecording, 60_000);
         } catch (error) {
-          voiceRecognitionRef.current?.abort?.();
-          voiceRecognitionRef.current = null;
-          voiceRecognitionResultRef.current = null;
           const failedRecorder = voiceRecorderRef.current;
           if (failedRecorder && failedRecorder.state !== 'inactive') {
             failedRecorder.onstop = null;
@@ -12494,25 +12395,83 @@
       };
 
       const sendBotpressVoiceDraft = async () => {
-        const text = botpressVoiceDraft.trim();
         const botpress = window.botpress;
-        if (!text || provider !== 'Botpress' || isBotpressArchive) return;
-        if (!botpress?.initialized || !botpress.conversationId || typeof botpress.sendMessage !== 'function') {
+        if (provider !== 'Botpress' || isBotpressArchive) return;
+        if (!botpress?.initialized || !botpress.conversationId || typeof botpress.sendEvent !== 'function') {
           setVoiceError('Botpress todavía no está listo para recibir la consulta.');
+          return;
+        }
+        const voiceAudioDrafts = takeVoiceAudioDrafts('Botpress', botpress.conversationId);
+        if (!voiceAudioDrafts.length) {
+          setVoiceError('Graba un mensaje de voz antes de enviarlo.');
+          setIsVoiceAudioDraftReady(false);
           return;
         }
         setVoiceError('');
         setIsSendingBotpressVoiceDraft(true);
         try {
           botpress.open?.();
-          const voiceAudioDrafts = takeVoiceAudioDrafts('Botpress', botpress.conversationId);
-          await sendBotpressVoiceAudio(botpress, voiceAudioDrafts, text, 'Botpress');
-          await Promise.resolve(botpress.sendMessage(text));
-          setBotpressVoiceDraft('');
+          await sendBotpressVoiceAudio(botpress, voiceAudioDrafts, '', 'Botpress');
+          setIsVoiceAudioDraftReady(voiceAudioDraftsRef.current.some((draft) => (
+            draft.provider === 'Botpress' && draft.conversationId === botpress.conversationId
+          )));
         } catch (error) {
-          setVoiceError(error.message || 'No se pudo enviar la transcripción a Botpress.');
+          voiceAudioDraftsRef.current = [...voiceAudioDrafts, ...voiceAudioDraftsRef.current];
+          setIsVoiceAudioDraftReady(true);
+          setVoiceError(error.message || 'No se pudo enviar el audio a Botpress.');
         } finally {
           setIsSendingBotpressVoiceDraft(false);
+        }
+      };
+
+      const sendVoiceAudioDraft = async () => {
+        if (provider === 'Botpress') {
+          await sendBotpressVoiceDraft();
+          return;
+        }
+        const conversationId = activeConversationId;
+        const voiceAudioDrafts = takeVoiceAudioDrafts(provider, conversationId);
+        if (!voiceAudioDrafts.length) {
+          setVoiceError('Graba un mensaje de voz antes de enviarlo.');
+          setIsVoiceAudioDraftReady(false);
+          return;
+        }
+        setVoiceError('');
+        updateConversationMessages(conversationId, { sender: 'user', text: 'Consulta por audio' });
+        setIsTyping(true);
+        try {
+          const answer = await askBotpressWebSearch(
+            '',
+            provider,
+            conversationId,
+            getLearnedPreferences().slice(-1600),
+            false,
+            voiceAudioDrafts
+          );
+          updateConversationMessages(conversationId, {
+            sender: 'ai',
+            text: answer.reply,
+            webSearchUsed: answer.sources.length > 0,
+            engine: answer.sources.length > 0 ? 'Botpress Web Search' : 'Botpress',
+            persona: provider,
+            sources: answer.sources
+          });
+          setIsVoiceAudioDraftReady(voiceAudioDraftsRef.current.some((draft) => (
+            draft.provider === provider && draft.conversationId === conversationId
+          )));
+        } catch (error) {
+          voiceAudioDraftsRef.current = [...voiceAudioDrafts, ...voiceAudioDraftsRef.current];
+          setIsVoiceAudioDraftReady(true);
+          console.error('No se pudo enviar el audio a Botpress:', error);
+          updateConversationMessages(conversationId, {
+            sender: 'ai',
+            text: `No pude enviar el audio a Botpress: ${error.message || 'error desconocido'}`,
+            engine: 'Botpress',
+            persona: provider,
+            error: true
+          });
+        } finally {
+          setIsTyping(false);
         }
       };
 
@@ -12737,7 +12696,7 @@
               ].map((p) => (
                 <button
                   key={p.name}
-                  disabled={isRecordingVoice || isTranscribingVoice || isSendingBotpressVoiceDraft}
+                  disabled={isRecordingVoice || isSendingBotpressVoiceDraft}
                   onClick={() => selectProvider(p.name)}
                   aria-label={p.name === 'Botpress' ? 'Abrir asistente Botpress' : `Seleccionar ${p.name}`}
                   className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${provider === p.name ? 'bg-brand text-white' : 'bg-white border border-gray-200 text-gray-600'}`}
@@ -12804,8 +12763,8 @@
                       <button
                         type="button"
                         onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
-                        disabled={isTranscribingVoice || isSendingBotpressVoiceDraft}
-                        aria-label={isRecordingVoice ? 'Detener grabación y revisar la transcripción' : 'Dictar consulta para Botpress'}
+                        disabled={isSendingBotpressVoiceDraft}
+                        aria-label={isRecordingVoice ? 'Detener grabación' : 'Grabar consulta para Botpress'}
                         title={isRecordingVoice ? 'Detener y revisar' : 'Dictar consulta'}
                         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
                       >
@@ -12814,33 +12773,25 @@
                       <div className="min-w-0">
                         {isRecordingVoice ? (
                           <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · máximo 60 segundos</p>
-                        ) : isTranscribingVoice ? (
-                          <p role="status" className="text-[10px] font-semibold text-brand">Reconociendo voz…</p>
+                        ) : isSendingBotpressVoiceDraft ? (
+                          <p role="status" className="text-[10px] font-semibold text-brand">Enviando audio a Botpress…</p>
+                        ) : isVoiceAudioDraftReady ? (
+                          <p role="status" className="text-[10px] font-semibold text-dark">Audio listo para enviar a Botpress.</p>
                         ) : (
-                          <p className="text-[10px] font-semibold text-dark">Dicta tu consulta y revisa el texto antes de enviarlo.</p>
+                          <p className="text-[10px] font-semibold text-dark">Graba tu consulta para enviarla a Botpress.</p>
                         )}
-                        <p className="text-[9px] leading-relaxed text-gray-500">El navegador transcribe la voz; al enviar, Botpress recibe el audio y el texto.</p>
+                        <p className="text-[9px] leading-relaxed text-gray-500">La transcripción requiere que el flujo de voz esté configurado en Botpress.</p>
                       </div>
                     </div>
-                    {botpressVoiceDraft && (
-                      <div className="space-y-2">
-                        <textarea
-                          value={botpressVoiceDraft}
-                          onChange={(event) => setBotpressVoiceDraft(event.target.value)}
-                          maxLength={1500}
-                          rows={3}
-                          aria-label="Revisar transcripción para Botpress"
-                          className="w-full resize-y rounded-xl border border-cream bg-cream/40 p-2.5 text-xs text-dark focus:border-brand focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={sendBotpressVoiceDraft}
-                          disabled={!botpressVoiceDraft.trim() || isTranscribingVoice || isSendingBotpressVoiceDraft}
-                          className="w-full rounded-full bg-brand px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {isSendingBotpressVoiceDraft ? 'Enviando…' : 'Enviar consulta a Botpress'}
-                        </button>
-                      </div>
+                    {isVoiceAudioDraftReady && (
+                      <button
+                        type="button"
+                        onClick={sendBotpressVoiceDraft}
+                        disabled={isSendingBotpressVoiceDraft}
+                        className="w-full rounded-full bg-brand px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isSendingBotpressVoiceDraft ? 'Enviando audio…' : 'Enviar audio a Botpress'}
+                      </button>
                     )}
                     {voiceError && <p role="alert" className="text-[10px] text-red-700">{voiceError}</p>}
                   </div>
@@ -12990,8 +12941,8 @@
                   <button
                     type="button"
                     onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
-                    disabled={isTyping || isTranscribingVoice}
-                    aria-label={isRecordingVoice ? 'Detener grabación y revisar la transcripción' : 'Dictar consulta por micrófono'}
+                    disabled={isTyping || isSendingBotpressVoiceDraft}
+                    aria-label={isRecordingVoice ? 'Detener grabación' : 'Grabar consulta por micrófono'}
                     title={isRecordingVoice ? 'Detener y revisar' : 'Dictar consulta'}
                     className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
                   >
@@ -13000,7 +12951,7 @@
                   <button
                     type="button"
                     onClick={() => handleSend()}
-                    disabled={!input.trim() || isTyping || isRecordingVoice || isTranscribingVoice}
+                    disabled={!input.trim() || isTyping || isRecordingVoice || isSendingBotpressVoiceDraft}
                     aria-label="Enviar mensaje"
                     className="w-9 h-9 bg-cream rounded-full flex items-center justify-center text-dark font-bold hover:bg-yellow-accent transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -13008,10 +12959,19 @@
                   </button>
                 </div>
                 <p className="pt-1 text-[9px] leading-relaxed text-gray-500">
-                  Dicta hasta 60 segundos. Revisa el borrador; al enviarlo, Botpress recibirá el audio y el texto.
+                  Graba hasta 60 segundos. La transcripción requiere que el flujo de voz esté configurado en Botpress.
                 </p>
-                {isRecordingVoice && <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · pulsa el micrófono para transcribir</p>}
-                {isTranscribingVoice && <p role="status" className="text-[10px] font-semibold text-brand">Reconociendo voz…</p>}
+                {isRecordingVoice && <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · pulsa el micrófono para terminar</p>}
+                {isVoiceAudioDraftReady && (
+                  <button
+                    type="button"
+                    onClick={sendVoiceAudioDraft}
+                    disabled={isTyping || isSendingBotpressVoiceDraft}
+                    className="w-full rounded-full bg-brand px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isTyping ? 'Enviando audio a Botpress…' : 'Enviar audio a Botpress'}
+                  </button>
+                )}
                 {voiceError && <p role="alert" className="text-[10px] text-red-700">{voiceError}</p>}
               </>
             )}

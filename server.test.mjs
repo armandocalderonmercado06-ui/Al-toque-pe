@@ -2397,14 +2397,15 @@ test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => 
   assert.equal(riderSupport.handoff, null);
 });
 
-test('sends voice audio and its transcript to Botpress without the OpenAI transcription endpoint', async () => {
+test('sends recorded voice audio to Botpress for Botpress-side transcription', async () => {
   const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
 
-  assert.match(html, /recognition\.lang = 'es-PE'/);
-  assert.match(html, /type: 'altoque_voice_message',[\s\S]*?transcript,[\s\S]*?audioClips/);
-  assert.match(html, /await sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, question, searchProvider\)/);
-  assert.match(html, /await sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, text, 'Botpress'\)/);
-  assert.doesNotMatch(html, /\/api\/transcribe|Transcribiendo con OpenAI|El audio se envía a OpenAI/);
+  assert.match(html, /type: 'custom',\s*payload: \{\s*type: 'altoque_voice_message'/);
+  assert.match(html, /transcript: transcript\.trim\(\),[\s\S]*?audioClips/);
+  assert.match(html, /await sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, '', 'Botpress'\)/);
+  assert.match(html, /if \(voiceAudioDrafts\.length\) \{\s*await sendBotpressVoiceAudio/);
+  assert.match(html, /getUserMedia[\s\S]*?new window\.MediaRecorder/);
+  assert.doesNotMatch(html, /SpeechRecognition|\/api\/transcribe|Transcribiendo con OpenAI|El audio se envía a OpenAI/);
 });
 
 test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {
