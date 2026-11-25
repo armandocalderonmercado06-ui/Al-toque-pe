@@ -2408,17 +2408,20 @@ test('routes ChatGPT and Gemini voice recordings through Botpress transcription'
   assert.doesNotMatch(html, /SpeechRecognition|\/api\/transcribe|Transcribiendo con OpenAI|El audio se envía a OpenAI/);
 });
 
-test('records Botpress voice locally and sends it through the audio trigger', async () => {
+test('auto-sends the Botpress native dictation transcript into the conversation', async () => {
   const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
 
-  assert.match(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*none !important;/);
+  assert.match(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*contents !important;/);
+  assert.match(html, /\.bpComposerVoiceButton\[data-listens="true"\]\s*\{/);
   assert.match(html, /\.bpComposerToolbar > div:last-child\s*\{[\s\S]*?display:\s*flex !important;/);
   assert.match(html, /\.bpComposerSendButton\s*\{[\s\S]*?transform:\s*none !important;/);
-  assert.match(html, /grid-template-columns: minmax\(0, 1fr\) 40px !important/);
-  assert.match(html, /aria-label=\{isRecordingVoice \? 'Detener grabación de Botpress' : 'Grabar audio para enviar a Botpress'\}/);
-  assert.match(html, /aria-label="Enviar audio a Botpress"/);
-  assert.match(html, /onClick=\{sendBotpressVoiceDraft\}/);
-  assert.match(html, /sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, '', 'Botpress'\)/);
+  assert.match(html, /grid-template-columns: minmax\(0, 1fr\) 40px 40px !important/);
+  assert.match(html, /aria-label', 'Dictar consulta en español'/);
+  assert.match(html, /voiceButton\.getAttribute\('data-listens'\) === 'true'/);
+  assert.match(html, /transcript !== previousComposerText && sendButton && !sendButton\.disabled/);
+  assert.match(html, /sendButton\.click\(\)/);
+  assert.match(html, /Transcripción enviada a Botpress/);
+  assert.doesNotMatch(html, /sendBotpressVoiceDraft|Grabar audio para enviar a Botpress/);
 });
 
 test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {

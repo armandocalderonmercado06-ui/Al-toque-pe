@@ -172,7 +172,7 @@
           }
           .bpComposerContainer {
             display: grid !important;
-            grid-template-columns: minmax(0, 1fr) 40px !important;
+            grid-template-columns: minmax(0, 1fr) 40px 40px !important;
             align-items: center !important;
             gap: 9px !important;
             margin: 0 !important;
@@ -214,15 +214,38 @@
             padding: 0 !important;
           }
           .bpComposerToolbarIcons {
-            display: none !important;
+            display: contents !important;
             padding: 0 !important;
           }
           .bpComposerUploadButton,
           .bpComposerEmojiPickerContainer {
             display: none !important;
           }
-          .bpComposerToolbar > div:last-child {
+          .bpComposerToolbarIcons > div:last-child {
             grid-column: 2 !important;
+            grid-row: 1 !important;
+            display: flex !important;
+            width: 40px !important;
+            height: 40px !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          .bpComposerVoiceButton {
+            box-sizing: border-box !important;
+            width: 40px !important;
+            height: 40px !important;
+            padding: 10px !important;
+            border-radius: 999px !important;
+            background: #fff2ce !important;
+            color: #2b1718 !important;
+            cursor: pointer !important;
+          }
+          .bpComposerVoiceButton[data-listens="true"] {
+            background: #a50f2d !important;
+            color: #fff !important;
+          }
+          .bpComposerToolbar > div:last-child {
+            grid-column: 3 !important;
             grid-row: 1 !important;
             display: flex !important;
             width: 40px !important;
@@ -11421,6 +11444,98 @@
       }, [provider]);
 
       useEffect(() => {
+        if (provider !== 'Botpress' || isBotpressArchive) {
+          setBotpressVoiceStatus('');
+          return undefined;
+        }
+
+        let shadowRoot;
+        let rootObserver;
+        let voiceObserver;
+        let retryTimer;
+        let sendTimer;
+        let observedVoiceButton = null;
+        let wasListening = false;
+        let pendingTranscript = false;
+        let previousComposerText = '';
+        let transcriptDeadline = 0;
+
+        const sendTranscriptWhenReady = () => {
+          window.clearTimeout(sendTimer);
+          const attemptSend = () => {
+            if (!pendingTranscript) return;
+            const input = shadowRoot.querySelector('.bpComposerInput');
+            const sendButton = shadowRoot.querySelector('.bpComposerSendButton');
+            const transcript = input?.value?.trim() || '';
+            if (transcript && transcript !== previousComposerText && sendButton && !sendButton.disabled) {
+              pendingTranscript = false;
+              sendButton.click();
+              setBotpressVoiceStatus('Transcripción enviada a Botpress.');
+              return;
+            }
+            if (Date.now() >= transcriptDeadline) {
+              pendingTranscript = false;
+              setBotpressVoiceStatus('No se detectó una transcripción. Intenta hablar de nuevo.');
+              return;
+            }
+            sendTimer = window.setTimeout(attemptSend, 150);
+          };
+          sendTimer = window.setTimeout(attemptSend, 400);
+        };
+
+        const attachVoiceObserver = () => {
+          const voiceButton = shadowRoot.querySelector('.bpComposerVoiceButton');
+          if (!voiceButton || voiceButton === observedVoiceButton) return;
+          voiceObserver?.disconnect();
+          observedVoiceButton = voiceButton;
+          voiceButton.setAttribute('aria-label', 'Dictar consulta en español');
+          voiceButton.setAttribute('title', 'Dictar consulta en español');
+          voiceObserver = new MutationObserver(() => {
+            const isListening = voiceButton.getAttribute('data-listens') === 'true';
+            if (isListening && !wasListening) {
+              wasListening = true;
+              pendingTranscript = false;
+              window.clearTimeout(sendTimer);
+              previousComposerText = shadowRoot.querySelector('.bpComposerInput')?.value?.trim() || '';
+              setBotpressVoiceStatus('Escuchando…');
+            } else if (!isListening && wasListening) {
+              wasListening = false;
+              pendingTranscript = true;
+              transcriptDeadline = Date.now() + 8000;
+              setBotpressVoiceStatus('Preparando transcripción…');
+              sendTranscriptWhenReady();
+            }
+          });
+          voiceObserver.observe(voiceButton, { attributes: true, attributeFilter: ['data-listens'] });
+        };
+
+        const handleComposerInput = () => {
+          if (pendingTranscript) sendTranscriptWhenReady();
+        };
+
+        const attachRoot = () => {
+          shadowRoot = document.getElementById('fab-root')?.shadowRoot;
+          if (!shadowRoot) {
+            retryTimer = window.setTimeout(attachRoot, 250);
+            return;
+          }
+          rootObserver = new MutationObserver(attachVoiceObserver);
+          rootObserver.observe(shadowRoot, { childList: true, subtree: true });
+          shadowRoot.addEventListener('input', handleComposerInput, true);
+          attachVoiceObserver();
+        };
+
+        attachRoot();
+        return () => {
+          window.clearTimeout(retryTimer);
+          window.clearTimeout(sendTimer);
+          rootObserver?.disconnect();
+          voiceObserver?.disconnect();
+          shadowRoot?.removeEventListener('input', handleComposerInput, true);
+        };
+      }, [provider, isBotpressArchive]);
+
+      useEffect(() => {
         const timer = setInterval(() => {
           setBrandSloganIndex((index) => (index + 1) % AI_BRAND_SLOGANS.length);
           setClockStyleIndex((index) => (index + 1) % 4);
@@ -12402,34 +12517,6 @@
         }
       };
 
-      const sendBotpressVoiceDraft = async () => {
-        const botpress = window.botpress;
-        const conversationId = botpress?.conversationId || '';
-        const voiceAudioDrafts = takeVoiceAudioDrafts('Botpress', conversationId);
-        if (!voiceAudioDrafts.length) {
-          setVoiceError('Graba un mensaje de voz antes de enviarlo.');
-          setIsVoiceAudioDraftReady(false);
-          return;
-        }
-        setVoiceError('');
-        setBotpressVoiceStatus('');
-        setIsTyping(true);
-        try {
-          await sendBotpressVoiceAudio(botpress, voiceAudioDrafts, '', 'Botpress');
-          setIsVoiceAudioDraftReady(voiceAudioDraftsRef.current.some((draft) => (
-            draft.provider === 'Botpress' && draft.conversationId === conversationId
-          )));
-          setBotpressVoiceStatus('Audio enviado a Botpress.');
-        } catch (error) {
-          voiceAudioDraftsRef.current = [...voiceAudioDrafts, ...voiceAudioDraftsRef.current];
-          setIsVoiceAudioDraftReady(true);
-          setVoiceError(`No se pudo enviar el audio a Botpress: ${error.message || 'error desconocido'}`);
-          console.error('No se pudo enviar el audio a Botpress:', error);
-        } finally {
-          setIsTyping(false);
-        }
-      };
-
       const sendVoiceAudioDraft = async () => {
         const conversationId = activeConversationId;
         const voiceAudioDrafts = takeVoiceAudioDrafts(provider, conversationId);
@@ -12759,42 +12846,8 @@
                     )}
                   </div>
                 )}
-                {!isBotpressArchive && (
-                  <div className="space-y-2 px-3 pb-3">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
-                        disabled={isTyping}
-                        aria-label={isRecordingVoice ? 'Detener grabación de Botpress' : 'Grabar audio para enviar a Botpress'}
-                        title={isRecordingVoice ? 'Detener grabación' : 'Grabar audio para Botpress'}
-                        className={`flex h-10 w-10 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
-                      >
-                        <i data-lucide={isRecordingVoice ? 'square' : 'mic'} className="h-4 w-4"></i>
-                      </button>
-                      {isVoiceAudioDraftReady && (
-                        <button
-                          type="button"
-                          onClick={sendBotpressVoiceDraft}
-                          disabled={isTyping}
-                          aria-label="Enviar audio a Botpress"
-                          title="Enviar audio a Botpress"
-                          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <i data-lucide="arrow-up" className="h-4 w-4"></i>
-                        </button>
-                      )}
-                    </div>
-                    {isRecordingVoice && (
-                      <p role="status" className="text-center text-[10px] font-semibold text-red-700">
-                        Grabando audio · pulsa el micrófono otra vez para terminar
-                      </p>
-                    )}
-                    {isTyping && <p role="status" className="text-center text-[10px] text-gray-600">Enviando audio a Botpress…</p>}
-                    {isVoiceAudioDraftReady && !isTyping && <p className="text-center text-[10px] text-gray-600">Audio listo · pulsa la flecha para enviarlo</p>}
-                    {botpressVoiceStatus && <p role="status" className="text-center text-[10px] text-green-700">{botpressVoiceStatus}</p>}
-                    {voiceError && <p role="alert" className="text-center text-[10px] text-red-700">{voiceError}</p>}
-                  </div>
+                {!isBotpressArchive && botpressVoiceStatus && (
+                  <p role="status" className="px-3 pb-3 text-center text-[10px] text-gray-600">{botpressVoiceStatus}</p>
                 )}
               </>
             ) : (
