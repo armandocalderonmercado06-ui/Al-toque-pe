@@ -172,7 +172,7 @@
           }
           .bpComposerContainer {
             display: grid !important;
-            grid-template-columns: minmax(0, 1fr) 40px !important;
+            grid-template-columns: 40px minmax(0, 1fr) 40px !important;
             align-items: center !important;
             gap: 9px !important;
             margin: 0 !important;
@@ -184,7 +184,7 @@
             box-shadow: none !important;
           }
           .bpComposerInputContainer {
-            grid-column: 1 !important;
+            grid-column: 2 !important;
             grid-row: 1 !important;
             min-height: 42px !important;
             align-items: center !important;
@@ -222,10 +222,45 @@
             display: none !important;
           }
           .bpComposerToolbarIcons > div:last-child {
+            grid-column: 1 !important;
+            grid-row: 1 !important;
+            display: flex !important;
+            width: 40px !important;
+            height: 40px !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          .bpComposerVoiceButton {
             display: none !important;
           }
+          [data-deepgram-voice-button] {
+            display: flex !important;
+            box-sizing: border-box !important;
+            width: 40px !important;
+            height: 40px !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 10px !important;
+            border: 0 !important;
+            border-radius: 999px !important;
+            background: #fff2ce !important;
+            color: #2b1718 !important;
+            cursor: pointer !important;
+          }
+          [data-deepgram-voice-button] > svg {
+            width: 20px !important;
+            height: 20px !important;
+          }
+          [data-deepgram-voice-button]:disabled {
+            cursor: not-allowed !important;
+            opacity: 0.5 !important;
+          }
+          [data-deepgram-voice-button][aria-pressed="true"] {
+            background: #a50f2d !important;
+            color: #fff !important;
+          }
           .bpComposerToolbar > div:last-child {
-            grid-column: 2 !important;
+            grid-column: 3 !important;
             grid-row: 1 !important;
             display: flex !important;
             width: 40px !important;
@@ -11382,6 +11417,7 @@
       return (
         <button
           type="button"
+          data-deepgram-voice-button=""
           onClick={isRecording ? stopRecording : startRecording}
           disabled={(disabled && !isRecording) || isStarting || isFinalizing}
           aria-label={buttonLabel}
@@ -11524,6 +11560,7 @@
       const [isVoiceAudioDraftReady, setIsVoiceAudioDraftReady] = useState(false);
       const [voiceError, setVoiceError] = useState('');
       const [voiceFeedback, setVoiceFeedback] = useState({ status: '', transcript: '', error: '' });
+      const [botpressVoiceTarget, setBotpressVoiceTarget] = useState(null);
       const [budgetAmount, setBudgetAmount] = useState(15);
       const [isBudgetPickerOpen, setIsBudgetPickerOpen] = useState(false);
       const [budgetPickerAmount, setBudgetPickerAmount] = useState(15);
@@ -11587,6 +11624,7 @@
 
       useEffect(() => {
         if (provider !== 'Botpress') {
+          setBotpressVoiceTarget(null);
           window.botpress?.close?.();
           return undefined;
         }
@@ -11708,6 +11746,8 @@
             retryTimer = window.setTimeout(attachBotpress, 250);
             return;
           }
+          const voiceTarget = root.querySelector('.bpComposerVoiceButton')?.parentElement || null;
+          setBotpressVoiceTarget((currentTarget) => currentTarget === voiceTarget ? currentTarget : voiceTarget);
           if (webchat !== observedWidget) {
             widgetStyleObserver?.disconnect();
             observedWidget = webchat;
@@ -13104,11 +13144,9 @@
                     )}
                   </div>
                 )}
-                {!isBotpressArchive && (
-                  <div className="flex items-center justify-center gap-2 px-3 pb-3">
-                    {voiceButton}
-                    <span className="text-[10px] text-gray-600">Dicta tu consulta en español</span>
-                  </div>
+                {!isBotpressArchive && botpressVoiceTarget && ReactDOM.createPortal(
+                  voiceButton,
+                  botpressVoiceTarget
                 )}
               </>
             ) : (
