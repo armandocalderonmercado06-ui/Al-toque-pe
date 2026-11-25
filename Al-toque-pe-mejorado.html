@@ -901,7 +901,6 @@
       top: 50%;
       z-index: 2;
       transform: translateY(-50%);
-      mix-blend-mode: multiply;
       animation: yapeGloboFloat 2.8s ease-in-out infinite;
     }
     @keyframes yapeGloboFloat {
@@ -15575,7 +15574,7 @@
                     >
                       {['yape', 'plin', 'tarjeta'].includes(method.id) ? (
                         <img
-                          src={method.id === 'yape' ? 'https://raw.githubusercontent.com/armandoteofilocalderonmercado-lgtm/Al-toque-pe-Tablet-/main/yape-globo.jpg' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjetas-bancos.png?v=3'}
+                          src={method.id === 'yape' ? 'yape-globo.png?v=1' : method.id === 'plin' ? 'plin-globo.png?v=1' : 'tarjetas-bancos.png?v=3'}
                           alt=""
                           aria-hidden="true"
                           className="payment-globe-art"
