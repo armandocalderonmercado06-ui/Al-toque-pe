@@ -2408,16 +2408,20 @@ test('routes ChatGPT and Gemini voice recordings through Botpress transcription'
   assert.doesNotMatch(html, /SpeechRecognition|\/api\/transcribe|Transcribiendo con OpenAI|El audio se envía a OpenAI/);
 });
 
-test('shows Botpress native dictation in its composer', async () => {
+test('records Botpress voice locally and sends it through the audio trigger', async () => {
   const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
 
   assert.match(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*contents !important;/);
   assert.match(html, /\.bpComposerVoiceButton\s*\{/);
+  assert.match(html, /\.bpComposerVoiceButton\[data-altoque-recording="true"\]/);
   assert.match(html, /\.bpComposerToolbar > div:last-child\s*\{[\s\S]*?display:\s*flex !important;/);
   assert.match(html, /\.bpComposerSendButton\s*\{[\s\S]*?transform:\s*none !important;/);
   assert.match(html, /grid-template-columns: minmax\(0, 1fr\) 40px 40px !important/);
   assert.doesNotMatch(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*none/);
-  assert.doesNotMatch(html, /Graba tu consulta para enviarla a Botpress/);
+  assert.match(html, /event\.stopImmediatePropagation\(\);[\s\S]*?botpressVoiceActionRef\.current\?\.\(\)/);
+  assert.match(html, /aria-label', 'Grabar audio para enviar a Botpress'/);
+  assert.match(html, /onClick=\{sendBotpressVoiceDraft\}/);
+  assert.match(html, /sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, '', 'Botpress'\)/);
 });
 
 test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {
