@@ -2297,7 +2297,8 @@ test('answers simple menu questions locally without requesting web search', () =
   assert.equal(getLocalMenuAnswer('Quiero una bebida').intent, 'bebidas');
   assert.equal(getLocalMenuAnswer('Quiero un plato para almorzar').intent, 'comida');
   assert.equal(getLocalMenuAnswer('¿Qué ingredientes lleva el lomo saltado?'), null);
-  assert.equal(shouldUseWebSearch('¿Qué ingredientes lleva el lomo saltado?'), true);
+  assert.equal(shouldUseWebSearch('¿Qué ingredientes lleva el lomo saltado?'), false);
+  assert.equal(shouldUseWebSearch('¿Cuántos gramos de proteína tiene el lomo saltado?'), true);
 });
 
 test('reserves web search for current or complex questions', () => {
@@ -2308,26 +2309,34 @@ test('reserves web search for current or complex questions', () => {
   assert.equal(shouldUseWebSearch('¿Qué incluye el Combo Fitness?'), false);
   assert.equal(shouldUseWebSearch('¿Qué bebidas ofrecen hoy?'), false);
   assert.equal(shouldUseWebSearch('¿Cuánto cuesta el lomo saltado hoy?'), false);
+  assert.equal(shouldUseWebSearch('¿Hay stock del lomo saltado hoy?'), false);
+  assert.equal(shouldUseWebSearch('¿Cuál es el horario del comedor?'), false);
+  assert.equal(shouldUseWebSearch('Busca en internet información actual sobre el tipo de cambio'), true);
   assert.equal(getLocalMenuAnswer('¿Cuál es el origen histórico del ceviche?'), null);
   assert.equal(shouldUseWebSearch('¿Cuál es el origen histórico del ceviche?'), true);
 });
 
 test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => {
-  const expectedHandoff = {
-    reply: '',
-    sources: [],
-    intent: 'ninguna',
-    dishId: null,
-    webSearchUsed: true,
-    handoffToBotpress: true,
-    engine: 'Botpress Web Search'
-  };
   for (const provider of ['ChatGPT', 'Gemini']) {
-    for (const text of ['Hola', '¿Qué noticias hay hoy?', '¿Cuál es el precio del dólar hoy en Perú?']) {
+    for (const [text, webSearchUsed, engine] of [
+      ['Hola', false, 'Botpress'],
+      ['¿Qué noticias hay hoy?', true, 'Botpress Web Search'],
+      ['¿Cuál es el precio del dólar hoy en Perú?', true, 'Botpress Web Search'],
+      ['¿Qué ingredientes lleva el lomo saltado?', false, 'Botpress'],
+      ['¿Cuánta proteína tiene el lomo saltado?', true, 'Botpress Web Search']
+    ]) {
       const plan = createWebSearchPlan(provider, 'menu', text);
-      assert.equal(plan.webSearch, true);
+      assert.equal(plan.webSearch, webSearchUsed);
       assert.equal(plan.openAIWebSearch, false);
-      assert.deepEqual(plan.handoff, expectedHandoff);
+      assert.deepEqual(plan.handoff, {
+        reply: '',
+        sources: [],
+        intent: 'ninguna',
+        dishId: null,
+        webSearchUsed,
+        handoffToBotpress: true,
+        engine
+      });
     }
   }
 
@@ -2343,22 +2352,21 @@ test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => 
 });
 
 test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {
-  const page = await readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8');
+  const [page, serverSource] = await Promise.all([
+    readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
+    readFile(join(process.cwd(), 'server.mjs'), 'utf8')
+  ]);
+  const handoffIndex = serverSource.indexOf("if (assistantMode === 'menu' && (provider === 'ChatGPT' || provider === 'Gemini')) {");
+  const localMenuIndex = serverSource.indexOf("const localAnswer = assistantMode === 'menu' ? getLocalMenuAnswer(text) : null;");
+  assert.ok(handoffIndex >= 0 && localMenuIndex > handoffIndex);
   assert.match(page, /storageKey: 'altoque-\$\{searchProvider\.toLowerCase\(\)\}-\$\{conversationId\}-web-search-v1'/);
-  assert.match(page, /Busca en internet con la herramienta web de Botpress antes de responder preguntas sobre ingredientes/);
-  assert.match(page, /ofrece sus ingredientes como referencia general/);
-  assert.match(page, /no digas que vas a derivarla al equipo/);
-  assert.match(page, /No confirmes que un producto es apto para alergias con información incompleta/);
-  assert.match(page, /const getBotpressMenuKnowledge = \(question,\s*includeFollowUpProduct = false\) =>/);
-  assert.match(page, /STARBUCKS_FOOD_PRODUCTS\.map/);
-  assert.match(page, /STARBUCKS_PACK_PRODUCTS\.map/);
-  assert.match(page, /BEMBOS_PROMOTIONS\.map/);
-  assert.match(page, /Productos coincidentes del catálogo de la app/);
-  assert.match(page, /const ingredientFollowUp = isIngredientFollowUp/);
-  assert.match(page, /const ingredientReferenceAnswer = getMenuIngredientReferenceAnswer/);
-  assert.match(page, /if \(ingredientReferenceAnswer\) \{/);
-  assert.match(page, /getBotpressMenuKnowledge\(text,\s*ingredientFollowUp\)/);
-  assert.match(page, /askBotpressWebSearch\(\s*ingredientFollowUp/);
+  assert.match(page, /consulta siempre menu_al_toque como única fuente/);
+  assert.match(page, /No uses Web Search para esta consulta/);
+  assert.match(page, /utiliza menu_al_toque si pregunta por datos del menú/);
+  assert.match(page, /Agrega «Fuentes» al final con enlaces directos completos a un máximo de 3 páginas/);
+  assert.match(page, /const sourcesSection = webSearchRequested[\s\S]*Fuentes/);
+  assert.match(page, /\.slice\(0, 3\)/);
+  assert.doesNotMatch(page, /getBotpressMenuKnowledge|getMenuIngredientReferenceAnswer|MENU_INGREDIENT_REFERENCES|Productos coincidentes del catálogo de la app/);
   assert.match(page, /const resetResponseTimer = \(\) => \{/);
   assert.match(page, /pending\?\.messages\.length/);
   assert.match(page, /\}, 90000\)/);
@@ -2388,82 +2396,7 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.doesNotMatch(page, /buildLocalFallback/);
 });
 
-test('matches ingredient questions to menu products and includes their evidence for Botpress', async () => {
-  const page = await readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8');
-  const start = page.indexOf('const normalizeMenuKnowledgeText =');
-  const end = page.indexOf('const SPLASH_THEME_VARIANTS =', start);
-  assert.notEqual(start, -1);
-  assert.notEqual(end, -1);
-
-  const context = {
-    INITIAL_MENU: [{
-      id: '1',
-      name: 'Lomo saltado',
-      category: 'menús',
-      description: 'Arroz y ensalada fresca',
-      components: ['Lomo saltado', 'Arroz', 'Ensalada fresca']
-    }],
-    BEMBOS_PROMOTIONS: [{
-      name: 'Promo Doble Queso Tocino',
-      category: 'personales',
-      description: '1 Doble queso tocino regular, 1 papa regular y gaseosa personal'
-    }],
-    STARBUCKS_PRODUCTS: [],
-    STARBUCKS_FOOD_PRODUCTS: [{
-      name: 'Keke de Limón',
-      menuCategory: 'Pastries'
-    }],
-    STARBUCKS_PACK_PRODUCTS: [],
-    STARBUCKS_MERCH_PRODUCTS: [{
-      name: 'Espresso 250 gr.',
-      menuCategory: 'Café en Grano',
-      description: 'Café en grano • 250 gr.'
-    }, {
-      name: 'Bearista Bear Llama',
-      menuCategory: 'Merch',
-      description: 'Merch Starbucks'
-    }],
-    STARBUCKS_UPCOMING_PROMOTIONS: []
-  };
-  vm.runInNewContext(`${page.slice(start, end)}\nglobalThis.getBotpressMenuKnowledge = getBotpressMenuKnowledge;\nglobalThis.isIngredientFollowUp = isIngredientFollowUp;\nglobalThis.getMenuIngredientReferenceAnswer = getMenuIngredientReferenceAnswer;`, context);
-
-  const lomoKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes lleva el lomo saltado?');
-  assert.equal(lomoKnowledge.length, 1);
-  assert.deepEqual(Array.from(lomoKnowledge[0].listedComponents), ['Lomo saltado', 'Arroz', 'Ensalada fresca']);
-  assert.deepEqual(Array.from(lomoKnowledge[0].ingredientReference.ingredients).slice(0, 3), ['carne de res', 'cebolla roja', 'ajo']);
-  assert.equal(lomoKnowledge[0].ingredientReference.source.url, 'https://www.recetasnestle.com.pe/recetas/lomo-saltado');
-  assert.match(lomoKnowledge[0].ingredientReference.note, /no confirma la formulación específica de Al Toque/);
-  assert.equal(lomoKnowledge[0].sourceUrl, null);
-  const ingredientFollowUp = [
-    { sender: 'user', text: '¿Qué ingredientes lleva?' },
-    { sender: 'ai', text: '¿De qué plato quieres saber los ingredientes?' }
-  ];
-  assert.equal(context.isIngredientFollowUp(ingredientFollowUp), true);
-  assert.equal(context.getBotpressMenuKnowledge('lomo saltado', true).length, 1);
-  const referenceAnswer = context.getMenuIngredientReferenceAnswer('los ingredientes del lomo saltado');
-  assert.match(referenceAnswer.reply, /carne de res, cebolla roja, ajo/);
-  assert.match(referenceAnswer.reply, /no confirma la formulación específica de Al Toque/);
-  assert.equal(referenceAnswer.sources[0].url, 'https://www.recetasnestle.com.pe/recetas/lomo-saltado');
-  assert.equal(context.getMenuIngredientReferenceAnswer('¿El lomo saltado tiene alérgenos?'), null);
-  assert.equal(context.getMenuIngredientReferenceAnswer('lomo saltado', true).sources[0].url, 'https://www.recetasnestle.com.pe/recetas/lomo-saltado');
-  assert.equal(context.isIngredientFollowUp([
-    ...ingredientFollowUp.slice(0, 1),
-    { sender: 'ai', text: 'Voy a revisar la información.' }
-  ]), false);
-
-  const bembosKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes tiene la Promo Doble Queso Tocino?');
-  assert.equal(bembosKnowledge[0].sourceUrl, 'https://www.bembos.com.pe/menu/promociones');
-  assert.match(bembosKnowledge[0].menuDescription, /queso tocino/i);
-
-  const starbucksKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes lleva el Keke de Limón?');
-  assert.equal(starbucksKnowledge[0].sourceUrl, 'https://www.starbucks.pe/menu/alimentos');
-  const coffeeKnowledge = context.getBotpressMenuKnowledge('¿Qué ingredientes tiene Espresso 250 gr.?');
-  assert.deepEqual(Array.from(coffeeKnowledge[0].listedComponents), ['Café en grano']);
-  assert.equal(context.getBotpressMenuKnowledge('¿Qué ingredientes tiene Bearista Bear Llama?').length, 0);
-  assert.equal(context.getBotpressMenuKnowledge('Hola, ¿cómo estás?').length, 0);
-});
-
-test('uses local menu replies for food and Botpress web search for non-food ChatGPT and Gemini questions', async (t) => {
+test('routes ChatGPT and Gemini menu questions to Botpress and searches only when required', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const requestedUrls = [];
   const server = await createReelsTestServer(t, testDataDir, undefined, async (url) => {
@@ -2473,18 +2406,16 @@ test('uses local menu replies for food and Botpress web search for non-food Chat
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
 
   for (const provider of ['ChatGPT', 'Gemini']) {
-    const foodResponse = await fetch(`${baseUrl}/api/chat`, {
+    const menuResponse = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Origin: baseUrl },
       body: JSON.stringify({ provider, text: 'Quiero lomo saltado', history: [], orderHistory: [] })
     });
-    assert.equal(foodResponse.status, 200, await foodResponse.clone().text());
-    const foodPayload = await foodResponse.json();
-    assert.equal(foodPayload.local, true);
-    assert.equal(foodPayload.webSearchUsed, false);
-    assert.equal(foodPayload.dishId, '1');
-    assert.match(foodPayload.reply, /Lomo saltado/);
-    assert.equal(foodPayload.handoffToBotpress, undefined);
+    assert.equal(menuResponse.status, 200, await menuResponse.clone().text());
+    const menuPayload = await menuResponse.json();
+    assert.equal(menuPayload.handoffToBotpress, true);
+    assert.equal(menuPayload.webSearchUsed, false);
+    assert.equal(menuPayload.engine, 'Botpress');
 
     const ingredientsResponse = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
@@ -2494,7 +2425,17 @@ test('uses local menu replies for food and Botpress web search for non-food Chat
     assert.equal(ingredientsResponse.status, 200);
     const ingredientsPayload = await ingredientsResponse.json();
     assert.equal(ingredientsPayload.handoffToBotpress, true);
-    assert.equal(ingredientsPayload.webSearchUsed, true);
+    assert.equal(ingredientsPayload.webSearchUsed, false);
+
+    const nutritionResponse = await fetch(`${baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: baseUrl },
+      body: JSON.stringify({ provider, text: '¿Cuántos gramos de proteína tiene el lomo saltado?', history: [], orderHistory: [] })
+    });
+    assert.equal(nutritionResponse.status, 200);
+    const nutritionPayload = await nutritionResponse.json();
+    assert.equal(nutritionPayload.handoffToBotpress, true);
+    assert.equal(nutritionPayload.webSearchUsed, true);
 
     const response = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
@@ -2523,10 +2464,12 @@ test('keeps server-side assistant personas distinct', () => {
   assert.equal(new Set(personas).size, 3);
   assert.match(getAssistantPersona('Copilot'), /práctico/);
   assert.match(getAssistantPersona('Gemini'), /creativo/);
-  assert.match(getAssistantPersona('ChatGPT'), /criterio de Botpress/);
-  assert.match(getAssistantPersona('Gemini'), /criterio de Botpress/);
+  assert.match(getAssistantPersona('ChatGPT'), /menu_al_toque como única fuente/);
+  assert.match(getAssistantPersona('Gemini'), /menu_al_toque como única fuente/);
   assert.doesNotMatch(getAssistantPersona('Copilot'), /Botpress/);
-  assert.match(getAssistantPersona('Gemini'), /No inventes stock, horarios, estados de pedidos/);
+  assert.match(getAssistantPersona('Gemini'), /no los confirmes/);
+  assert.match(getAssistantPersona('Gemini'), /Combo Herediano/);
+  assert.match(getAssistantPersona('Gemini'), /máximo de 3 páginas/);
 
   const response = 'El Jugo de Maracuyá cuesta S/3.50.';
   const styles = ['ChatGPT', 'Copilot', 'Gemini'].map((provider) => styleLocalAnswer(response, provider));

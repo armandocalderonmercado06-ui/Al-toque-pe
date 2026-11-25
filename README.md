@@ -8,18 +8,15 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
 - Requiere Node.js 20.6 o posterior.
 - Ejecuta `npm start` y abre `http://localhost:4173`.
 - Copia `.env.example` a `.env` para configurar integraciones opcionales.
-- Las consultas generales de ChatGPT y Gemini usan el Web Search habilitado en
-  el agente publicado de Botpress. Cada perfil y conversación conserva un
-  historial separado. OpenAI sigue disponible para Copilot y otros flujos del
-  servidor.
-- Las consultas de ingredientes envían a Botpress el producto coincidente y los
-  componentes publicados en los catálogos de Al Toque, Bembos y Starbucks.
-  Cuando hay una receta web verificada para el plato, la app responde
-  directamente con su lista y cita la fuente para que Botpress no pueda
-  sustituirla por una derivación. Para lomo saltado usa una receta de referencia
-  de Recetas Nestlé Perú, aclarando que no confirma la formulación de Al Toque.
-  Para otros platos se usa la búsqueda web de Botpress; Bembos y Starbucks
-  priorizan información oficial y no se completan ingredientes no publicados.
+- ChatGPT y Gemini envían todas las consultas de menú a Botpress, donde el
+  agente debe consultar `menu_al_toque` como fuente exclusiva de datos del menú.
+  Los historiales de cada perfil y conversación se mantienen separados.
+- Web Search se solicita para información nutricional ausente en el menú y para
+  preguntas no relacionadas con comida que dependan de información actual o de
+  internet. Las respuestas incluyen hasta tres enlaces devueltos por la búsqueda.
+- Las instrucciones que se envían a las conversaciones de ChatGPT y Gemini
+  también están en el código de la app. Las instrucciones del chat directo de
+  Botpress se administran por separado en el panel de Botpress.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade
