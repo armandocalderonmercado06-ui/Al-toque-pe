@@ -13317,10 +13317,12 @@
       const [isPaymentDemoVideoOpen, setIsPaymentDemoVideoOpen] = useState(false);
       const [paymentDemoVideoSrc, setPaymentDemoVideoSrc] = useState('/visa-payment-demo.mp4');
       const isPortraitPaymentDemoVideo = paymentDemoVideoSrc === '/visa-pago-9x16.mp4'
-        || paymentDemoVideoSrc === '/mastercard-payment-portrait-demo.mp4';
+        || paymentDemoVideoSrc === '/mastercard-payment-portrait-demo.mp4'
+        || paymentDemoVideoSrc === '/amex-payment-portrait-demo.mp4';
       const isMastercardPaymentDemoVideo = paymentDemoVideoSrc === '/mastercard-payment-demo.mp4'
         || paymentDemoVideoSrc === '/mastercard-payment-portrait-demo.mp4';
-      const isAmexPaymentDemoVideo = paymentDemoVideoSrc === '/amex-payment-demo.mp4';
+      const isAmexPaymentDemoVideo = paymentDemoVideoSrc === '/amex-payment-demo.mp4'
+        || paymentDemoVideoSrc === '/amex-payment-portrait-demo.mp4';
       const paymentDemoUsesSeparateSound = paymentDemoVideoSrc === '/visa-payment-demo.mp4'
         || paymentDemoVideoSrc === '/mastercard-payment-demo.mp4'
         || paymentDemoVideoSrc === '/mastercard-payment-portrait-demo.mp4'
@@ -14147,8 +14149,8 @@
           || (cardBrand === 'amex' && isLandscapeVideo);
         const videoSource = cardBrand === 'mastercard'
           ? isLandscapeVideo ? '/mastercard-payment-demo.mp4' : '/mastercard-payment-portrait-demo.mp4'
-          : cardBrand === 'amex' && isLandscapeVideo
-            ? '/amex-payment-demo.mp4'
+          : cardBrand === 'amex'
+            ? isLandscapeVideo ? '/amex-payment-demo.mp4' : '/amex-payment-portrait-demo.mp4'
             : isLandscapeVideo ? '/visa-payment-demo.mp4' : '/visa-pago-9x16.mp4';
         const soundSource = cardBrand === 'mastercard'
           ? '/mastercard-payment-sound.mp3'
@@ -14203,7 +14205,7 @@
         setDemoCardFormNotice('');
         if (selectedCardBrand === 'visa'
           || selectedCardBrand === 'mastercard'
-          || (selectedCardBrand === 'amex' && isLandscapeViewport)) {
+          || selectedCardBrand === 'amex') {
           setOrderSubmitError('');
           startCardPaymentVideo(selectedCardBrand);
           return;
@@ -14808,7 +14810,7 @@
                   aria-label={isMastercardPaymentDemoVideo
                     ? `${isPortraitPaymentDemoVideo ? 'Video vertical' : 'Video horizontal'} de demostración de pago Mastercard`
                     : isAmexPaymentDemoVideo
-                      ? 'Video horizontal de demostración de pago AMEX'
+                      ? `${isPortraitPaymentDemoVideo ? 'Video vertical' : 'Video horizontal'} de demostración de pago AMEX`
                       : isPortraitPaymentDemoVideo
                         ? 'Video vertical de demostración de pago VISA'
                         : 'Video horizontal de demostración de pago VISA'}

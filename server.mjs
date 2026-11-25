@@ -127,6 +127,7 @@ const PUBLIC_ASSETS = new Set([
   'plin-globo.png',
   'tarjetas-bancos.png',
   'amex-payment-demo.mp4',
+  'amex-payment-portrait-demo.mp4',
   'amex-payment-sound.mp3',
   'mastercard-payment-demo.mp4',
   'mastercard-payment-portrait-demo.mp4',

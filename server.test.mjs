@@ -976,13 +976,14 @@ test('offers animated WhatsApp support for the Al Toque help phone number', asyn
 });
 
 test('opens the Al Toque demo checkout from card and keeps transfers pending', async () => {
-  const [html, serverSource, applePayAsset, googlePayAsset, paypalAsset, amexPaymentVideo, amexPaymentSound, mastercardPaymentVideo, mastercardPaymentPortraitVideo, mastercardPaymentSound, visaPaymentVideo, visaPortraitVideo, visaPaymentSound] = await Promise.all([
+  const [html, serverSource, applePayAsset, googlePayAsset, paypalAsset, amexPaymentVideo, amexPaymentPortraitVideo, amexPaymentSound, mastercardPaymentVideo, mastercardPaymentPortraitVideo, mastercardPaymentSound, visaPaymentVideo, visaPortraitVideo, visaPaymentSound] = await Promise.all([
     readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
     readFile(join(process.cwd(), 'server.mjs'), 'utf8'),
     readFile(join(process.cwd(), 'apple-pay-demo.png')),
     readFile(join(process.cwd(), 'google-pay-demo.png')),
     readFile(join(process.cwd(), 'paypal-demo.png')),
     readFile(join(process.cwd(), 'amex-payment-demo.mp4')),
+    readFile(join(process.cwd(), 'amex-payment-portrait-demo.mp4')),
     readFile(join(process.cwd(), 'amex-payment-sound.mp3')),
     readFile(join(process.cwd(), 'mastercard-payment-demo.mp4')),
     readFile(join(process.cwd(), 'mastercard-payment-portrait-demo.mp4')),
@@ -1014,6 +1015,7 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(serverSource, /'google-pay-demo\.png'/);
   assert.match(serverSource, /'paypal-demo\.png'/);
   assert.match(serverSource, /'amex-payment-demo\.mp4'/);
+  assert.match(serverSource, /'amex-payment-portrait-demo\.mp4'/);
   assert.match(serverSource, /'amex-payment-sound\.mp3'/);
   assert.match(serverSource, /'mastercard-payment-demo\.mp4'/);
   assert.match(serverSource, /'mastercard-payment-portrait-demo\.mp4'/);
@@ -1023,6 +1025,8 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(serverSource, /'visa-payment-sound\.mp3'/);
   assert.equal(amexPaymentVideo.subarray(4, 8).toString('ascii'), 'ftyp');
   assert.ok(amexPaymentVideo.toString('latin1').includes('soun'));
+  assert.equal(amexPaymentPortraitVideo.subarray(4, 8).toString('ascii'), 'ftyp');
+  assert.ok(amexPaymentPortraitVideo.toString('latin1').includes('soun'));
   assert.ok(amexPaymentSound.length > 10_000);
   assert.equal(mastercardPaymentVideo.subarray(4, 8).toString('ascii'), 'ftyp');
   assert.ok(mastercardPaymentVideo.toString('latin1').includes('soun'));
@@ -1070,7 +1074,7 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.ok(demoCardPaymentHandler);
   assert.match(demoCardPaymentHandler, /selectedCardBrand === 'visa'/);
   assert.match(demoCardPaymentHandler, /selectedCardBrand === 'mastercard'/);
-  assert.match(demoCardPaymentHandler, /selectedCardBrand === 'amex' && isLandscapeViewport/);
+  assert.match(demoCardPaymentHandler, /selectedCardBrand === 'amex'/);
   assert.match(demoCardPaymentHandler, /startCardPaymentVideo\(selectedCardBrand\)/);
   assert.doesNotMatch(demoCardPaymentHandler, /if \(!isLandscapeViewport\)/);
   assert.match(demoCardPaymentHandler, /handleConfirmOrder\('transferencia'\)/);
@@ -1078,10 +1082,10 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /window\.addEventListener\('orientationchange', updateOrientation\)/);
   assert.match(html, /cardBrand === 'mastercard'\s*\?\s*isLandscapeVideo \? '\/mastercard-payment-demo\.mp4' : '\/mastercard-payment-portrait-demo\.mp4'/);
   assert.match(html, /cardBrand === 'mastercard'\s*\?\s*'\/mastercard-payment-sound\.mp3'/);
-  assert.match(html, /cardBrand === 'amex' && isLandscapeVideo[\s\S]*?'\/amex-payment-demo\.mp4'/);
+  assert.match(html, /cardBrand === 'amex'[\s\S]*?isLandscapeVideo \? '\/amex-payment-demo\.mp4' : '\/amex-payment-portrait-demo\.mp4'/);
   assert.match(html, /cardBrand === 'amex'\s*\?\s*'\/amex-payment-sound\.mp3'/);
   assert.match(html, /isLandscapeVideo \? '\/visa-payment-demo\.mp4' : '\/visa-pago-9x16\.mp4'/);
-  assert.match(html, /paymentDemoVideoSrc === '\/visa-pago-9x16\.mp4'\s*\|\|\s*paymentDemoVideoSrc === '\/mastercard-payment-portrait-demo\.mp4'/);
+  assert.match(html, /paymentDemoVideoSrc === '\/visa-pago-9x16\.mp4'\s*\|\|\s*paymentDemoVideoSrc === '\/mastercard-payment-portrait-demo\.mp4'\s*\|\|\s*paymentDemoVideoSrc === '\/amex-payment-portrait-demo\.mp4'/);
   assert.match(html, /paymentDemoVideoSrc === '\/mastercard-payment-demo\.mp4'\s*\|\|\s*paymentDemoVideoSrc === '\/mastercard-payment-portrait-demo\.mp4'/);
   assert.match(checkout, /src=\{paymentDemoVideoSrc\}/);
   assert.match(checkout, /src=\{paymentDemoSoundSrc\}/);
