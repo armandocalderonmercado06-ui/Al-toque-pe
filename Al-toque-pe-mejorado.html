@@ -11185,9 +11185,12 @@
       const voiceRecorderRef = useRef(null);
       const voiceStreamRef = useRef(null);
       const voiceChunksRef = useRef([]);
+      const voiceRecognitionRef = useRef(null);
+      const voiceRecognitionResultRef = useRef(null);
+      const voiceRecognitionStopRequestedRef = useRef(false);
+      const voiceAudioDraftsRef = useRef([]);
       const voiceStartingRef = useRef(false);
       const voiceRecordingTimerRef = useRef(null);
-      const voiceAbortControllerRef = useRef(null);
       const voiceMountedRef = useRef(true);
       const chatMessagesRef = useRef(null);
       const budgetPickerRef = useRef(null);
@@ -11226,7 +11229,10 @@
         return () => {
           voiceMountedRef.current = false;
           if (voiceRecordingTimerRef.current) window.clearTimeout(voiceRecordingTimerRef.current);
-          voiceAbortControllerRef.current?.abort();
+          voiceRecognitionRef.current?.abort?.();
+          voiceRecognitionRef.current = null;
+          voiceRecognitionResultRef.current = null;
+          voiceAudioDraftsRef.current = [];
           const recorder = voiceRecorderRef.current;
           if (recorder && recorder.state !== 'inactive') {
             recorder.onstop = null;
@@ -11794,7 +11800,55 @@
         botpressWebSearchFramesRef.current.delete(searchKey);
       };
 
-      const askBotpressWebSearch = (question, searchProvider, conversationId, memory, webSearchRequested) => new Promise((resolve, reject) => {
+      const MAX_BOTPRESS_VOICE_AUDIO_BYTES = 700 * 1024;
+      const sendBotpressVoiceAudio = async (botpress, audioDrafts, transcript, sourceProvider) => {
+        if (!audioDrafts.length) return;
+        if (!botpress?.initialized || typeof botpress.sendEvent !== 'function') {
+          throw new Error('Botpress no está listo para recibir el audio y la transcripción.');
+        }
+        const totalAudioBytes = audioDrafts.reduce((total, draft) => total + draft.audio.size, 0);
+        if (totalAudioBytes > MAX_BOTPRESS_VOICE_AUDIO_BYTES) {
+          throw new Error('El audio supera el límite para enviarlo a Botpress. Graba una consulta más corta.');
+        }
+        const audioClips = [];
+        for (const draft of audioDrafts) {
+          const audioBase64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+              const separatorIndex = dataUrl.indexOf(',');
+              if (separatorIndex < 0) {
+                reject(new Error('No se pudo preparar el audio para enviarlo a Botpress.'));
+                return;
+              }
+              resolve(dataUrl.slice(separatorIndex + 1));
+            };
+            reader.onerror = () => reject(new Error('No se pudo leer el audio para enviarlo a Botpress.'));
+            reader.readAsDataURL(draft.audio);
+          });
+          const contentType = draft.audio.type.split(';')[0].trim().toLowerCase();
+          const extension = {
+            'audio/mp4': 'm4a',
+            'audio/ogg': 'ogg',
+            'audio/webm': 'webm'
+          }[contentType] || 'audio';
+          audioClips.push({
+            contentType,
+            fileName: `consulta-${audioClips.length + 1}.${extension}`,
+            spokenText: draft.transcript,
+            audioBase64
+          });
+        }
+        await Promise.resolve(botpress.sendEvent({
+          type: 'altoque_voice_message',
+          version: 1,
+          sourceProvider,
+          transcript,
+          audioClips
+        }));
+      };
+
+      const askBotpressWebSearch = (question, searchProvider, conversationId, memory, webSearchRequested, voiceAudioDrafts = []) => new Promise((resolve, reject) => {
         const searchKey = `${searchProvider}:${conversationId}`;
         const frame = getBotpressWebSearchFrame(searchProvider, conversationId);
         let pollTimer;
@@ -11912,7 +11966,10 @@
               memory ? `Preferencias de conversaciones anteriores de ${searchProvider}:\n${memory}` : '',
               `Consulta: ${question}`
             ].filter(Boolean).join('\n\n');
-            Promise.resolve(botpress.sendMessage(botpressQuestion)).catch((error) => finish(error));
+            Promise.resolve().then(async () => {
+              await sendBotpressVoiceAudio(botpress, voiceAudioDrafts, question, searchProvider);
+              await botpress.sendMessage(botpressQuestion);
+            }).catch((error) => finish(error));
           } catch (error) {
             finish(error);
           }
@@ -11978,6 +12035,8 @@
             }
           }
 
+          voiceAudioDraftsRef.current = voiceAudioDraftsRef.current.filter((draft) => draft.provider !== 'Botpress');
+          setBotpressVoiceDraft('');
           newConversationButton.click();
           const conversationDeadline = Date.now() + 15000;
           let remoteId = '';
@@ -12011,6 +12070,10 @@
 
       const selectProvider = (nextProvider) => {
         if (nextProvider === 'Botpress') {
+          if (nextProvider !== provider) {
+            voiceAudioDraftsRef.current = [];
+            setBotpressVoiceDraft('');
+          }
           botpressArchiveSelectionRef.current = false;
           const remoteConversationId = window.botpress?.conversationId;
           if (remoteConversationId) {
@@ -12028,6 +12091,8 @@
           return;
         }
         if (nextProvider === provider) return;
+        voiceAudioDraftsRef.current = [];
+        setBotpressVoiceDraft('');
         const selectedId = activeConversationByProvider[nextProvider];
         const existing = conversations.find((conversation) => (
           conversation.id === selectedId && conversation.provider === nextProvider
@@ -12097,6 +12162,14 @@
         return () => clearInterval(timer);
       }, [foodMode]);
 
+      const takeVoiceAudioDrafts = (targetProvider, targetConversationId) => {
+        const selected = voiceAudioDraftsRef.current.filter((draft) => (
+          draft.provider === targetProvider && draft.conversationId === targetConversationId
+        ));
+        voiceAudioDraftsRef.current = voiceAudioDraftsRef.current.filter((draft) => !selected.includes(draft));
+        return selected;
+      };
+
       const handleSend = async (textToSend) => {
         const text = textToSend || input;
         if (!text.trim() || isTyping || isRecordingVoice || isTranscribingVoice) return;
@@ -12135,7 +12208,8 @@
               provider,
               conversationId,
               getLearnedPreferences().slice(-1600),
-              webSearchRequested
+              webSearchRequested,
+              takeVoiceAudioDrafts(provider, conversationId)
             );
             updateConversationMessages(conversationId, {
               sender: 'ai',
@@ -12146,6 +12220,13 @@
               sources: searchAnswer.sources
             });
             return;
+          }
+
+          if (voiceAudioDraftsRef.current.some((draft) => (
+            draft.provider === provider && draft.conversationId === conversationId
+          ))) {
+            takeVoiceAudioDrafts(provider, conversationId);
+            throw new Error('No se pudo enviar el audio a Botpress. Dicta la consulta nuevamente.');
           }
 
           if (typeof answer.reply !== 'string') {
@@ -12193,6 +12274,17 @@
       const stopVoiceRecording = () => {
         if (voiceRecordingTimerRef.current) window.clearTimeout(voiceRecordingTimerRef.current);
         voiceRecordingTimerRef.current = null;
+        const recognition = voiceRecognitionRef.current;
+        if (recognition && !voiceRecognitionStopRequestedRef.current) {
+          voiceRecognitionStopRequestedRef.current = true;
+          try {
+            recognition.stop();
+          } catch (error) {
+            if (error.name !== 'InvalidStateError') {
+              setVoiceError(`No se pudo detener el reconocimiento de voz: ${error.message}`);
+            }
+          }
+        }
         const recorder = voiceRecorderRef.current;
         if (recorder && recorder.state !== 'inactive') recorder.stop();
       };
@@ -12201,6 +12293,11 @@
         setVoiceError('');
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof window.MediaRecorder !== 'function') {
           setVoiceError('El dictado requiere HTTPS y un navegador compatible con grabación de audio.');
+          return;
+        }
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (typeof SpeechRecognition !== 'function') {
+          setVoiceError('El dictado requiere un navegador compatible con reconocimiento de voz en español.');
           return;
         }
         if (voiceStartingRef.current || isRecordingVoice || isTranscribingVoice || isSendingBotpressVoiceDraft) return;
@@ -12221,10 +12318,65 @@
           }
           const preferredType = ['audio/webm;codecs=opus', 'audio/mp4']
             .find((type) => window.MediaRecorder.isTypeSupported?.(type));
-          const recorder = preferredType
-            ? new window.MediaRecorder(stream, { mimeType: preferredType })
-            : new window.MediaRecorder(stream);
           const targetProvider = provider;
+          const targetConversationId = targetProvider === 'Botpress'
+            ? window.botpress?.conversationId || ''
+            : activeConversationId;
+          if (targetProvider === 'Botpress' && (!window.botpress?.initialized || !targetConversationId)) {
+            stream.getTracks().forEach((track) => track.stop());
+            setVoiceError('Botpress todavía no está listo para recibir la consulta.');
+            return;
+          }
+
+          const recognition = new SpeechRecognition();
+          const recognitionResult = {
+            transcript: '',
+            error: '',
+            promise: null,
+            resolve: null
+          };
+          recognitionResult.promise = new Promise((resolve) => {
+            recognitionResult.resolve = resolve;
+          });
+          recognition.lang = 'es-PE';
+          recognition.continuous = true;
+          recognition.interimResults = false;
+          recognition.maxAlternatives = 1;
+          recognition.onresult = (event) => {
+            const finalResults = [];
+            for (let index = event.resultIndex; index < event.results.length; index += 1) {
+              const result = event.results[index];
+              if (result.isFinal && result[0]?.transcript) finalResults.push(result[0].transcript.trim());
+            }
+            if (finalResults.length) {
+              recognitionResult.transcript = [recognitionResult.transcript, ...finalResults].filter(Boolean).join(' ');
+            }
+          };
+          recognition.onerror = (event) => {
+            if (event.error === 'aborted') return;
+            const messages = {
+              'no-speech': 'No se reconoció voz clara. Inténtalo en un lugar silencioso y habla cerca del micrófono.',
+              'not-allowed': 'Permite el acceso al micrófono para dictar tu consulta.',
+              network: 'No se pudo completar el reconocimiento de voz. Revisa tu conexión e inténtalo otra vez.',
+              'language-not-supported': 'El reconocimiento de voz en español no está disponible en este navegador.'
+            };
+            recognitionResult.error = messages[event.error] || 'No se pudo reconocer la voz. Inténtalo otra vez.';
+          };
+          recognition.onend = () => {
+            if (voiceRecognitionRef.current === recognition) voiceRecognitionRef.current = null;
+            recognitionResult.resolve({
+              transcript: recognitionResult.transcript.trim(),
+              error: recognitionResult.error
+            });
+          };
+          voiceRecognitionResultRef.current = recognitionResult;
+          voiceRecognitionRef.current = recognition;
+          voiceRecognitionStopRequestedRef.current = false;
+          recognition.start();
+
+          const recorderOptions = { audioBitsPerSecond: 32_000 };
+          if (preferredType) recorderOptions.mimeType = preferredType;
+          const recorder = new window.MediaRecorder(stream, recorderOptions);
           voiceRecorderRef.current = recorder;
           voiceStreamRef.current = stream;
           voiceChunksRef.current = [];
@@ -12232,8 +12384,10 @@
             if (event.data.size > 0) voiceChunksRef.current.push(event.data);
           };
           recorder.onerror = () => {
-            if (voiceMountedRef.current) setVoiceError('No se pudo grabar el audio. Revisa el micrófono e inténtalo otra vez.');
-            if (recorder.state !== 'inactive') recorder.stop();
+            if (voiceMountedRef.current) {
+              setVoiceError('No se pudo grabar el audio. Revisa el micrófono e inténtalo otra vez.');
+            }
+            stopVoiceRecording();
           };
           recorder.onstop = async () => {
             stream.getTracks().forEach((track) => track.stop());
@@ -12248,50 +12402,71 @@
               setVoiceError('No se capturó audio. Revisa el micrófono e inténtalo de nuevo.');
               return;
             }
-            if (audio.size > 10 * 1024 * 1024) {
-              setVoiceError('El audio supera 10 MB. Graba una consulta más corta.');
-              return;
-            }
             const audioType = audio.type.split(';')[0].trim().toLowerCase();
-            if (!audioType) {
+            if (!audioType.startsWith('audio/')) {
               setVoiceError('El navegador no generó un formato de audio compatible.');
               return;
             }
-            const controller = new AbortController();
-            voiceAbortControllerRef.current = controller;
-            let transcriptionTimedOut = false;
-            const transcriptionTimer = window.setTimeout(() => {
-              transcriptionTimedOut = true;
-              controller.abort();
-            }, 100_000);
+
             setIsTranscribingVoice(true);
+            let recognitionTimeout;
             try {
-              const response = await fetch('/api/transcribe', {
-                method: 'POST',
-                headers: { 'Content-Type': audioType },
-                body: audio,
-                signal: controller.signal
-              });
-              const payload = await response.json().catch(() => ({}));
-              if (!response.ok) throw new Error(payload.error || `No se pudo transcribir el audio (${response.status}).`);
-              if (typeof payload.text !== 'string' || !payload.text.trim()) {
-                throw new Error('No se reconoció voz clara. Inténtalo en un lugar silencioso y habla cerca del micrófono.');
-              }
+              const result = await Promise.race([
+                voiceRecognitionResultRef.current?.promise || Promise.resolve({
+                  transcript: '',
+                  error: 'No se pudo completar el reconocimiento de voz.'
+                }),
+                new Promise((resolve) => {
+                  recognitionTimeout = window.setTimeout(() => {
+                    voiceRecognitionRef.current?.abort?.();
+                    resolve({
+                      transcript: '',
+                      error: 'El reconocimiento de voz tardó demasiado. Inténtalo otra vez.'
+                    });
+                  }, 10_000);
+                })
+              ]);
               if (!voiceMountedRef.current) return;
+              if (result.error) {
+                setVoiceError(result.error);
+                return;
+              }
+              if (!result.transcript) {
+                setVoiceError('No se reconoció voz clara. Inténtalo en un lugar silencioso y habla cerca del micrófono.');
+                return;
+              }
+              const existingDrafts = voiceAudioDraftsRef.current.filter((draft) => (
+                draft.provider === targetProvider && draft.conversationId === targetConversationId
+              ));
+              const existingAudioBytes = existingDrafts.reduce((total, draft) => total + draft.audio.size, 0);
+              if (existingAudioBytes + audio.size > MAX_BOTPRESS_VOICE_AUDIO_BYTES) {
+                setVoiceError('El audio supera el límite para enviarlo a Botpress. Graba una consulta más corta.');
+                return;
+              }
+              voiceAudioDraftsRef.current = [
+                ...voiceAudioDraftsRef.current,
+                {
+                  audio,
+                  transcript: result.transcript,
+                  provider: targetProvider,
+                  conversationId: targetConversationId
+                }
+              ];
               if (targetProvider === 'Botpress') {
-                setBotpressVoiceDraft((previous) => [previous.trim(), payload.text.trim()].filter(Boolean).join(' '));
+                setBotpressVoiceDraft((previous) => [previous.trim(), result.transcript].filter(Boolean).join(' '));
               } else {
-                setInput((previous) => [previous.trim(), payload.text.trim()].filter(Boolean).join(' '));
+                setInput((previous) => [previous.trim(), result.transcript].filter(Boolean).join(' '));
               }
             } catch (error) {
               if (voiceMountedRef.current) {
-                setVoiceError(transcriptionTimedOut
-                  ? 'La transcripción tardó demasiado. Inténtalo otra vez.'
-                  : error.message || 'No se pudo transcribir el audio.');
+                setVoiceError(error.message || 'No se pudo reconocer la voz.');
               }
             } finally {
-              window.clearTimeout(transcriptionTimer);
-              if (voiceAbortControllerRef.current === controller) voiceAbortControllerRef.current = null;
+              window.clearTimeout(recognitionTimeout);
+              if (voiceRecognitionResultRef.current === recognitionResult) {
+                voiceRecognitionResultRef.current = null;
+              }
+              voiceRecognitionStopRequestedRef.current = false;
               if (voiceMountedRef.current) setIsTranscribingVoice(false);
             }
           };
@@ -12299,6 +12474,14 @@
           setIsRecordingVoice(true);
           voiceRecordingTimerRef.current = window.setTimeout(stopVoiceRecording, 60_000);
         } catch (error) {
+          voiceRecognitionRef.current?.abort?.();
+          voiceRecognitionRef.current = null;
+          voiceRecognitionResultRef.current = null;
+          const failedRecorder = voiceRecorderRef.current;
+          if (failedRecorder && failedRecorder.state !== 'inactive') {
+            failedRecorder.onstop = null;
+            failedRecorder.stop();
+          }
           voiceStreamRef.current?.getTracks().forEach((track) => track.stop());
           voiceStreamRef.current = null;
           voiceRecorderRef.current = null;
@@ -12322,6 +12505,8 @@
         setIsSendingBotpressVoiceDraft(true);
         try {
           botpress.open?.();
+          const voiceAudioDrafts = takeVoiceAudioDrafts('Botpress', botpress.conversationId);
+          await sendBotpressVoiceAudio(botpress, voiceAudioDrafts, text, 'Botpress');
           await Promise.resolve(botpress.sendMessage(text));
           setBotpressVoiceDraft('');
         } catch (error) {
@@ -12620,8 +12805,8 @@
                         type="button"
                         onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
                         disabled={isTranscribingVoice || isSendingBotpressVoiceDraft}
-                        aria-label={isRecordingVoice ? 'Detener grabación y transcribir' : 'Dictar consulta para Botpress'}
-                        title={isRecordingVoice ? 'Detener y transcribir' : 'Dictar consulta'}
+                        aria-label={isRecordingVoice ? 'Detener grabación y revisar la transcripción' : 'Dictar consulta para Botpress'}
+                        title={isRecordingVoice ? 'Detener y revisar' : 'Dictar consulta'}
                         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
                       >
                         <i data-lucide={isRecordingVoice ? 'square' : 'mic'} className="h-5 w-5"></i>
@@ -12630,11 +12815,11 @@
                         {isRecordingVoice ? (
                           <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · máximo 60 segundos</p>
                         ) : isTranscribingVoice ? (
-                          <p role="status" className="text-[10px] font-semibold text-brand">Transcribiendo con OpenAI…</p>
+                          <p role="status" className="text-[10px] font-semibold text-brand">Reconociendo voz…</p>
                         ) : (
                           <p className="text-[10px] font-semibold text-dark">Dicta tu consulta y revisa el texto antes de enviarlo.</p>
                         )}
-                        <p className="text-[9px] leading-relaxed text-gray-500">El audio se envía a OpenAI para transcribirlo; la app no guarda la grabación.</p>
+                        <p className="text-[9px] leading-relaxed text-gray-500">El navegador transcribe la voz; al enviar, Botpress recibe el audio y el texto.</p>
                       </div>
                     </div>
                     {botpressVoiceDraft && (
@@ -12806,8 +12991,8 @@
                     type="button"
                     onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
                     disabled={isTyping || isTranscribingVoice}
-                    aria-label={isRecordingVoice ? 'Detener grabación y transcribir' : 'Dictar consulta por micrófono'}
-                    title={isRecordingVoice ? 'Detener y transcribir' : 'Dictar consulta'}
+                    aria-label={isRecordingVoice ? 'Detener grabación y revisar la transcripción' : 'Dictar consulta por micrófono'}
+                    title={isRecordingVoice ? 'Detener y revisar' : 'Dictar consulta'}
                     className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
                   >
                     <i data-lucide={isRecordingVoice ? 'square' : 'mic'} className="h-4 w-4"></i>
@@ -12823,10 +13008,10 @@
                   </button>
                 </div>
                 <p className="pt-1 text-[9px] leading-relaxed text-gray-500">
-                  Dicta hasta 60 segundos. El audio se envía a OpenAI para transcribirlo y la app no guarda la grabación; revisa el texto antes de enviarlo.
+                  Dicta hasta 60 segundos. Revisa el borrador; al enviarlo, Botpress recibirá el audio y el texto.
                 </p>
                 {isRecordingVoice && <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · pulsa el micrófono para transcribir</p>}
-                {isTranscribingVoice && <p role="status" className="text-[10px] font-semibold text-brand">Transcribiendo con OpenAI…</p>}
+                {isTranscribingVoice && <p role="status" className="text-[10px] font-semibold text-brand">Reconociendo voz…</p>}
                 {voiceError && <p role="alert" className="text-[10px] text-red-700">{voiceError}</p>}
               </>
             )}
@@ -12862,6 +13047,8 @@
                       <button
                         type="button"
                         onClick={() => {
+                          voiceAudioDraftsRef.current = [];
+                          setBotpressVoiceDraft('');
                           if (provider === 'Botpress') {
                             botpressArchiveSelectionRef.current = Boolean(
                               conversation.botpressConversationId

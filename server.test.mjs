@@ -2397,6 +2397,16 @@ test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => 
   assert.equal(riderSupport.handoff, null);
 });
 
+test('sends voice audio and its transcript to Botpress without the OpenAI transcription endpoint', async () => {
+  const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
+
+  assert.match(html, /recognition\.lang = 'es-PE'/);
+  assert.match(html, /type: 'altoque_voice_message',[\s\S]*?transcript,[\s\S]*?audioClips/);
+  assert.match(html, /await sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, question, searchProvider\)/);
+  assert.match(html, /await sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, text, 'Botpress'\)/);
+  assert.doesNotMatch(html, /\/api\/transcribe|Transcribiendo con OpenAI|El audio se envía a OpenAI/);
+});
+
 test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {
   const [page, serverSource] = await Promise.all([
     readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
@@ -2503,78 +2513,6 @@ test('routes ChatGPT and Gemini menu questions to Botpress and searches only whe
   assert.equal(status.providers.gemini, true);
   assert.equal(status.capabilities.botpressWebSearch, true);
   assert.equal(status.engine, 'Botpress Web Search');
-});
-
-test('transcribes Spanish voice recordings with the configured OpenAI model', async (t) => {
-  const testDataDir = await createReelsTestDirectory();
-  let upstreamRequest;
-  const server = createRequestTestServer(
-    t,
-    testDataDir,
-    async (url, options) => {
-      upstreamRequest = { url, options };
-      return new Response(JSON.stringify({ text: '¿Qué incluye el Combo Herediano?' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    },
-    { openAIApiKey: 'test-openai-key' }
-  );
-  const response = await invokeRequestHandler(server, {
-    method: 'POST',
-    pathname: '/api/transcribe',
-    headers: {
-      host: 'localhost:4173',
-      origin: 'http://localhost:4173',
-      'content-type': 'audio/webm;codecs=opus',
-      'content-length': '10'
-    },
-    body: Buffer.from('mock audio')
-  });
-  assert.equal(response.statusCode, 200, response.body);
-  assert.deepEqual(JSON.parse(response.body), {
-    text: '¿Qué incluye el Combo Herediano?',
-    model: 'gpt-transcribe'
-  });
-  assert.equal(upstreamRequest.url, 'https://api.openai.com/v1/audio/transcriptions');
-  assert.equal(upstreamRequest.options.headers.Authorization, 'Bearer test-openai-key');
-  assert.equal(upstreamRequest.options.body.get('model'), 'gpt-transcribe');
-  assert.equal(upstreamRequest.options.body.get('language'), 'es');
-  assert.match(upstreamRequest.options.body.get('prompt'), /Combo Herediano/);
-  const uploadedAudio = upstreamRequest.options.body.get('file');
-  assert.equal(uploadedAudio.type, 'audio/webm');
-  assert.equal(uploadedAudio.name, 'consulta.webm');
-});
-
-test('rejects unsupported voice formats and requires the server transcription key', async (t) => {
-  const testDataDir = await createReelsTestDirectory();
-  const server = createRequestTestServer(t, testDataDir, fetch, { openAIApiKey: '' });
-  const unsupportedResponse = await invokeRequestHandler(server, {
-    method: 'POST',
-    pathname: '/api/transcribe',
-    headers: {
-      host: 'localhost:4173',
-      origin: 'http://localhost:4173',
-      'content-type': 'application/octet-stream',
-      'content-length': '5'
-    },
-    body: Buffer.from('audio')
-  });
-  assert.equal(unsupportedResponse.statusCode, 415);
-
-  const missingKeyResponse = await invokeRequestHandler(server, {
-    method: 'POST',
-    pathname: '/api/transcribe',
-    headers: {
-      host: 'localhost:4173',
-      origin: 'http://localhost:4173',
-      'content-type': 'audio/webm',
-      'content-length': '5'
-    },
-    body: Buffer.from('audio')
-  });
-  assert.equal(missingKeyResponse.statusCode, 503);
-  assert.match(JSON.parse(missingKeyResponse.body).error, /OPENAI_API_KEY/);
 });
 
 test('keeps server-side assistant personas distinct', () => {

@@ -38,17 +38,6 @@ const REELS_VIDEOS_DIR = join(DATA_DIR, 'reels-videos');
 const MAX_BODY_BYTES = 32_000;
 const MAX_CHAT_BODY_BYTES = 3_000_000;
 const MAX_CHAT_ATTACHMENT_BYTES = 2_000_000;
-const MAX_TRANSCRIPTION_AUDIO_BYTES = 10 * 1024 * 1024;
-const TRANSCRIPTION_AUDIO_TYPES = new Map([
-  ['audio/webm', { extension: 'webm', contentType: 'audio/webm' }],
-  ['audio/mp4', { extension: 'mp4', contentType: 'audio/mp4' }],
-  ['audio/mpeg', { extension: 'mp3', contentType: 'audio/mpeg' }],
-  ['audio/ogg', { extension: 'ogg', contentType: 'audio/ogg' }],
-  ['audio/wav', { extension: 'wav', contentType: 'audio/wav' }],
-  ['audio/x-wav', { extension: 'wav', contentType: 'audio/wav' }],
-  ['audio/aac', { extension: 'aac', contentType: 'audio/aac' }],
-  ['audio/3gpp', { extension: '3gp', contentType: 'audio/3gpp' }]
-]);
 const MAX_VOICE_CALL_DURATION_MS = 10 * 60_000;
 const MAX_REELS_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_REELS_PHOTO_BYTES = 1024 * 1024;
@@ -609,49 +598,6 @@ async function upstreamJson(url, options, providerName, fetchImpl = fetch, timeo
     throw new Error(message ? `${providerName}: ${message}` : `${providerName} respondió con el error ${response.status}.`);
   }
   return payload;
-}
-
-async function transcribeAudio(audio, contentType, apiKey, fetchImpl = fetch) {
-  const audioType = TRANSCRIPTION_AUDIO_TYPES.get(contentType);
-  if (!audioType) {
-    const error = new Error('El formato de audio no es compatible para la transcripción.');
-    error.status = 415;
-    throw error;
-  }
-  if (!audio.length) {
-    const error = new Error('No se recibió audio. Graba tu consulta e inténtalo de nuevo.');
-    error.status = 400;
-    throw error;
-  }
-  if (!apiKey) {
-    const error = new Error('La transcripción por voz requiere configurar OPENAI_API_KEY en el servidor.');
-    error.status = 503;
-    throw error;
-  }
-
-  const form = new FormData();
-  form.append('file', new Blob([audio], { type: audioType.contentType }), `consulta.${audioType.extension}`);
-  form.append('model', 'gpt-transcribe');
-  form.append('language', 'es');
-  form.append(
-    'prompt',
-    'Transcribe literalmente en español peruano una consulta para el asistente de Al Toque de la UPCH. Conserva nombres propios, productos, bancos y precios. Términos posibles: menú, Lomo saltado, Bowl de quinua, Ceviche carretillero, Chicha Morada Natural, Combo Herediano, Combo Fitness, Combo Costeño y Jugo de Maracuyá. No respondas ni resumas la consulta.'
-  );
-  const payload = await upstreamJson(
-    'https://api.openai.com/v1/audio/transcriptions',
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form
-    },
-    'OpenAI',
-    fetchImpl,
-    90_000
-  );
-  if (typeof payload.text !== 'string' || !payload.text.trim()) {
-    throw new Error('No se reconoció voz clara. Inténtalo en un lugar silencioso y habla cerca del micrófono.');
-  }
-  return payload.text.trim();
 }
 
 function citationsFromOpenAI(payload) {
@@ -2271,30 +2217,6 @@ async function handleRequest(request, response, orders, riderLocations, idempote
     });
     if (call.signals.length > 200) call.signals.splice(0, call.signals.length - 200);
     return json(response, 200, { call: { status: call.status, caller: call.caller, createdAt: call.createdAt } });
-  }
-
-  if (request.method === 'POST' && requestUrl.pathname === '/api/transcribe') {
-    if (!sameOrigin(request)) return json(response, 403, { error: 'Origen de solicitud no permitido.' });
-    if (!rateLimit(request)) return json(response, 429, { error: 'Has enviado varias solicitudes de audio. Espera un minuto e inténtalo de nuevo.' });
-    const contentType = (request.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
-    if (!TRANSCRIPTION_AUDIO_TYPES.has(contentType)) {
-      return json(response, 415, { error: 'El formato de audio no es compatible para la transcripción.' });
-    }
-    if (!openAIApiKey) {
-      return json(response, 503, { error: 'La transcripción por voz requiere configurar OPENAI_API_KEY en el servidor.' });
-    }
-    let audio;
-    try {
-      audio = await readBuffer(request, MAX_TRANSCRIPTION_AUDIO_BYTES);
-    } catch (error) {
-      return json(response, error.status || 400, { error: error.message });
-    }
-    try {
-      const text = await transcribeAudio(audio, contentType, openAIApiKey, fetchImpl);
-      return json(response, 200, { text, model: 'gpt-transcribe' });
-    } catch (error) {
-      return json(response, error.status || 502, { error: error.message });
-    }
   }
 
   if (request.method === 'POST' && requestUrl.pathname === '/api/chat') {
