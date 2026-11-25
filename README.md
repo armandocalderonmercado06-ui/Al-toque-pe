@@ -17,15 +17,16 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
 - Las instrucciones que se envían a las conversaciones de ChatGPT y Gemini
   también están en el código de la app. Las instrucciones del chat directo de
   Botpress se administran por separado en el panel de Botpress.
-- Los tres chats graban la consulta y envían el audio directamente a Botpress
-  para su transcripción y respuesta; la app no depende del reconocimiento de
-  voz del navegador ni guarda el audio. Configura y publica en Botpress un
-  Custom Trigger para `event.payload.type === "altoque_voice_message"`.
+- El chat de Botpress usa el botón Dictate nativo del Webchat para transcribir
+  la voz al mensaje antes de enviarlo. ChatGPT y Gemini graban la consulta y
+  envían el audio directamente a Botpress; configura y publica un Custom Trigger
+  para `event.payload.type === "altoque_voice_message"` para transcribir esos
+  audios y generar la respuesta.
   Cada evento incluye `sourceProvider`, `transcript` (vacío si el usuario solo
   envió audio) y `audioClips[]` con `contentType`, `fileName`, `spokenText` y
-  `audioBase64`. El flujo del bot debe transcribir el clip y pasar el texto al
-  agente para que responda; sin ese flujo, Botpress recibirá el audio pero no
-  podrá transcribirlo automáticamente.
+  `audioBase64`. Sin ese flujo personalizado, Botpress recibirá los audios de
+  ChatGPT/Gemini pero no podrá transcribirlos automáticamente. El dictado nativo
+  del Webchat requiere permiso de micrófono en el navegador.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade

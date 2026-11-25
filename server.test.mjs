@@ -2397,15 +2397,25 @@ test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => 
   assert.equal(riderSupport.handoff, null);
 });
 
-test('sends recorded voice audio to Botpress for Botpress-side transcription', async () => {
+test('routes ChatGPT and Gemini voice recordings through Botpress transcription', async () => {
   const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
 
   assert.match(html, /type: 'custom',\s*payload: \{\s*type: 'altoque_voice_message'/);
   assert.match(html, /transcript: transcript\.trim\(\),[\s\S]*?audioClips/);
-  assert.match(html, /await sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, '', 'Botpress'\)/);
+  assert.match(html, /await sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, question, searchProvider\)/);
   assert.match(html, /if \(voiceAudioDrafts\.length\) \{\s*await sendBotpressVoiceAudio/);
   assert.match(html, /getUserMedia[\s\S]*?new window\.MediaRecorder/);
   assert.doesNotMatch(html, /SpeechRecognition|\/api\/transcribe|Transcribiendo con OpenAI|El audio se envía a OpenAI/);
+});
+
+test('shows Botpress native dictation in its composer', async () => {
+  const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
+
+  assert.match(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*contents !important;/);
+  assert.match(html, /\.bpComposerVoiceButton\s*\{/);
+  assert.match(html, /grid-template-columns: minmax\(0, 1fr\) 40px 40px !important/);
+  assert.doesNotMatch(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*none/);
+  assert.doesNotMatch(html, /Graba tu consulta para enviarla a Botpress/);
 });
 
 test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {

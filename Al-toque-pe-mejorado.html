@@ -172,7 +172,7 @@
           }
           .bpComposerContainer {
             display: grid !important;
-            grid-template-columns: minmax(0, 1fr) 40px !important;
+            grid-template-columns: minmax(0, 1fr) 40px 40px !important;
             align-items: center !important;
             gap: 9px !important;
             margin: 0 !important;
@@ -214,10 +214,38 @@
             padding: 0 !important;
           }
           .bpComposerToolbarIcons {
+            display: contents !important;
+            padding: 0 !important;
+          }
+          .bpComposerUploadButton,
+          .bpComposerEmojiPickerContainer {
             display: none !important;
           }
-          .bpComposerToolbar > div:last-child {
+          .bpComposerToolbarIcons > div:last-child {
             grid-column: 2 !important;
+            grid-row: 1 !important;
+            display: flex !important;
+            width: 40px !important;
+            height: 40px !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          .bpComposerVoiceButton {
+            box-sizing: border-box !important;
+            width: 40px !important;
+            height: 40px !important;
+            padding: 10px !important;
+            border-radius: 999px !important;
+            background: #fff2ce !important;
+            color: #2b1718 !important;
+            cursor: pointer !important;
+          }
+          .bpComposerVoiceButton[data-listens="true"] {
+            background: #a50f2d !important;
+            color: #fff !important;
+          }
+          .bpComposerToolbar > div:last-child {
+            grid-column: 3 !important;
             grid-row: 1 !important;
             width: 40px !important;
             height: 40px !important;
@@ -11174,7 +11202,6 @@
       const [input, setInput] = useState('');
       const [isTyping, setIsTyping] = useState(false);
       const [isRecordingVoice, setIsRecordingVoice] = useState(false);
-      const [isSendingBotpressVoiceDraft, setIsSendingBotpressVoiceDraft] = useState(false);
       const [isVoiceAudioDraftReady, setIsVoiceAudioDraftReady] = useState(false);
       const [voiceError, setVoiceError] = useState('');
       const [budgetAmount, setBudgetAmount] = useState(15);
@@ -12173,7 +12200,7 @@
 
       const handleSend = async (textToSend) => {
         const text = textToSend || input;
-        if (!text.trim() || isTyping || isRecordingVoice || isSendingBotpressVoiceDraft) return;
+        if (!text.trim() || isTyping || isRecordingVoice) return;
 
         const conversationId = activeConversationId;
         const userMessage = { sender: 'user', text };
@@ -12294,7 +12321,7 @@
           setVoiceError('El dictado requiere HTTPS y un navegador compatible con grabación de audio.');
           return;
         }
-        if (voiceStartingRef.current || isRecordingVoice || isSendingBotpressVoiceDraft || isTyping) return;
+        if (voiceStartingRef.current || isRecordingVoice || isTyping) return;
         voiceStartingRef.current = true;
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -12394,41 +12421,7 @@
         }
       };
 
-      const sendBotpressVoiceDraft = async () => {
-        const botpress = window.botpress;
-        if (provider !== 'Botpress' || isBotpressArchive) return;
-        if (!botpress?.initialized || !botpress.conversationId || typeof botpress.sendEvent !== 'function') {
-          setVoiceError('Botpress todavía no está listo para recibir la consulta.');
-          return;
-        }
-        const voiceAudioDrafts = takeVoiceAudioDrafts('Botpress', botpress.conversationId);
-        if (!voiceAudioDrafts.length) {
-          setVoiceError('Graba un mensaje de voz antes de enviarlo.');
-          setIsVoiceAudioDraftReady(false);
-          return;
-        }
-        setVoiceError('');
-        setIsSendingBotpressVoiceDraft(true);
-        try {
-          botpress.open?.();
-          await sendBotpressVoiceAudio(botpress, voiceAudioDrafts, '', 'Botpress');
-          setIsVoiceAudioDraftReady(voiceAudioDraftsRef.current.some((draft) => (
-            draft.provider === 'Botpress' && draft.conversationId === botpress.conversationId
-          )));
-        } catch (error) {
-          voiceAudioDraftsRef.current = [...voiceAudioDrafts, ...voiceAudioDraftsRef.current];
-          setIsVoiceAudioDraftReady(true);
-          setVoiceError(error.message || 'No se pudo enviar el audio a Botpress.');
-        } finally {
-          setIsSendingBotpressVoiceDraft(false);
-        }
-      };
-
       const sendVoiceAudioDraft = async () => {
-        if (provider === 'Botpress') {
-          await sendBotpressVoiceDraft();
-          return;
-        }
         const conversationId = activeConversationId;
         const voiceAudioDrafts = takeVoiceAudioDrafts(provider, conversationId);
         if (!voiceAudioDrafts.length) {
@@ -12696,7 +12689,7 @@
               ].map((p) => (
                 <button
                   key={p.name}
-                  disabled={isRecordingVoice || isSendingBotpressVoiceDraft}
+                  disabled={isRecordingVoice}
                   onClick={() => selectProvider(p.name)}
                   aria-label={p.name === 'Botpress' ? 'Abrir asistente Botpress' : `Seleccionar ${p.name}`}
                   className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${provider === p.name ? 'bg-brand text-white' : 'bg-white border border-gray-200 text-gray-600'}`}
@@ -12755,45 +12748,6 @@
                         </button>
                       </div>
                     )}
-                  </div>
-                )}
-                {!isBotpressArchive && (
-                  <div className="space-y-2 p-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
-                        disabled={isSendingBotpressVoiceDraft}
-                        aria-label={isRecordingVoice ? 'Detener grabación' : 'Grabar consulta para Botpress'}
-                        title={isRecordingVoice ? 'Detener y revisar' : 'Dictar consulta'}
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
-                      >
-                        <i data-lucide={isRecordingVoice ? 'square' : 'mic'} className="h-5 w-5"></i>
-                      </button>
-                      <div className="min-w-0">
-                        {isRecordingVoice ? (
-                          <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · máximo 60 segundos</p>
-                        ) : isSendingBotpressVoiceDraft ? (
-                          <p role="status" className="text-[10px] font-semibold text-brand">Enviando audio a Botpress…</p>
-                        ) : isVoiceAudioDraftReady ? (
-                          <p role="status" className="text-[10px] font-semibold text-dark">Audio listo para enviar a Botpress.</p>
-                        ) : (
-                          <p className="text-[10px] font-semibold text-dark">Graba tu consulta para enviarla a Botpress.</p>
-                        )}
-                        <p className="text-[9px] leading-relaxed text-gray-500">La transcripción requiere que el flujo de voz esté configurado en Botpress.</p>
-                      </div>
-                    </div>
-                    {isVoiceAudioDraftReady && (
-                      <button
-                        type="button"
-                        onClick={sendBotpressVoiceDraft}
-                        disabled={isSendingBotpressVoiceDraft}
-                        className="w-full rounded-full bg-brand px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isSendingBotpressVoiceDraft ? 'Enviando audio…' : 'Enviar audio a Botpress'}
-                      </button>
-                    )}
-                    {voiceError && <p role="alert" className="text-[10px] text-red-700">{voiceError}</p>}
                   </div>
                 )}
               </>
@@ -12941,7 +12895,7 @@
                   <button
                     type="button"
                     onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
-                    disabled={isTyping || isSendingBotpressVoiceDraft}
+                    disabled={isTyping}
                     aria-label={isRecordingVoice ? 'Detener grabación' : 'Grabar consulta por micrófono'}
                     title={isRecordingVoice ? 'Detener y revisar' : 'Dictar consulta'}
                     className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
@@ -12951,7 +12905,7 @@
                   <button
                     type="button"
                     onClick={() => handleSend()}
-                    disabled={!input.trim() || isTyping || isRecordingVoice || isSendingBotpressVoiceDraft}
+                    disabled={!input.trim() || isTyping || isRecordingVoice}
                     aria-label="Enviar mensaje"
                     className="w-9 h-9 bg-cream rounded-full flex items-center justify-center text-dark font-bold hover:bg-yellow-accent transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -12966,7 +12920,7 @@
                   <button
                     type="button"
                     onClick={sendVoiceAudioDraft}
-                    disabled={isTyping || isSendingBotpressVoiceDraft}
+                    disabled={isTyping}
                     className="w-full rounded-full bg-brand px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isTyping ? 'Enviando audio a Botpress…' : 'Enviar audio a Botpress'}
