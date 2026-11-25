@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { extname, join, basename, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync, constants as zlibConstants } from 'node:zlib';
+import WebSocket, { WebSocketServer } from 'ws';
 import { createSupabaseStore } from './supabase-store.mjs';
 
 const APP_DIR = fileURLToPath(new URL('.', import.meta.url));
@@ -21,6 +22,7 @@ const TURN_URL = process.env.TURN_URL || '';
 const TURN_USER = process.env.TURN_USER || '';
 const TURN_PASS = process.env.TURN_PASS || '';
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY || '';
+const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || '';
 const GMAIL_CLIENT_ID = process.env.GMAIL_CLIENT_ID || '';
 const GMAIL_CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET || '';
 const GMAIL_REFRESH_TOKEN = process.env.GMAIL_REFRESH_TOKEN || '';
@@ -38,6 +40,9 @@ const REELS_VIDEOS_DIR = join(DATA_DIR, 'reels-videos');
 const MAX_BODY_BYTES = 32_000;
 const MAX_CHAT_BODY_BYTES = 3_000_000;
 const MAX_CHAT_ATTACHMENT_BYTES = 2_000_000;
+const MAX_DEEPGRAM_STREAM_BYTES = 4_500_000;
+const MAX_DEEPGRAM_STREAM_MS = 65_000;
+const MAX_DEEPGRAM_CONCURRENT_STREAMS = 2;
 const MAX_VOICE_CALL_DURATION_MS = 10 * 60_000;
 const MAX_REELS_VIDEO_BYTES = 100 * 1024 * 1024;
 const MAX_REELS_PHOTO_BYTES = 1024 * 1024;
@@ -226,6 +231,8 @@ const rateLimits = new Map();
 const marketingEmailRateLimits = new Map();
 const youtubeSearchRateLimits = new Map();
 const complaintRateLimits = new Map();
+const deepgramRateLimits = new Map();
+const activeDeepgramStreams = new Map();
 
 function normalize(value) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -690,6 +697,99 @@ function rateLimit(request, limits = rateLimits, maximum = 20, windowMs = 60_000
   entries.push(now);
   limits.set(address, entries);
   return true;
+}
+
+function connectDeepgramAudioStream(client, apiKey) {
+  const query = new URLSearchParams({
+    endpointing: 'false',
+    language: 'es',
+    model: 'nova-3',
+    encoding: 'linear16',
+    sample_rate: '16000',
+    channels: '1',
+    interim_results: 'true',
+    smart_format: 'true'
+  });
+  const upstream = new WebSocket(`wss://api.deepgram.com/v1/listen?${query}`, {
+    headers: { Authorization: `Token ${apiKey}` },
+    handshakeTimeout: 12_000,
+    perMessageDeflate: false
+  });
+  let audioBytes = 0;
+  const durationTimer = setTimeout(() => {
+    if (client.readyState !== WebSocket.OPEN) return;
+    client.send(JSON.stringify({ type: 'error', error: 'La grabación alcanzó el límite permitido de 60 segundos.' }));
+    client.close(1008, 'Recording duration limit reached');
+  }, MAX_DEEPGRAM_STREAM_MS);
+
+  const closeUpstream = () => {
+    clearTimeout(durationTimer);
+    if (upstream.readyState === WebSocket.OPEN || upstream.readyState === WebSocket.CONNECTING) {
+      upstream.close();
+    }
+  };
+
+  client.on('message', (data, isBinary) => {
+    if (!isBinary) {
+      let command;
+      try {
+        command = JSON.parse(data.toString('utf8'));
+      } catch {
+        client.close(1008, 'Invalid stream command');
+        return;
+      }
+      if (command?.type !== 'CloseStream') {
+        client.close(1008, 'Unsupported stream command');
+        return;
+      }
+      if (upstream.readyState === WebSocket.OPEN) {
+        upstream.send(JSON.stringify({ type: 'CloseStream' }));
+      }
+      return;
+    }
+
+    audioBytes += data.length;
+    if (audioBytes > MAX_DEEPGRAM_STREAM_BYTES) {
+      client.send(JSON.stringify({ type: 'error', error: 'La grabación superó el tamaño permitido.' }));
+      client.close(1009, 'Audio stream too large');
+      return;
+    }
+    if (upstream.readyState !== WebSocket.OPEN) {
+      client.send(JSON.stringify({ type: 'error', error: 'El servicio de transcripción no está listo.' }));
+      client.close(1011, 'Deepgram stream not ready');
+      return;
+    }
+    upstream.send(data, { binary: true }, (error) => {
+      if (!error || client.readyState !== WebSocket.OPEN) return;
+      client.send(JSON.stringify({ type: 'error', error: 'No se pudo transmitir el audio para transcripción.' }));
+      client.close(1011, 'Audio forwarding failed');
+    });
+  });
+
+  upstream.on('open', () => {
+    if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify({ type: 'ready' }));
+  });
+  upstream.on('message', (data, isBinary) => {
+    if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
+  });
+  upstream.on('error', (error) => {
+    console.error('Falló la conexión de transcripción con Deepgram:', error.message);
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({
+        type: 'error',
+        error: 'No se pudo conectar con Deepgram. Comprueba la clave y la configuración del servicio.'
+      }));
+      client.close(1011, 'Deepgram connection failed');
+    }
+  });
+  upstream.on('close', (code) => {
+    clearTimeout(durationTimer);
+    if (client.readyState === WebSocket.OPEN) {
+      client.close(code === 1000 ? 1000 : 1011, 'Deepgram stream closed');
+    }
+  });
+  client.on('close', closeUpstream);
+  client.on('error', closeUpstream);
 }
 
 function sendStaticContent(request, response, content, headers, cacheKey) {
@@ -2448,6 +2548,7 @@ export function createAlToqueServer({
   reelsVideosDir = REELS_VIDEOS_DIR,
   reelsDeletePassword = REELS_DELETE_PASSWORD,
   youtubeApiKey = YOUTUBE_API_KEY,
+  deepgramApiKey = DEEPGRAM_API_KEY,
   openAIApiKey = process.env.OPENAI_API_KEY,
   gmailClientId = GMAIL_CLIENT_ID,
   gmailClientSecret = GMAIL_CLIENT_SECRET,
@@ -2708,8 +2809,48 @@ export function createAlToqueServer({
       key: readFileSync(isAbsolute(TLS_KEY_FILE) ? TLS_KEY_FILE : resolve(APP_DIR, TLS_KEY_FILE))
     }, handler)
     : createHttpServer(handler);
+  const deepgramWebSocketServer = new WebSocketServer({
+    noServer: true,
+    maxPayload: 16 * 1024,
+    perMessageDeflate: false
+  });
   server.on('upgrade', (request, socket, head) => {
     const requestUrl = new URL(request.url || '/', `http://${request.headers.host}`);
+    if (requestUrl.pathname === '/api/deepgram/stream') {
+      if (!sameOrigin(request)) {
+        socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      if (!deepgramApiKey) {
+        socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      if (!rateLimit(request, deepgramRateLimits, 8)) {
+        socket.end('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      const address = request.socket.remoteAddress || 'local';
+      const activeStreams = activeDeepgramStreams.get(address) || 0;
+      if (activeStreams >= MAX_DEEPGRAM_CONCURRENT_STREAMS) {
+        socket.end('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      activeDeepgramStreams.set(address, activeStreams + 1);
+      let activeStreamReleased = false;
+      const releaseActiveStream = () => {
+        if (activeStreamReleased) return;
+        activeStreamReleased = true;
+        const remaining = (activeDeepgramStreams.get(address) || 1) - 1;
+        if (remaining > 0) activeDeepgramStreams.set(address, remaining);
+        else activeDeepgramStreams.delete(address);
+      };
+      socket.once('close', releaseActiveStream);
+      deepgramWebSocketServer.handleUpgrade(request, socket, head, (client) => {
+        client.once('close', releaseActiveStream);
+        connectDeepgramAudioStream(client, deepgramApiKey);
+      });
+      return;
+    }
     if (requestUrl.pathname !== '/ws/orders') {
       socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
       return;

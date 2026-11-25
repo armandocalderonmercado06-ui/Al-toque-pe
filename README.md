@@ -19,14 +19,18 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
   Botpress se administran por separado en el panel de Botpress.
 - Botpress usa el botón Dictate del Webchat: al terminar el dictado, la app envía
   automáticamente el texto reconocido como un mensaje normal de la conversación.
-  ChatGPT y Gemini envían grabaciones de audio a Botpress; configura y publica un
-  Custom Trigger para `event.payload.type === "altoque_voice_message"` para
-  transcribir esos audios y generar la respuesta.
-  Cada evento incluye `sourceProvider`, `transcript` (vacío si el usuario solo
-  envió audio) y `audioClips[]` con `contentType`, `fileName`, `spokenText` y
-  `audioBase64`. Sin ese flujo personalizado, Botpress recibirá los audios de
-  ChatGPT/Gemini pero no podrá transcribirlos automáticamente. El dictado de
-  Botpress requiere permiso de micrófono en el navegador.
+- El dictado de los tres chats transmite audio a Deepgram Nova-3, transcribe en
+  español y envía solo el texto al asistente seleccionado. La grabación se
+  detiene a los 60 segundos; configura DEEPGRAM_API_KEY solo como secreto en
+  Render. El navegador requiere permiso de micrófono.
+- Las consultas de ingredientes envían a Botpress el producto coincidente y los
+  componentes publicados en los catálogos de Al Toque, Bembos y Starbucks.
+  Cuando hay una receta web verificada para el plato, la app responde
+  directamente con su lista y cita la fuente para que Botpress no pueda
+  sustituirla por una derivación. Para lomo saltado usa una receta de referencia
+  de Recetas Nestlé Perú, aclarando que no confirma la formulación de Al Toque.
+  Para otros platos se usa la búsqueda web de Botpress; Bembos y Starbucks
+  priorizan información oficial y no se completan ingredientes no publicados.
 - Define `REELS_DELETE_PASSWORD` con una clave privada para habilitar la
   eliminacion de Reels. Sin ella, esa operacion falla de forma cerrada.
 - La casilla de recomendaciones registra el consentimiento en HubSpot y añade

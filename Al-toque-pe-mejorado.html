@@ -11077,6 +11077,318 @@
       };
     }
 
+    function DeepgramVoiceButton({ onTranscript, onFeedback, disabled = false }) {
+      const [isStarting, setIsStarting] = useState(false);
+      const [isRecording, setIsRecording] = useState(false);
+      const [isFinalizing, setIsFinalizing] = useState(false);
+      const sessionRef = useRef(null);
+      const isMountedRef = useRef(true);
+      const onTranscriptRef = useRef(onTranscript);
+      const onFeedbackRef = useRef(onFeedback);
+      onTranscriptRef.current = onTranscript;
+      onFeedbackRef.current = onFeedback;
+
+      const publishFeedback = (status, transcript = '', error = '') => {
+        if (isMountedRef.current) onFeedbackRef.current?.({ status, transcript, error });
+      };
+
+      const releaseAudio = (session) => {
+        if (session.processor) {
+          session.processor.onaudioprocess = null;
+          session.processor.disconnect();
+          session.processor = null;
+        }
+        session.source?.disconnect();
+        session.source = null;
+        session.silentOutput?.disconnect();
+        session.silentOutput = null;
+        session.stream?.getTracks().forEach((track) => track.stop());
+        session.stream = null;
+        if (session.audioContext && session.audioContext.state !== 'closed') {
+          session.audioContext.close().catch((error) => console.error('No se pudo cerrar el contexto de audio:', error));
+        }
+        session.audioContext = null;
+      };
+
+      const finishSession = (session) => {
+        if (session.finished || session.cancelled) return;
+        session.finished = true;
+        window.clearTimeout(session.readyTimer);
+        window.clearTimeout(session.closeTimer);
+        window.clearTimeout(session.maxDurationTimer);
+        releaseAudio(session);
+        if (sessionRef.current === session) sessionRef.current = null;
+        if (!isMountedRef.current) return;
+        setIsStarting(false);
+        setIsRecording(false);
+        setIsFinalizing(false);
+
+        if (session.error) {
+          publishFeedback('', '', session.error);
+          return;
+        }
+        if (!session.stopRequested) {
+          publishFeedback('', '');
+          return;
+        }
+        const transcript = (session.finalTranscript || session.interimTranscript).trim();
+        if (!transcript) {
+          publishFeedback('', '', 'No se reconoció voz. Inténtalo otra vez en un lugar silencioso.');
+          return;
+        }
+
+        publishFeedback('Enviando la transcripción…', transcript);
+        Promise.resolve(onTranscriptRef.current(transcript)).then((sent) => {
+          if (sent === false) throw new Error('No se pudo enviar la transcripción al asistente.');
+          publishFeedback('Consulta enviada', transcript);
+          session.feedbackTimer = window.setTimeout(() => publishFeedback('', ''), 3000);
+        }).catch((error) => {
+          publishFeedback('', '', error.message || 'No se pudo enviar la transcripción.');
+        });
+      };
+
+      useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+          isMountedRef.current = false;
+          const session = sessionRef.current;
+          if (!session) return;
+          session.cancelled = true;
+          window.clearTimeout(session.readyTimer);
+          window.clearTimeout(session.closeTimer);
+          window.clearTimeout(session.maxDurationTimer);
+          window.clearTimeout(session.feedbackTimer);
+          releaseAudio(session);
+          if (session.socket && session.socket.readyState < window.WebSocket.CLOSING) {
+            session.socket.close(1000, 'Voice input closed');
+          }
+          sessionRef.current = null;
+          onFeedbackRef.current?.({ status: '', transcript: '', error: '' });
+        };
+      }, []);
+
+      const startRecording = async () => {
+        if (isStarting || isRecording || isFinalizing || disabled) return;
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.WebSocket) {
+          publishFeedback('', '', 'El dictado requiere HTTPS y un navegador compatible con micrófono.');
+          return;
+        }
+
+        const session = {
+          finalTranscript: '',
+          interimTranscript: '',
+          stopRequested: false,
+          ready: false,
+          cancelled: false,
+          finished: false,
+          error: ''
+        };
+        sessionRef.current = session;
+        setIsStarting(true);
+        publishFeedback('Conectando con el micrófono…');
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              channelCount: 1,
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            },
+            video: false
+          });
+          if (session.cancelled) {
+            stream.getTracks().forEach((track) => track.stop());
+            return;
+          }
+          session.stream = stream;
+
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextClass) throw new Error('Este navegador no permite capturar audio.');
+          try {
+            session.audioContext = new AudioContextClass({ sampleRate: 16000 });
+          } catch {
+            session.audioContext = new AudioContextClass();
+          }
+          await session.audioContext.resume();
+
+          const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          session.socket = new WebSocket(`${socketProtocol}//${window.location.host}/api/deepgram/stream`);
+          const readyPromise = new Promise((resolve, reject) => {
+            let settled = false;
+            session.resolveReady = () => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(session.readyTimer);
+              resolve();
+            };
+            session.rejectReady = (error) => {
+              if (settled) return;
+              settled = true;
+              window.clearTimeout(session.readyTimer);
+              reject(error);
+            };
+            session.readyTimer = window.setTimeout(
+              () => session.rejectReady(new Error('Deepgram no respondió. Verifica DEEPGRAM_API_KEY en Render.')),
+              15000
+            );
+          });
+
+          session.socket.onmessage = (event) => {
+            let result;
+            try {
+              result = JSON.parse(event.data);
+            } catch {
+              session.error = 'Deepgram devolvió una respuesta de transcripción no válida.';
+              session.socket.close(1011, 'Invalid transcription response');
+              return;
+            }
+            if (result.type === 'ready') {
+              session.ready = true;
+              session.resolveReady?.();
+              publishFeedback('Escuchando en español…');
+              return;
+            }
+            if (result.type === 'error' || result.type === 'Error' || result.err_code) {
+              session.error = result.error || result.description || 'Deepgram no pudo transcribir el audio.';
+              session.rejectReady?.(new Error(session.error));
+              session.socket.close(1011, 'Transcription failed');
+              return;
+            }
+
+            const transcript = result.channel?.alternatives?.[0]?.transcript?.trim() || '';
+            if (!transcript) return;
+            if (result.is_final) {
+              session.finalTranscript = [session.finalTranscript, transcript].filter(Boolean).join(' ').trim();
+              session.interimTranscript = '';
+            } else {
+              session.interimTranscript = transcript;
+            }
+            publishFeedback(
+              session.stopRequested ? 'Finalizando transcripción…' : 'Escuchando en español…',
+              session.interimTranscript || session.finalTranscript
+            );
+          };
+          session.socket.onerror = () => {
+            const error = new Error('No se pudo conectar con Deepgram. Revisa la clave y la configuración en Render.');
+            session.error = error.message;
+            session.rejectReady?.(error);
+            if (session.ready) session.socket.close(1011, 'Deepgram connection error');
+          };
+          session.socket.onclose = () => {
+            if (!session.ready) {
+              session.rejectReady?.(new Error(session.error || 'No se pudo iniciar la transcripción.'));
+            }
+            finishSession(session);
+          };
+
+          await readyPromise;
+          if (session.cancelled) return;
+          if (session.socket.readyState !== window.WebSocket.OPEN) {
+            throw new Error('La conexión de transcripción se cerró inesperadamente.');
+          }
+
+          const audioContext = session.audioContext;
+          session.source = audioContext.createMediaStreamSource(session.stream);
+          session.processor = audioContext.createScriptProcessor(4096, 1, 1);
+          session.silentOutput = audioContext.createGain();
+          session.silentOutput.gain.value = 0;
+          session.processor.onaudioprocess = (event) => {
+            if (session.stopRequested || session.socket.readyState !== window.WebSocket.OPEN) return;
+            const inputSamples = event.inputBuffer.getChannelData(0);
+            const sourceRateRatio = audioContext.sampleRate / 16000;
+            const outputLength = Math.floor(inputSamples.length / sourceRateRatio);
+            if (outputLength < 1) return;
+            const pcmSamples = new Int16Array(outputLength);
+            for (let index = 0; index < outputLength; index += 1) {
+              const start = Math.floor(index * sourceRateRatio);
+              const end = Math.min(inputSamples.length, Math.max(start + 1, Math.floor((index + 1) * sourceRateRatio)));
+              let sampleTotal = 0;
+              for (let sourceIndex = start; sourceIndex < end; sourceIndex += 1) {
+                sampleTotal += inputSamples[sourceIndex];
+              }
+              const sample = Math.max(-1, Math.min(1, sampleTotal / (end - start)));
+              pcmSamples[index] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+            }
+            try {
+              session.socket.send(pcmSamples.buffer);
+            } catch (error) {
+              session.error = `Se interrumpió el envío de audio: ${error.message}`;
+              session.socket.close(1011, 'Audio transmission failed');
+            }
+          };
+          session.source.connect(session.processor);
+          session.processor.connect(session.silentOutput);
+          session.silentOutput.connect(audioContext.destination);
+          setIsStarting(false);
+          setIsRecording(true);
+          session.maxDurationTimer = window.setTimeout(stopRecording, 60_000);
+        } catch (error) {
+          session.cancelled = true;
+          releaseAudio(session);
+          if (session.socket && session.socket.readyState < window.WebSocket.CLOSING) {
+            session.socket.close(1000, 'Voice input cancelled');
+          }
+          if (sessionRef.current === session) sessionRef.current = null;
+          if (isMountedRef.current) {
+            setIsStarting(false);
+            setIsRecording(false);
+            setIsFinalizing(false);
+            publishFeedback('', '', error.message || 'No se pudo iniciar el dictado.');
+          }
+        }
+      };
+
+      const stopRecording = () => {
+        const session = sessionRef.current;
+        if (!session || session.stopRequested) return;
+        session.stopRequested = true;
+        window.clearTimeout(session.maxDurationTimer);
+        releaseAudio(session);
+        setIsRecording(false);
+        setIsFinalizing(true);
+        publishFeedback('Finalizando transcripción…', session.interimTranscript || session.finalTranscript);
+        if (session.socket?.readyState === window.WebSocket.OPEN) {
+          try {
+            session.socket.send(JSON.stringify({ type: 'CloseStream' }));
+            session.closeTimer = window.setTimeout(() => {
+              if (session.socket.readyState === window.WebSocket.OPEN) {
+                session.socket.close(1000, 'Transcription finalization timeout');
+              }
+            }, 5000);
+          } catch (error) {
+            session.error = `No se pudo finalizar la transcripción: ${error.message}`;
+            finishSession(session);
+          }
+        } else {
+          session.error = 'La conexión con Deepgram se cerró antes de recibir la transcripción.';
+          finishSession(session);
+        }
+      };
+
+      const buttonLabel = isRecording
+        ? 'Detener dictado en español'
+        : isFinalizing
+          ? 'Finalizando dictado'
+          : isStarting
+            ? 'Conectando micrófono'
+            : 'Dictar consulta en español';
+
+      return (
+        <button
+          type="button"
+          onClick={isRecording ? stopRecording : startRecording}
+          disabled={(disabled && !isRecording) || isStarting || isFinalizing}
+          aria-label={buttonLabel}
+          aria-pressed={isRecording}
+          title={buttonLabel}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 ${isRecording ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
+        >
+          <i data-lucide={isRecording ? 'mic-off' : 'mic'} className="h-4 w-4"></i>
+        </button>
+      );
+    }
+
     function getAISourceLabel(source) {
       if (typeof source.title === 'string' && source.title.trim()) {
         return source.title.trim().replace(/^www\./i, '');
@@ -11207,6 +11519,7 @@
       const [isVoiceAudioDraftReady, setIsVoiceAudioDraftReady] = useState(false);
       const [voiceError, setVoiceError] = useState('');
       const [botpressVoiceStatus, setBotpressVoiceStatus] = useState('');
+      const [voiceFeedback, setVoiceFeedback] = useState({ status: '', transcript: '', error: '' });
       const [budgetAmount, setBudgetAmount] = useState(15);
       const [isBudgetPickerOpen, setIsBudgetPickerOpen] = useState(false);
       const [budgetPickerAmount, setBudgetPickerAmount] = useState(15);
@@ -12295,7 +12608,7 @@
 
       const handleSend = async (textToSend) => {
         const text = textToSend || input;
-        if (!text.trim() || isTyping || isRecordingVoice) return;
+        if (!text.trim() || isTyping || isRecordingVoice) return false;
 
         const conversationId = activeConversationId;
         const userMessage = { sender: 'user', text };
@@ -12307,21 +12620,36 @@
         let webSearchRequested = false;
         let voiceAudioDrafts = [];
         try {
-          const menuResponse = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              provider,
-              text,
-              assistantMode: 'menu',
-              history: [],
-              memory: getLearnedPreferences().slice(-1600),
-              orderHistory: orderHistoryForAI
-            })
-          });
-          const answer = await menuResponse.json();
-          if (!menuResponse.ok) {
-            throw new Error(answer.error || `La solicitud falló (${menuResponse.status}).`);
+          if (ingredientReferenceAnswer) {
+            updateConversationMessages(conversationId, {
+              sender: 'ai',
+              text: ingredientReferenceAnswer.reply,
+              webSearchUsed: true,
+              engine: 'Búsqueda web',
+              persona: provider,
+              sources: ingredientReferenceAnswer.sources
+            });
+            return true;
+          }
+
+          let answer = { handoffToBotpress: true };
+          if (!ingredientFollowUp) {
+            const menuResponse = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                provider,
+                text,
+                assistantMode: 'menu',
+                history: [],
+                memory: getLearnedPreferences().slice(-1600),
+                orderHistory: orderHistoryForAI
+              })
+            });
+            answer = await menuResponse.json();
+            if (!menuResponse.ok) {
+              throw new Error(answer.error || `La solicitud falló (${menuResponse.status}).`);
+            }
           }
 
           if (answer.handoffToBotpress) {
@@ -12347,7 +12675,7 @@
               persona: provider,
               sources: searchAnswer.sources
             });
-            return;
+            return true;
           }
 
           if (voiceAudioDraftsRef.current.some((draft) => (
@@ -12376,6 +12704,7 @@
             dish,
             sources: Array.isArray(answer.sources) ? answer.sources : []
           });
+          return true;
         } catch (error) {
           if (voiceAudioDrafts.length) {
             voiceAudioDraftsRef.current = [...voiceAudioDrafts, ...voiceAudioDraftsRef.current];
@@ -12398,6 +12727,7 @@
             persona: provider,
             error: botpressRequested || webSearchRequested
           });
+          return false;
         } finally {
           setIsTyping(false);
         }
@@ -12617,6 +12947,37 @@
           window.cancelAnimationFrame(budgetPickerFrameRef.current);
         }
       }, []);
+
+      const handleVoiceTranscript = async (transcript) => {
+        if (provider === 'Botpress') {
+          if (isBotpressArchive) throw new Error('Abre una conversación activa de Botpress para enviar la consulta.');
+          const botpress = window.botpress;
+          if (!botpress?.initialized || typeof botpress.sendMessage !== 'function') {
+            throw new Error('Botpress todavía no está listo para recibir la consulta.');
+          }
+          botpress.open?.();
+          await Promise.resolve(botpress.sendMessage(transcript));
+          return true;
+        }
+        if (isTyping) throw new Error('Espera a que termine la respuesta actual antes de enviar otra consulta.');
+        const sent = await handleSend(transcript);
+        if (!sent) throw new Error('No se pudo enviar la transcripción al asistente.');
+        return true;
+      };
+
+      const isVoiceInputBusy = [
+        'Conectando con el micrófono…',
+        'Escuchando en español…',
+        'Finalizando transcripción…',
+        'Enviando la transcripción…'
+      ].some((status) => voiceFeedback.status.startsWith(status));
+      const voiceButton = (
+        <DeepgramVoiceButton
+          onTranscript={handleVoiceTranscript}
+          onFeedback={setVoiceFeedback}
+          disabled={isTyping || (provider === 'Botpress' && (isRestartingBotpress || isBotpressArchive))}
+        />
+      );
 
       return (
         <div className="space-y-4 pt-2">
@@ -12849,6 +13210,10 @@
                 {!isBotpressArchive && botpressVoiceStatus && (
                   <p role="status" className="px-3 pb-3 text-center text-[10px] text-gray-600">{botpressVoiceStatus}</p>
                 )}
+                <div className="flex items-center gap-2 px-2 pb-2">
+                  {voiceButton}
+                  <span className="text-[10px] text-gray-500">Dicta tu consulta en español</span>
+                </div>
               </>
             ) : (
               <>
@@ -12983,6 +13348,7 @@
                 </div>
 
                 <div className="flex items-center space-x-2 pt-2 border-t border-gray-100">
+                  {voiceButton}
                   <input
                     type="text"
                     value={input}
@@ -12993,42 +13359,26 @@
                   />
                   <button
                     type="button"
-                    onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
-                    disabled={isTyping}
-                    aria-label={isRecordingVoice ? 'Detener grabación' : 'Grabar consulta por micrófono'}
-                    title={isRecordingVoice ? 'Detener y revisar' : 'Dictar consulta'}
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
-                  >
-                    <i data-lucide={isRecordingVoice ? 'square' : 'mic'} className="h-4 w-4"></i>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => handleSend()}
-                    disabled={!input.trim() || isTyping || isRecordingVoice}
+                    disabled={!input.trim() || isTyping}
                     aria-label="Enviar mensaje"
                     className="w-9 h-9 bg-cream rounded-full flex items-center justify-center text-dark font-bold hover:bg-yellow-accent transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <i data-lucide="arrow-up" className="w-4 h-4"></i>
                   </button>
                 </div>
-                <p className="pt-1 text-[9px] leading-relaxed text-gray-500">
-                  Graba hasta 60 segundos. La transcripción requiere que el flujo de voz esté configurado en Botpress.
-                </p>
-                {isRecordingVoice && <p role="status" className="text-[10px] font-semibold text-red-700">Grabando · pulsa el micrófono para terminar</p>}
-                {isVoiceAudioDraftReady && (
-                  <button
-                    type="button"
-                    onClick={sendVoiceAudioDraft}
-                    disabled={isTyping}
-                    className="w-full rounded-full bg-brand px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isTyping ? 'Enviando audio a Botpress…' : 'Enviar audio a Botpress'}
-                  </button>
-                )}
-                {voiceError && <p role="alert" className="text-[10px] text-red-700">{voiceError}</p>}
               </>
             )}
           </div>
+          {(voiceFeedback.status || voiceFeedback.transcript || voiceFeedback.error) && (
+            <p
+              role={voiceFeedback.error ? 'alert' : 'status'}
+              className={`rounded-xl p-2 text-[10px] leading-relaxed ${voiceFeedback.error ? 'bg-red-50 text-red-700' : 'bg-cream/50 text-gray-600'}`}
+            >
+              {voiceFeedback.error || voiceFeedback.status}
+              {voiceFeedback.transcript && <span className="mt-1 block font-medium text-dark">{voiceFeedback.transcript}</span>}
+            </p>
+          )}
 
           {historyOpen && (
             <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={() => setHistoryOpen(false)}>
@@ -13050,7 +13400,7 @@
                     </svg>
                   </button>
                 </div>
-                <button type="button" onClick={startNewConversation} disabled={isRestartingBotpress} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 text-xs font-bold text-white disabled:opacity-50">
+                <button type="button" onClick={startNewConversation} disabled={isRestartingBotpress || isVoiceInputBusy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-2.5 text-xs font-bold text-white disabled:opacity-50">
                   <i data-lucide="plus" className="h-4 w-4"></i>
                   {isRestartingBotpress ? 'Iniciando conversación…' : 'Nueva conversación'}
                 </button>

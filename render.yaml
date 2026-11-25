@@ -19,6 +19,8 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
       - key: REELS_DELETE_PASSWORD
         sync: false
       - key: GMAIL_CLIENT_ID

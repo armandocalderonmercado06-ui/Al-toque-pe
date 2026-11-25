@@ -2397,17 +2397,6 @@ test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => 
   assert.equal(riderSupport.handoff, null);
 });
 
-test('routes ChatGPT and Gemini voice recordings through Botpress transcription', async () => {
-  const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
-
-  assert.match(html, /type: 'custom',\s*payload: \{\s*type: 'altoque_voice_message'/);
-  assert.match(html, /transcript: transcript\.trim\(\),[\s\S]*?audioClips/);
-  assert.match(html, /await sendBotpressVoiceAudio\(botpress, voiceAudioDrafts, question, searchProvider\)/);
-  assert.match(html, /if \(voiceAudioDrafts\.length\) \{\s*await sendBotpressVoiceAudio/);
-  assert.match(html, /getUserMedia[\s\S]*?new window\.MediaRecorder/);
-  assert.doesNotMatch(html, /SpeechRecognition|\/api\/transcribe|Transcribiendo con OpenAI|El audio se envía a OpenAI/);
-});
-
 test('auto-sends the Botpress native dictation transcript into the conversation', async () => {
   const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
 
@@ -2421,7 +2410,24 @@ test('auto-sends the Botpress native dictation transcript into the conversation'
   assert.match(html, /transcript !== previousComposerText && sendButton && !sendButton\.disabled/);
   assert.match(html, /sendButton\.click\(\)/);
   assert.match(html, /Transcripción enviada a Botpress/);
-  assert.doesNotMatch(html, /sendBotpressVoiceDraft|Grabar audio para enviar a Botpress/);
+});
+
+test('configures 60-second Spanish Deepgram dictation without a Botpress flow notice', async () => {
+  const [page, server, envExample, renderConfig] = await Promise.all([
+    readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
+    readFile(join(process.cwd(), 'server.mjs'), 'utf8'),
+    readFile(join(process.cwd(), '.env.example'), 'utf8'),
+    readFile(join(process.cwd(), 'render.yaml'), 'utf8')
+  ]);
+  assert.match(page, /function DeepgramVoiceButton/);
+  assert.match(page, /setTimeout\(stopRecording,\s*60_000\)/);
+  assert.match(page, /\/api\/deepgram\/stream/);
+  assert.match(page, /await Promise\.resolve\(botpress\.sendMessage\(transcript\)\)/);
+  assert.doesNotMatch(page, /La transcripción requiere que el flujo de voz esté configurado en Botpress/);
+  assert.match(server, /const DEEPGRAM_API_KEY = process\.env\.DEEPGRAM_API_KEY \|\| ''/);
+  assert.match(server, /MAX_DEEPGRAM_STREAM_MS = 65_000/);
+  assert.match(envExample, /^DEEPGRAM_API_KEY=$/m);
+  assert.match(renderConfig, /key: DEEPGRAM_API_KEY\s+sync: false/);
 });
 
 test('sends ChatGPT and Gemini replies directly to separate Botpress conversations', async () => {
