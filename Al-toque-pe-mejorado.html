@@ -13316,10 +13316,13 @@
       const [isLandscapeViewport, setIsLandscapeViewport] = useState(readLandscapeOrientation);
       const [isPaymentDemoVideoOpen, setIsPaymentDemoVideoOpen] = useState(false);
       const [paymentDemoVideoSrc, setPaymentDemoVideoSrc] = useState('/visa-payment-demo.mp4');
-      const isPortraitPaymentDemoVideo = paymentDemoVideoSrc === '/visa-pago-9x16.mp4';
-      const isMastercardPaymentDemoVideo = paymentDemoVideoSrc === '/mastercard-payment-demo.mp4';
+      const isPortraitPaymentDemoVideo = paymentDemoVideoSrc === '/visa-pago-9x16.mp4'
+        || paymentDemoVideoSrc === '/mastercard-payment-portrait-demo.mp4';
+      const isMastercardPaymentDemoVideo = paymentDemoVideoSrc === '/mastercard-payment-demo.mp4'
+        || paymentDemoVideoSrc === '/mastercard-payment-portrait-demo.mp4';
       const paymentDemoUsesSeparateSound = paymentDemoVideoSrc === '/visa-payment-demo.mp4'
-        || paymentDemoVideoSrc === '/mastercard-payment-demo.mp4';
+        || paymentDemoVideoSrc === '/mastercard-payment-demo.mp4'
+        || paymentDemoVideoSrc === '/mastercard-payment-portrait-demo.mp4';
       const [paymentDemoSoundSrc, setPaymentDemoSoundSrc] = useState('/visa-payment-sound.mp3');
       const [paymentDemoVideoError, setPaymentDemoVideoError] = useState('');
       const [paymentDemoVideoFailed, setPaymentDemoVideoFailed] = useState(false);
@@ -14137,9 +14140,9 @@
         const video = paymentDemoVideoRef.current;
         const sound = paymentDemoSoundRef.current;
         const isLandscapeVideo = isLandscapeViewport;
-        const usesSeparateSound = isLandscapeVideo && (cardBrand === 'visa' || cardBrand === 'mastercard');
+        const usesSeparateSound = cardBrand === 'mastercard' || (cardBrand === 'visa' && isLandscapeVideo);
         const videoSource = cardBrand === 'mastercard'
-          ? '/mastercard-payment-demo.mp4'
+          ? isLandscapeVideo ? '/mastercard-payment-demo.mp4' : '/mastercard-payment-portrait-demo.mp4'
           : isLandscapeVideo ? '/visa-payment-demo.mp4' : '/visa-pago-9x16.mp4';
         const soundSource = cardBrand === 'mastercard' ? '/mastercard-payment-sound.mp3' : '/visa-payment-sound.mp3';
         paymentDemoMediaRef.current = { videoEnded: false, audioEnded: !usesSeparateSound, completed: false };
@@ -14190,7 +14193,7 @@
         if (form) form.reset();
         closeDemoCardForm();
         setDemoCardFormNotice('');
-        if (selectedCardBrand === 'visa' || (selectedCardBrand === 'mastercard' && isLandscapeViewport)) {
+        if (selectedCardBrand === 'visa' || selectedCardBrand === 'mastercard') {
           setOrderSubmitError('');
           startCardPaymentVideo(selectedCardBrand);
           return;
