@@ -2413,6 +2413,7 @@ test('shows Botpress native dictation in its composer', async () => {
 
   assert.match(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*contents !important;/);
   assert.match(html, /\.bpComposerVoiceButton\s*\{/);
+  assert.match(html, /\.bpComposerToolbar > div:last-child\s*\{[\s\S]*?display:\s*flex !important;/);
   assert.match(html, /grid-template-columns: minmax\(0, 1fr\) 40px 40px !important/);
   assert.doesNotMatch(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*none/);
   assert.doesNotMatch(html, /Graba tu consulta para enviarla a Botpress/);
