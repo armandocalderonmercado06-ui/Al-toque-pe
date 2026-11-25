@@ -13888,13 +13888,14 @@
     function CartScreen({ cart, updateQuantity, removeFromCart, onNavigate, orderConfirmed, setOrderConfirmed, liveOrderId, setLiveOrderId, clearCart, pickupPoint, setPickupPoint, profile, setProfile, customerProfileId, onOrderRegistered, contentRef, tutorialMode = false }) {
       const deliveryDuration = DELIVERY_DURATION_MS;
       const deliveryProgressKey = liveOrderId ? getCustomerStorageKey(`altoque_delivery_progress_${liveOrderId}`, customerProfileId) : '';
+      const clampDeliveryElapsed = (elapsed) => Math.max(0, Math.min(Number.isFinite(elapsed) ? elapsed : 0, deliveryDuration));
       const readSavedDeliveryProgress = () => {
         if (!orderConfirmed || !deliveryProgressKey) return null;
         try {
           const savedProgress = JSON.parse(localStorage.getItem(deliveryProgressKey) || 'null');
           if (!savedProgress || savedProgress.orderId !== liveOrderId || !Number.isFinite(savedProgress.startedAt)) return null;
           if (savedProgress.phase !== 'tracking' || !Number.isFinite(savedProgress.startedAt)) return null;
-          const elapsed = Math.max(0, Math.min(Date.now() - savedProgress.startedAt, deliveryDuration));
+          const elapsed = clampDeliveryElapsed(Date.now() - savedProgress.startedAt);
           return { phase: 'tracking', elapsed, startedAt: savedProgress.startedAt };
         } catch (error) {
           console.error('No se pudo recuperar el progreso del pedido:', error);
@@ -14039,9 +14040,10 @@
         { label: 'Por llegar', title: '¡Tu pedido está por llegar!', description: 'El repartidor se acerca al punto de entrega.' },
         { label: 'Entrega', title: 'Esperando confirmación de entrega', description: 'El pedido se marcará como recibido cuando el repartidor confirme la entrega.' }
       ];
-      const currentDeliveryStage = Math.min(Math.floor(deliveryElapsed / 60000), deliveryStages.length - 1);
-      const remainingMinutes = Math.ceil((deliveryDuration - deliveryElapsed) / 60000);
-      const stageProgress = ((deliveryElapsed % 60000) / 60000) * 100;
+      const safeDeliveryElapsed = clampDeliveryElapsed(deliveryElapsed);
+      const currentDeliveryStage = Math.min(Math.floor(safeDeliveryElapsed / 60000), deliveryStages.length - 1);
+      const remainingMinutes = Math.ceil((deliveryDuration - safeDeliveryElapsed) / 60000);
+      const stageProgress = ((safeDeliveryElapsed % 60000) / 60000) * 100;
       const canCancelOrder = orderStatus === 'accepted'
         || (orderStatus === 'available'
           && Number.isFinite(orderCreatedAt)
@@ -14232,7 +14234,7 @@
               if (!hadStartedTracking) saveDeliveryProgress('tracking', startedAt);
               if (isMounted) {
                 setDeliveryPhase('tracking');
-                setDeliveryElapsed(Math.min(Date.now() - startedAt, deliveryDuration));
+                setDeliveryElapsed(clampDeliveryElapsed(Date.now() - startedAt));
               }
             } else if (status === 'delivered') {
               deliveryStartedAtRef.current = 0;
@@ -14401,7 +14403,7 @@
         const startTime = deliveryStartedAtRef.current || Date.now() - deliveryElapsed;
         let timer = null;
         const updateTracking = () => {
-          const elapsed = Math.min(Date.now() - startTime, deliveryDuration);
+          const elapsed = clampDeliveryElapsed(Date.now() - startTime);
           setDeliveryElapsed(elapsed);
 
           if (elapsed >= deliveryDuration) {

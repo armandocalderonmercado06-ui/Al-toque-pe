@@ -1609,6 +1609,15 @@ test('keeps customer order tracking visible as soon as the rider confirms pickup
   assert.match(html, /orderStatus === 'picked_up' \|\| deliveryPhase === 'tracking'\s*\?\s*<>\{renderDeliveryTracking\(\)\}\{renderRiderProfileCard\(\)\}<\/>\s*:\s*\(/);
 });
 
+test('clamps customer delivery progress when the pickup timestamp is ahead of the device clock', async () => {
+  const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
+
+  assert.match(html, /const clampDeliveryElapsed = \(elapsed\) => Math\.max\(0, Math\.min\(Number\.isFinite\(elapsed\) \? elapsed : 0, deliveryDuration\)\);/);
+  assert.match(html, /const safeDeliveryElapsed = clampDeliveryElapsed\(deliveryElapsed\);\s*const currentDeliveryStage = Math\.min\(Math\.floor\(safeDeliveryElapsed \/ 60000\), deliveryStages\.length - 1\);/);
+  assert.match(html, /setDeliveryElapsed\(clampDeliveryElapsed\(Date\.now\(\) - startedAt\)\);/);
+  assert.match(html, /const elapsed = clampDeliveryElapsed\(Date\.now\(\) - startTime\);/);
+});
+
 test('unlocks VIP Gorritos at twenty points or twenty purchases and keeps the level for existing members', async (t) => {
   const testDataDir = await createReelsTestDirectory();
   const server = await createReelsTestServer(t, testDataDir);
