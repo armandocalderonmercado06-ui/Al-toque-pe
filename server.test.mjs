@@ -2425,7 +2425,10 @@ test('configures 60-second Spanish Deepgram dictation without a Botpress flow no
   assert.match(page, /await Promise\.resolve\(botpress\.sendMessage\(transcript\)\)/);
   assert.doesNotMatch(page, /La transcripción requiere que el flujo de voz esté configurado en Botpress/);
   assert.match(server, /const DEEPGRAM_API_KEY = process\.env\.DEEPGRAM_API_KEY \|\| ''/);
+  assert.match(server, /endpointing: '300'/);
   assert.match(server, /MAX_DEEPGRAM_STREAM_MS = 65_000/);
+  assert.match(page, /audioSession\.type = 'play-and-record'/);
+  assert.match(page, /No llegó audio del micrófono/);
   assert.match(envExample, /^DEEPGRAM_API_KEY=$/m);
   assert.match(renderConfig, /key: DEEPGRAM_API_KEY\s+sync: false/);
 });

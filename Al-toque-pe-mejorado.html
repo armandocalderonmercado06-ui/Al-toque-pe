@@ -11108,6 +11108,10 @@
           session.audioContext.close().catch((error) => console.error('No se pudo cerrar el contexto de audio:', error));
         }
         session.audioContext = null;
+        if (session.audioSession && typeof session.audioSessionType === 'string') {
+          session.audioSession.type = session.audioSessionType;
+          session.audioSession = null;
+        }
       };
 
       const finishSession = (session) => {
@@ -11131,9 +11135,19 @@
           publishFeedback('', '');
           return;
         }
-        const transcript = (session.finalTranscript || session.interimTranscript).trim();
+        const finalTranscript = session.finalTranscript.trim();
+        const interimTranscript = session.interimTranscript.trim();
+        const transcript = interimTranscript.startsWith(finalTranscript) && finalTranscript
+          ? interimTranscript
+          : [finalTranscript, interimTranscript].filter(Boolean).join(' ').trim();
         if (!transcript) {
-          publishFeedback('', '', 'No se reconoció voz. Inténtalo otra vez en un lugar silencioso.');
+          publishFeedback(
+            '',
+            '',
+            session.audioFramesSent > 0
+              ? 'No se reconoció voz. Habla cerca del micrófono y espera un momento antes de detenerte.'
+              : 'No llegó audio del micrófono. Revisa el permiso y vuelve a intentarlo.'
+          );
           return;
         }
 
@@ -11177,6 +11191,7 @@
         const session = {
           finalTranscript: '',
           interimTranscript: '',
+          audioFramesSent: 0,
           stopRequested: false,
           ready: false,
           cancelled: false,
@@ -11188,6 +11203,12 @@
         publishFeedback('Conectando con el micrófono…');
 
         try {
+          const audioSession = navigator.audioSession;
+          if (audioSession && typeof audioSession.type === 'string') {
+            session.audioSession = audioSession;
+            session.audioSessionType = audioSession.type;
+            audioSession.type = 'play-and-record';
+          }
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: {
               channelCount: 1,
@@ -11211,6 +11232,9 @@
             session.audioContext = new AudioContextClass();
           }
           await session.audioContext.resume();
+          if (session.audioContext.state !== 'running') {
+            throw new Error('El navegador no pudo activar el audio del micrófono. Mantén abierta la página e inténtalo otra vez.');
+          }
 
           const socketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
           session.socket = new WebSocket(`${socketProtocol}//${window.location.host}/api/deepgram/stream`);
@@ -11312,6 +11336,7 @@
             }
             try {
               session.socket.send(pcmSamples.buffer);
+              session.audioFramesSent += 1;
             } catch (error) {
               session.error = `Se interrumpió el envío de audio: ${error.message}`;
               session.socket.close(1011, 'Audio transmission failed');

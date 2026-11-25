@@ -701,7 +701,7 @@ function rateLimit(request, limits = rateLimits, maximum = 20, windowMs = 60_000
 
 function connectDeepgramAudioStream(client, apiKey) {
   const query = new URLSearchParams({
-    endpointing: 'false',
+    endpointing: '300',
     language: 'es',
     model: 'nova-3',
     encoding: 'linear16',
