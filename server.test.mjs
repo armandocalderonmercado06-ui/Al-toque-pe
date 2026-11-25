@@ -2422,6 +2422,7 @@ test('configures 60-second Spanish Deepgram dictation without a Botpress flow no
   assert.match(page, /function DeepgramVoiceButton/);
   assert.match(page, /setTimeout\(stopRecording,\s*60_000\)/);
   assert.match(page, /\/api\/deepgram\/stream/);
+  assert.equal((page.match(/\{voiceButton\}/g) || []).length, 1);
   assert.match(page, /await Promise\.resolve\(botpress\.sendMessage\(transcript\)\)/);
   assert.doesNotMatch(page, /La transcripción requiere que el flujo de voz esté configurado en Botpress/);
   assert.match(server, /const DEEPGRAM_API_KEY = process\.env\.DEEPGRAM_API_KEY \|\| ''/);
