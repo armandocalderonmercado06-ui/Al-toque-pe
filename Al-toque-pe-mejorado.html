@@ -12411,6 +12411,7 @@
             resetResponseTimer();
             const botpressQuestion = [
               'Atiende en español, con tono cálido, claro y breve, a estudiantes de la UPCH.',
+              'Si el usuario saluda, responde: «Hola, soy la IA de Al Toque Pe. ¿En qué puedo ayudarte?» y luego atiende su consulta.',
               'Para preguntas sobre comida, menús, combos o bebidas, consulta siempre menu_al_toque como única fuente de nombres, categorías, componentes, descripciones, precios y tiempos. Si piden opciones, lista solo la categoría solicitada. Si piden recomendación, ofrece una sola opción que respete sus preferencias y presupuesto; pregunta solo si falta un dato esencial.',
               'Sin preferencias, sugiere Lomo saltado para comida, Chicha Morada Natural para bebidas y Combo Herediano para combos; para algo ligero o fresco, sugiere Bowl de quinua. Compara solo datos registrados, muestra el precio en S/ y presenta el tiempo como estimado.',
               'menu_al_toque no informa stock, horarios ni disponibilidad real: no los confirmes y recomienda verificarlos con el comedor. No inventes ingredientes, alérgenos, calorías, precios, productos, pedidos, pagos, entregas ni historial de compras. Si un dato no está registrado, dilo claramente. No gestiones ni confirmes pedidos, pagos o entregas.',
@@ -12645,36 +12646,21 @@
         let webSearchRequested = false;
         let voiceAudioDrafts = [];
         try {
-          if (ingredientReferenceAnswer) {
-            updateConversationMessages(conversationId, {
-              sender: 'ai',
-              text: ingredientReferenceAnswer.reply,
-              webSearchUsed: true,
-              engine: 'Búsqueda web',
-              persona: provider,
-              sources: ingredientReferenceAnswer.sources
-            });
-            return true;
-          }
-
-          let answer = { handoffToBotpress: true };
-          if (!ingredientFollowUp) {
-            const menuResponse = await fetch('/api/chat', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                provider,
-                text,
-                assistantMode: 'menu',
-                history: [],
-                memory: getLearnedPreferences().slice(-1600),
-                orderHistory: orderHistoryForAI
-              })
-            });
-            answer = await menuResponse.json();
-            if (!menuResponse.ok) {
-              throw new Error(answer.error || `La solicitud falló (${menuResponse.status}).`);
-            }
+          const menuResponse = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              provider,
+              text,
+              assistantMode: 'menu',
+              history: [],
+              memory: getLearnedPreferences().slice(-1600),
+              orderHistory: orderHistoryForAI
+            })
+          });
+          const answer = await menuResponse.json();
+          if (!menuResponse.ok) {
+            throw new Error(answer.error || `La solicitud falló (${menuResponse.status}).`);
           }
 
           if (answer.handoffToBotpress) {

@@ -328,6 +328,7 @@ const COMPLEX_QUESTION_TERMS = /\b(por que|como funciona|explica|explicame|compa
 const SIMPLE_GREETINGS = /^(hola|buenas|buenos dias|buenas tardes|buenas noches|gracias|muchas gracias|ok|okay|listo|chau|adios)[!.? ]*$/;
 const BOTPRESS_ALTOQUE_GUIDANCE = [
   'Atiende en español, con tono cálido, claro y breve, a estudiantes de la UPCH.',
+  'Si el usuario saluda, responde: «Hola, soy la IA de Al Toque Pe. ¿En qué puedo ayudarte?» y luego atiende su consulta.',
   'Para preguntas sobre comida, menús, combos o bebidas, consulta siempre menu_al_toque como única fuente de nombres, categorías, componentes, descripciones, precios y tiempos.',
   'Si piden opciones, lista solo la categoría solicitada. Si piden recomendación, ofrece una sola opción que respete sus preferencias y presupuesto; pregunta solo si falta un dato esencial.',
   'Sin preferencias, sugiere Lomo saltado para comida, Chicha Morada Natural para bebidas y Combo Herediano para combos; para algo ligero o fresco, sugiere Bowl de quinua.',

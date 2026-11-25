@@ -2446,7 +2446,7 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /No uses Web Search para esta consulta/);
   assert.match(page, /utiliza menu_al_toque si pregunta por datos del menú/);
   assert.match(page, /Agrega «Fuentes» al final con enlaces directos completos a un máximo de 3 páginas/);
-  assert.match(page, /const sourcesSection = webSearchRequested[\s\S]*Fuentes/);
+  assert.match(page, /const sourcesSection = \(webSearchRequested \|\| voiceAudioDrafts\.length > 0\)[\s\S]*Fuentes/);
   assert.match(page, /\.slice\(0, 3\)/);
   assert.doesNotMatch(page, /getBotpressMenuKnowledge|getMenuIngredientReferenceAnswer|MENU_INGREDIENT_REFERENCES|Productos coincidentes del catálogo de la app/);
   assert.match(page, /const resetResponseTimer = \(\) => \{/);
@@ -2473,9 +2473,17 @@ test('sends ChatGPT and Gemini replies directly to separate Botpress conversatio
   assert.match(page, /Perfil \{m\.persona\}/);
   assert.doesNotMatch(page, /Perfil \{m\.persona\} · \{m\.engine/);
   assert.match(page, /fetch\('\/api\/chat'/);
+  assert.doesNotMatch(page, /\bingredientReferenceAnswer\b|\bingredientFollowUp\b/);
+  assert.match(page, /Si el usuario saluda, responde: «Hola, soy la IA de Al Toque Pe/);
   assert.match(page, /if \(answer\.handoffToBotpress\)/);
   assert.match(page, /INITIAL_MENU\.find\(\(item\) => item\.id === String\(answer\.dishId\)\)/);
   assert.doesNotMatch(page, /buildLocalFallback/);
+});
+
+test('introduces ChatGPT and Gemini as the Al Toque Pe assistant', () => {
+  for (const provider of ['ChatGPT', 'Gemini']) {
+    assert.match(getAssistantPersona(provider), /Hola, soy la IA de Al Toque Pe/);
+  }
 });
 
 test('routes ChatGPT and Gemini menu questions to Botpress and searches only when required', async (t) => {
