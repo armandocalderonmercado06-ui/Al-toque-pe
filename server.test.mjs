@@ -976,12 +976,13 @@ test('offers animated WhatsApp support for the Al Toque help phone number', asyn
 });
 
 test('opens the Al Toque demo checkout from card and keeps transfers pending', async () => {
-  const [html, serverSource, applePayAsset, googlePayAsset, paypalAsset, visaPaymentVideo, visaPortraitVideo, visaPaymentSound] = await Promise.all([
+  const [html, serverSource, applePayAsset, googlePayAsset, paypalAsset, mastercardPaymentVideo, visaPaymentVideo, visaPortraitVideo, visaPaymentSound] = await Promise.all([
     readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
     readFile(join(process.cwd(), 'server.mjs'), 'utf8'),
     readFile(join(process.cwd(), 'apple-pay-demo.png')),
     readFile(join(process.cwd(), 'google-pay-demo.png')),
     readFile(join(process.cwd(), 'paypal-demo.png')),
+    readFile(join(process.cwd(), 'mastercard-payment-demo.mp4')),
     readFile(join(process.cwd(), 'visa-payment-demo.mp4')),
     readFile(join(process.cwd(), 'visa-pago-9x16.mp4')),
     readFile(join(process.cwd(), 'visa-payment-sound.mp3'))
@@ -1008,9 +1009,12 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(serverSource, /'apple-pay-demo\.png'/);
   assert.match(serverSource, /'google-pay-demo\.png'/);
   assert.match(serverSource, /'paypal-demo\.png'/);
+  assert.match(serverSource, /'mastercard-payment-demo\.mp4'/);
   assert.match(serverSource, /'visa-payment-demo\.mp4'/);
   assert.match(serverSource, /'visa-pago-9x16\.mp4'/);
   assert.match(serverSource, /'visa-payment-sound\.mp3'/);
+  assert.equal(mastercardPaymentVideo.subarray(4, 8).toString('ascii'), 'ftyp');
+  assert.ok(mastercardPaymentVideo.toString('latin1').includes('soun'));
   assert.equal(visaPaymentVideo.subarray(4, 8).toString('ascii'), 'ftyp');
   assert.equal(visaPortraitVideo.subarray(4, 8).toString('ascii'), 'ftyp');
   assert.ok(visaPortraitVideo.toString('latin1').includes('soun'));
@@ -1051,33 +1055,36 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   const demoCardPaymentHandler = html.match(/const handleDemoCardPayment = \(form\) => \{[\s\S]*?\n      \};/)?.[0];
   assert.ok(demoCardPaymentHandler);
   assert.match(demoCardPaymentHandler, /selectedCardBrand === 'visa'/);
-  assert.match(demoCardPaymentHandler, /startVisaPaymentVideo\(\)/);
+  assert.match(demoCardPaymentHandler, /selectedCardBrand === 'mastercard' && isLandscapeViewport/);
+  assert.match(demoCardPaymentHandler, /startCardPaymentVideo\(selectedCardBrand\)/);
   assert.doesNotMatch(demoCardPaymentHandler, /if \(!isLandscapeViewport\)/);
   assert.match(demoCardPaymentHandler, /handleConfirmOrder\('transferencia'\)/);
   assert.match(html, /window\.matchMedia\('\(orientation: landscape\)'\)/);
   assert.match(html, /window\.addEventListener\('orientationchange', updateOrientation\)/);
+  assert.match(html, /cardBrand === 'mastercard'[\s\S]*?'\/mastercard-payment-demo\.mp4'/);
   assert.match(html, /isLandscapeVideo \? '\/visa-payment-demo\.mp4' : '\/visa-pago-9x16\.mp4'/);
-  assert.match(checkout, /src=\{visaPaymentVideoSrc\}/);
+  assert.match(checkout, /src=\{paymentDemoVideoSrc\}/);
   assert.match(checkout, /src="\/visa-payment-sound\.mp3"/);
-  assert.match(checkout, /isPortraitVisaPaymentVideo\s*\?\s*'absolute inset-0 z-\[120\] flex items-center justify-center overflow-hidden bg-black'/);
+  assert.match(checkout, /isPortraitPaymentDemoVideo\s*\?\s*'absolute inset-0 z-\[120\] flex items-center justify-center overflow-hidden bg-black'/);
   assert.match(checkout, /'absolute inset-0 h-full w-full bg-black object-cover'/);
   assert.match(checkout, /'relative h-full w-full max-w-none overflow-hidden text-center text-white'/);
   assert.match(html, /<div className="flex flex-col h-full bg-white relative font-body text-dark">/);
-  assert.match(checkout, /onEnded=\{\(\) => finishVisaPaymentMedia\('video'\)\}/);
-  assert.match(checkout, /onEnded=\{\(\) => finishVisaPaymentMedia\('audio'\)\}/);
+  assert.match(checkout, /onEnded=\{\(\) => finishCardPaymentMedia\('video'\)\}/);
+  assert.match(checkout, /onEnded=\{\(\) => finishCardPaymentMedia\('audio'\)\}/);
   assert.match(html, /const videoPlayback = video\.play\(\)/);
   assert.match(html, /const soundPlayback = sound\.play\(\)/);
   assert.doesNotMatch(html, /Promise\.all\(\[video\.play\(\), sound\.play\(\)\]\)/);
-  assert.match(html, /video\.muted = isLandscapeVideo/);
-  assert.match(html, /audioEnded: !isLandscapeVideo/);
-  assert.match(html, /if \(isLandscapeVideo\) \{\s*try \{\s*const soundPlayback = sound\.play\(\)/);
+  assert.match(html, /usesSeparateSound = cardBrand === 'visa' && isLandscapeVideo/);
+  assert.match(html, /video\.muted = usesSeparateSound/);
+  assert.match(html, /audioEnded: !usesSeparateSound/);
+  assert.match(html, /if \(usesSeparateSound\) \{\s*try \{\s*const soundPlayback = sound\.play\(\)/);
   assert.match(html, /if \(!mediaState\.videoEnded \|\| !mediaState\.audioEnded \|\| mediaState\.completed\) return/);
   assert.doesNotMatch(html, /continueVisaPaymentWithoutVideo/);
   assert.match(checkout, /invisible flex items-center justify-center/);
   assert.doesNotMatch(checkout, /Demostración VISA: al terminar, continuarás al seguimiento del pedido/);
   assert.doesNotMatch(checkout, /Omitir video y continuar/);
   assert.doesNotMatch(checkout, /onClick=\{continueVisaPaymentWithoutVideo\}/);
-  assert.match(checkout, /Reintentar video y sonido/);
+  assert.match(checkout, /Reintentar video/);
   assert.match(checkout, /Guardar \(demo\)/);
   assert.match(checkout, /Pagar \(demo\)/);
   assert.match(checkout, /onClick=\{\(event\) => handleDemoCardPayment\(event\.currentTarget\.form\)\}/);
