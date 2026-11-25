@@ -172,7 +172,7 @@
           }
           .bpComposerContainer {
             display: grid !important;
-            grid-template-columns: minmax(0, 1fr) 40px 40px !important;
+            grid-template-columns: minmax(0, 1fr) 40px !important;
             align-items: center !important;
             gap: 9px !important;
             margin: 0 !important;
@@ -222,30 +222,10 @@
             display: none !important;
           }
           .bpComposerToolbarIcons > div:last-child {
-            grid-column: 2 !important;
-            grid-row: 1 !important;
-            display: flex !important;
-            width: 40px !important;
-            height: 40px !important;
-            align-items: center !important;
-            justify-content: center !important;
-          }
-          .bpComposerVoiceButton {
-            box-sizing: border-box !important;
-            width: 40px !important;
-            height: 40px !important;
-            padding: 10px !important;
-            border-radius: 999px !important;
-            background: #fff2ce !important;
-            color: #2b1718 !important;
-            cursor: pointer !important;
-          }
-          .bpComposerVoiceButton[data-listens="true"] {
-            background: #a50f2d !important;
-            color: #fff !important;
+            display: none !important;
           }
           .bpComposerToolbar > div:last-child {
-            grid-column: 3 !important;
+            grid-column: 2 !important;
             grid-row: 1 !important;
             display: flex !important;
             width: 40px !important;
@@ -11543,7 +11523,6 @@
       const [isRecordingVoice, setIsRecordingVoice] = useState(false);
       const [isVoiceAudioDraftReady, setIsVoiceAudioDraftReady] = useState(false);
       const [voiceError, setVoiceError] = useState('');
-      const [botpressVoiceStatus, setBotpressVoiceStatus] = useState('');
       const [voiceFeedback, setVoiceFeedback] = useState({ status: '', transcript: '', error: '' });
       const [budgetAmount, setBudgetAmount] = useState(15);
       const [isBudgetPickerOpen, setIsBudgetPickerOpen] = useState(false);
@@ -11780,98 +11759,6 @@
           window.botpress?.close?.();
         };
       }, [provider]);
-
-      useEffect(() => {
-        if (provider !== 'Botpress' || isBotpressArchive) {
-          setBotpressVoiceStatus('');
-          return undefined;
-        }
-
-        let shadowRoot;
-        let rootObserver;
-        let voiceObserver;
-        let retryTimer;
-        let sendTimer;
-        let observedVoiceButton = null;
-        let wasListening = false;
-        let pendingTranscript = false;
-        let previousComposerText = '';
-        let transcriptDeadline = 0;
-
-        const sendTranscriptWhenReady = () => {
-          window.clearTimeout(sendTimer);
-          const attemptSend = () => {
-            if (!pendingTranscript) return;
-            const input = shadowRoot.querySelector('.bpComposerInput');
-            const sendButton = shadowRoot.querySelector('.bpComposerSendButton');
-            const transcript = input?.value?.trim() || '';
-            if (transcript && transcript !== previousComposerText && sendButton && !sendButton.disabled) {
-              pendingTranscript = false;
-              sendButton.click();
-              setBotpressVoiceStatus('Transcripción enviada a Botpress.');
-              return;
-            }
-            if (Date.now() >= transcriptDeadline) {
-              pendingTranscript = false;
-              setBotpressVoiceStatus('No se detectó una transcripción. Intenta hablar de nuevo.');
-              return;
-            }
-            sendTimer = window.setTimeout(attemptSend, 150);
-          };
-          sendTimer = window.setTimeout(attemptSend, 400);
-        };
-
-        const attachVoiceObserver = () => {
-          const voiceButton = shadowRoot.querySelector('.bpComposerVoiceButton');
-          if (!voiceButton || voiceButton === observedVoiceButton) return;
-          voiceObserver?.disconnect();
-          observedVoiceButton = voiceButton;
-          voiceButton.setAttribute('aria-label', 'Dictar consulta en español');
-          voiceButton.setAttribute('title', 'Dictar consulta en español');
-          voiceObserver = new MutationObserver(() => {
-            const isListening = voiceButton.getAttribute('data-listens') === 'true';
-            if (isListening && !wasListening) {
-              wasListening = true;
-              pendingTranscript = false;
-              window.clearTimeout(sendTimer);
-              previousComposerText = shadowRoot.querySelector('.bpComposerInput')?.value?.trim() || '';
-              setBotpressVoiceStatus('Escuchando…');
-            } else if (!isListening && wasListening) {
-              wasListening = false;
-              pendingTranscript = true;
-              transcriptDeadline = Date.now() + 8000;
-              setBotpressVoiceStatus('Preparando transcripción…');
-              sendTranscriptWhenReady();
-            }
-          });
-          voiceObserver.observe(voiceButton, { attributes: true, attributeFilter: ['data-listens'] });
-        };
-
-        const handleComposerInput = () => {
-          if (pendingTranscript) sendTranscriptWhenReady();
-        };
-
-        const attachRoot = () => {
-          shadowRoot = document.getElementById('fab-root')?.shadowRoot;
-          if (!shadowRoot) {
-            retryTimer = window.setTimeout(attachRoot, 250);
-            return;
-          }
-          rootObserver = new MutationObserver(attachVoiceObserver);
-          rootObserver.observe(shadowRoot, { childList: true, subtree: true });
-          shadowRoot.addEventListener('input', handleComposerInput, true);
-          attachVoiceObserver();
-        };
-
-        attachRoot();
-        return () => {
-          window.clearTimeout(retryTimer);
-          window.clearTimeout(sendTimer);
-          rootObserver?.disconnect();
-          voiceObserver?.disconnect();
-          shadowRoot?.removeEventListener('input', handleComposerInput, true);
-        };
-      }, [provider, isBotpressArchive]);
 
       useEffect(() => {
         const timer = setInterval(() => {
@@ -12753,7 +12640,6 @@
 
       const startVoiceRecording = async () => {
         setVoiceError('');
-        setBotpressVoiceStatus('');
         if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof window.MediaRecorder !== 'function') {
           setVoiceError('La grabación requiere HTTPS y un navegador compatible con audio.');
           return;
@@ -13218,8 +13104,11 @@
                     )}
                   </div>
                 )}
-                {!isBotpressArchive && botpressVoiceStatus && (
-                  <p role="status" className="px-3 pb-3 text-center text-[10px] text-gray-600">{botpressVoiceStatus}</p>
+                {!isBotpressArchive && (
+                  <div className="flex items-center justify-center gap-2 px-3 pb-3">
+                    {voiceButton}
+                    <span className="text-[10px] text-gray-600">Dicta tu consulta en español</span>
+                  </div>
                 )}
               </>
             ) : (

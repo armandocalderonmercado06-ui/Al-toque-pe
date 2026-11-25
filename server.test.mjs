@@ -2397,19 +2397,18 @@ test('builds Botpress handoffs for ChatGPT and Gemini general questions', () => 
   assert.equal(riderSupport.handoff, null);
 });
 
-test('auto-sends the Botpress native dictation transcript into the conversation', async () => {
+test('uses Deepgram for Botpress voice input instead of the native microphone', async () => {
   const html = await readFile(new URL('./Al-toque-pe-mejorado.html', import.meta.url), 'utf8');
 
   assert.match(html, /\.bpComposerToolbarIcons\s*\{\s*display:\s*contents !important;/);
-  assert.match(html, /\.bpComposerVoiceButton\[data-listens="true"\]\s*\{/);
+  assert.match(html, /\.bpComposerToolbarIcons > div:last-child\s*\{\s*display:\s*none !important;/);
   assert.match(html, /\.bpComposerToolbar > div:last-child\s*\{[\s\S]*?display:\s*flex !important;/);
   assert.match(html, /\.bpComposerSendButton\s*\{[\s\S]*?transform:\s*none !important;/);
-  assert.match(html, /grid-template-columns: minmax\(0, 1fr\) 40px 40px !important/);
-  assert.match(html, /aria-label', 'Dictar consulta en español'/);
-  assert.match(html, /voiceButton\.getAttribute\('data-listens'\) === 'true'/);
-  assert.match(html, /transcript !== previousComposerText && sendButton && !sendButton\.disabled/);
-  assert.match(html, /sendButton\.click\(\)/);
-  assert.match(html, /Transcripción enviada a Botpress/);
+  assert.match(html, /grid-template-columns: minmax\(0, 1fr\) 40px !important/);
+  assert.match(html, /function DeepgramVoiceButton/);
+  assert.match(html, /!isBotpressArchive && \(\s*<div className="flex items-center justify-center gap-2 px-3 pb-3">\s*\{voiceButton\}/);
+  assert.match(html, /await Promise\.resolve\(botpress\.sendMessage\(transcript\)\)/);
+  assert.doesNotMatch(html, /botpressVoiceStatus|pendingTranscript|Transcripción enviada a Botpress/);
 });
 
 test('configures 60-second Spanish Deepgram dictation without a Botpress flow notice', async () => {
@@ -2422,7 +2421,7 @@ test('configures 60-second Spanish Deepgram dictation without a Botpress flow no
   assert.match(page, /function DeepgramVoiceButton/);
   assert.match(page, /setTimeout\(stopRecording,\s*60_000\)/);
   assert.match(page, /\/api\/deepgram\/stream/);
-  assert.equal((page.match(/\{voiceButton\}/g) || []).length, 1);
+  assert.equal((page.match(/\{voiceButton\}/g) || []).length, 2);
   assert.match(page, /await Promise\.resolve\(botpress\.sendMessage\(transcript\)\)/);
   assert.doesNotMatch(page, /La transcripción requiere que el flujo de voz esté configurado en Botpress/);
   assert.match(server, /const DEEPGRAM_API_KEY = process\.env\.DEEPGRAM_API_KEY \|\| ''/);

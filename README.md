@@ -17,12 +17,11 @@ las rutas `/api`; no se puede alojar como una pagina estatica en GitHub Pages.
 - Las instrucciones que se envían a las conversaciones de ChatGPT y Gemini
   también están en el código de la app. Las instrucciones del chat directo de
   Botpress se administran por separado en el panel de Botpress.
-- Botpress usa el botón Dictate del Webchat: al terminar el dictado, la app envía
-  automáticamente el texto reconocido como un mensaje normal de la conversación.
-- El dictado de los tres chats transmite audio a Deepgram Nova-3, transcribe en
-  español y envía solo el texto al asistente seleccionado. La grabación se
-  detiene a los 60 segundos; configura DEEPGRAM_API_KEY solo como secreto en
-  Render. El navegador requiere permiso de micrófono.
+- Los tres chats usan el micrófono Deepgram: transmiten audio a Deepgram Nova-3,
+  transcriben en español y envían solo el texto al asistente seleccionado. En
+  Botpress, la transcripción se envía como un mensaje normal de la conversación.
+  La grabación se detiene a los 60 segundos. Configura `DEEPGRAM_API_KEY` solo
+  como secreto en Render; el navegador requiere permiso de micrófono.
 - Las consultas de ingredientes envían a Botpress el producto coincidente y los
   componentes publicados en los catálogos de Al Toque, Bembos y Starbucks.
   Cuando hay una receta web verificada para el plato, la app responde
