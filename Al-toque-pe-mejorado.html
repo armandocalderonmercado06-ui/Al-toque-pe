@@ -172,7 +172,7 @@
           }
           .bpComposerContainer {
             display: grid !important;
-            grid-template-columns: minmax(0, 1fr) 40px 40px !important;
+            grid-template-columns: minmax(0, 1fr) 40px !important;
             align-items: center !important;
             gap: 9px !important;
             margin: 0 !important;
@@ -214,42 +214,15 @@
             padding: 0 !important;
           }
           .bpComposerToolbarIcons {
-            display: contents !important;
+            display: none !important;
             padding: 0 !important;
           }
           .bpComposerUploadButton,
           .bpComposerEmojiPickerContainer {
             display: none !important;
           }
-          .bpComposerToolbarIcons > div:last-child {
-            grid-column: 2 !important;
-            grid-row: 1 !important;
-            display: flex !important;
-            width: 40px !important;
-            height: 40px !important;
-            align-items: center !important;
-            justify-content: center !important;
-          }
-          .bpComposerVoiceButton {
-            box-sizing: border-box !important;
-            width: 40px !important;
-            height: 40px !important;
-            padding: 10px !important;
-            border-radius: 999px !important;
-            background: #fff2ce !important;
-            color: #2b1718 !important;
-            cursor: pointer !important;
-          }
-          .bpComposerVoiceButton[data-listens="true"] {
-            background: #a50f2d !important;
-            color: #fff !important;
-          }
-          .bpComposerVoiceButton[data-altoque-recording="true"] {
-            background: #a50f2d !important;
-            color: #fff !important;
-          }
           .bpComposerToolbar > div:last-child {
-            grid-column: 3 !important;
+            grid-column: 2 !important;
             grid-row: 1 !important;
             display: flex !important;
             width: 40px !important;
@@ -11226,7 +11199,6 @@
       const budgetPickerRef = useRef(null);
       const budgetPickerFrameRef = useRef(0);
       const botpressPanelRef = useRef(null);
-      const botpressVoiceActionRef = useRef(null);
       const botpressWebSearchFramesRef = useRef(new Map());
       const botpressWebSearchPendingRef = useRef(new Map());
       const botpressWebSearchRequestsRef = useRef(new Map());
@@ -11447,53 +11419,6 @@
           window.botpress?.close?.();
         };
       }, [provider]);
-
-      useEffect(() => {
-        if (provider !== 'Botpress' || isBotpressArchive) return undefined;
-        let cancelled = false;
-        let retryTimer;
-        let shadowRoot;
-        const handleVoiceButtonClick = (event) => {
-          const eventPath = typeof event.composedPath === 'function'
-            ? event.composedPath()
-            : [event.target];
-          const voiceButton = eventPath.find((node) => (
-            node?.classList?.contains('bpComposerVoiceButton')
-          ));
-          if (!voiceButton) return;
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          botpressVoiceActionRef.current?.();
-        };
-        const attachVoiceHandler = () => {
-          if (cancelled) return;
-          shadowRoot = document.getElementById('fab-root')?.shadowRoot;
-          if (!shadowRoot) {
-            retryTimer = window.setTimeout(attachVoiceHandler, 250);
-            return;
-          }
-          shadowRoot.addEventListener('click', handleVoiceButtonClick, true);
-          shadowRoot.querySelectorAll('.bpComposerVoiceButton').forEach((button) => {
-            button.setAttribute('aria-label', 'Grabar audio para enviar a Botpress');
-            button.setAttribute('title', 'Grabar audio para enviar a Botpress');
-          });
-        };
-        attachVoiceHandler();
-        return () => {
-          cancelled = true;
-          window.clearTimeout(retryTimer);
-          shadowRoot?.removeEventListener('click', handleVoiceButtonClick, true);
-        };
-      }, [provider, isBotpressArchive]);
-
-      useEffect(() => {
-        if (provider !== 'Botpress' || isBotpressArchive) return;
-        const voiceButton = document.getElementById('fab-root')?.shadowRoot
-          ?.querySelector('.bpComposerVoiceButton');
-        if (voiceButton) {
-          voiceButton.setAttribute('data-altoque-recording', String(isRecordingVoice));
-        }
-      }, [provider, isBotpressArchive, isRecordingVoice]);
 
       useEffect(() => {
         const timer = setInterval(() => {
@@ -12477,14 +12402,6 @@
         }
       };
 
-      botpressVoiceActionRef.current = () => {
-        if (isRecordingVoice) {
-          stopVoiceRecording();
-        } else {
-          void startVoiceRecording();
-        }
-      };
-
       const sendBotpressVoiceDraft = async () => {
         const botpress = window.botpress;
         const conversationId = botpress?.conversationId || '';
@@ -12844,21 +12761,37 @@
                 )}
                 {!isBotpressArchive && (
                   <div className="space-y-2 px-3 pb-3">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={isRecordingVoice ? stopVoiceRecording : startVoiceRecording}
+                        disabled={isTyping}
+                        aria-label={isRecordingVoice ? 'Detener grabación de Botpress' : 'Grabar audio para enviar a Botpress'}
+                        title={isRecordingVoice ? 'Detener grabación' : 'Grabar audio para Botpress'}
+                        className={`flex h-10 w-10 items-center justify-center rounded-full transition disabled:cursor-wait disabled:opacity-60 ${isRecordingVoice ? 'bg-red-100 text-red-700' : 'bg-cream text-dark hover:bg-yellow-accent'}`}
+                      >
+                        <i data-lucide={isRecordingVoice ? 'square' : 'mic'} className="h-4 w-4"></i>
+                      </button>
+                      {isVoiceAudioDraftReady && (
+                        <button
+                          type="button"
+                          onClick={sendBotpressVoiceDraft}
+                          disabled={isTyping}
+                          aria-label="Enviar audio a Botpress"
+                          title="Enviar audio a Botpress"
+                          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand/90 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <i data-lucide="arrow-up" className="h-4 w-4"></i>
+                        </button>
+                      )}
+                    </div>
                     {isRecordingVoice && (
                       <p role="status" className="text-center text-[10px] font-semibold text-red-700">
                         Grabando audio · pulsa el micrófono otra vez para terminar
                       </p>
                     )}
-                    {isVoiceAudioDraftReady && (
-                      <button
-                        type="button"
-                        onClick={sendBotpressVoiceDraft}
-                        disabled={isTyping}
-                        className="w-full rounded-full bg-brand px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isTyping ? 'Enviando audio a Botpress…' : 'Enviar audio a Botpress'}
-                      </button>
-                    )}
+                    {isTyping && <p role="status" className="text-center text-[10px] text-gray-600">Enviando audio a Botpress…</p>}
+                    {isVoiceAudioDraftReady && !isTyping && <p className="text-center text-[10px] text-gray-600">Audio listo · pulsa la flecha para enviarlo</p>}
                     {botpressVoiceStatus && <p role="status" className="text-center text-[10px] text-green-700">{botpressVoiceStatus}</p>}
                     {voiceError && <p role="alert" className="text-center text-[10px] text-red-700">{voiceError}</p>}
                   </div>
