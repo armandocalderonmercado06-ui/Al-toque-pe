@@ -13316,6 +13316,7 @@
       const [isLandscapeViewport, setIsLandscapeViewport] = useState(readLandscapeOrientation);
       const [isVisaPaymentVideoOpen, setIsVisaPaymentVideoOpen] = useState(false);
       const [visaPaymentVideoSrc, setVisaPaymentVideoSrc] = useState('/visa-payment-demo.mp4');
+      const isPortraitVisaPaymentVideo = visaPaymentVideoSrc === '/visa-pago-9x16.mp4';
       const [visaPaymentVideoError, setVisaPaymentVideoError] = useState('');
       const [visaPaymentVideoFailed, setVisaPaymentVideoFailed] = useState(false);
       const [demoCardFormNotice, setDemoCardFormNotice] = useState('');
@@ -14756,14 +14757,18 @@
 
             <div
               className={isVisaPaymentVideoOpen
-                ? 'fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-3 sm:p-6'
-                : 'pointer-events-none fixed inset-0 z-[120] invisible flex items-center justify-center bg-black/90 p-3 opacity-0 sm:p-6'}
+                ? (isPortraitVisaPaymentVideo
+                  ? 'absolute inset-0 z-[120] flex items-center justify-center overflow-hidden bg-black'
+                  : 'fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-3 sm:p-6')
+                : `${isPortraitVisaPaymentVideo ? 'absolute' : 'fixed'} pointer-events-none inset-0 z-[120] invisible flex items-center justify-center bg-black/90 p-3 opacity-0 sm:p-6`}
               role="dialog"
               aria-modal={isVisaPaymentVideoOpen}
               aria-hidden={!isVisaPaymentVideoOpen}
               aria-label="Demostración de pago VISA"
             >
-              <section className="w-full max-w-5xl space-y-3 text-center text-white">
+              <section className={isPortraitVisaPaymentVideo
+                ? 'relative h-full w-full max-w-none overflow-hidden text-center text-white'
+                : 'w-full max-w-5xl space-y-3 text-center text-white'}>
                 <video
                   ref={visaPaymentVideoRef}
                   src={visaPaymentVideoSrc}
@@ -14775,10 +14780,12 @@
                   aria-label={visaPaymentVideoSrc === '/visa-payment-demo.mp4' ? 'Video horizontal de demostración de pago VISA' : 'Video vertical de demostración de pago VISA'}
                   className={visaPaymentVideoSrc === '/visa-payment-demo.mp4'
                     ? 'mx-auto aspect-video max-h-[75vh] w-full rounded-2xl bg-black object-contain shadow-2xl'
-                    : 'mx-auto max-h-[75vh] max-w-[90vw] w-auto rounded-2xl bg-black object-contain shadow-2xl'}
+                    : 'absolute inset-0 h-full w-full bg-black object-cover'}
                 />
                 {(isSubmittingOrder || visaPaymentVideoError) && (
-                  <p className="text-sm font-bold" role="status">
+                  <p className={isPortraitVisaPaymentVideo
+                    ? 'absolute bottom-4 left-4 right-4 z-10 rounded-lg bg-black/70 p-2 text-sm font-bold'
+                    : 'text-sm font-bold'} role="status">
                     {isSubmittingOrder ? 'Registrando tu pedido…' : visaPaymentVideoError}
                   </p>
                 )}
@@ -14787,7 +14794,9 @@
                     type="button"
                     onClick={startVisaPaymentVideo}
                     disabled={isSubmittingOrder}
-                    className="block mx-auto rounded-xl border border-white/60 px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+                    className={isPortraitVisaPaymentVideo
+                      ? 'absolute bottom-16 left-1/2 z-10 -translate-x-1/2 rounded-xl border border-white/60 bg-black/70 px-5 py-3 text-sm font-bold text-white disabled:opacity-60'
+                      : 'block mx-auto rounded-xl border border-white/60 px-5 py-3 text-sm font-bold text-white disabled:opacity-60'}
                   >
                     Reintentar video y sonido
                   </button>

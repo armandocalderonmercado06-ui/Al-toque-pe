@@ -1059,6 +1059,10 @@ test('opens the Al Toque demo checkout from card and keeps transfers pending', a
   assert.match(html, /isLandscapeVideo \? '\/visa-payment-demo\.mp4' : '\/visa-pago-9x16\.mp4'/);
   assert.match(checkout, /src=\{visaPaymentVideoSrc\}/);
   assert.match(checkout, /src="\/visa-payment-sound\.mp3"/);
+  assert.match(checkout, /isPortraitVisaPaymentVideo\s*\?\s*'absolute inset-0 z-\[120\] flex items-center justify-center overflow-hidden bg-black'/);
+  assert.match(checkout, /'absolute inset-0 h-full w-full bg-black object-cover'/);
+  assert.match(checkout, /'relative h-full w-full max-w-none overflow-hidden text-center text-white'/);
+  assert.match(html, /<div className="flex flex-col h-full bg-white relative font-body text-dark">/);
   assert.match(checkout, /onEnded=\{\(\) => finishVisaPaymentMedia\('video'\)\}/);
   assert.match(checkout, /onEnded=\{\(\) => finishVisaPaymentMedia\('audio'\)\}/);
   assert.match(html, /const videoPlayback = video\.play\(\)/);
