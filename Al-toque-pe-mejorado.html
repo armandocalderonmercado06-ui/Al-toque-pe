@@ -13235,12 +13235,17 @@
       );
     }
 
+    const DEMO_BANK_CARD_TYPE_IDS = ['bcp', 'interbank', 'scotiabank', 'bbva', 'banco-nacion', 'falabella'];
     const DEMO_CARD_TYPES = [
       { id: 'visa', label: 'VISA', gradient: 'from-[#a90000] via-[#7d1025] to-[#4b0d1d]' },
       { id: 'mastercard', label: 'Mastercard', gradient: 'from-[#5a1420] via-[#a90000] to-[#c85432]' },
       { id: 'amex', label: 'AMEX', gradient: 'from-[#29405d] via-[#8d1429] to-[#4b1020]' },
-      { id: 'carnet', label: 'CARNET', gradient: 'from-[#a90000] via-[#bd432d] to-[#5c1020]' },
-      { id: 'diners', label: 'Diners Club', gradient: 'from-[#006b91] via-[#9f1d2e] to-[#4b0d1d]' }
+      { id: 'bcp', label: 'BCP', gradient: 'from-[#0033a0] via-[#005eb8] to-[#f58220]' },
+      { id: 'interbank', label: 'Interbank', gradient: 'from-[#00843d] via-[#00a94f] to-[#8dc63f]' },
+      { id: 'scotiabank', label: 'Scotiabank', gradient: 'from-[#c8102e] via-[#ed1c24] to-[#7d1025]' },
+      { id: 'bbva', label: 'BBVA', gradient: 'from-[#004481] via-[#0057b8] to-[#0285c7]' },
+      { id: 'banco-nacion', label: 'Banco de la Nación', gradient: 'from-[#004b87] via-[#0072bc] to-[#d71920]' },
+      { id: 'falabella', label: 'Banco Falabella', gradient: 'from-[#552583] via-[#7b2d8e] to-[#e5007d]' }
     ];
 
     function DemoCardBrandLogo({ cardType }) {
@@ -13259,13 +13264,17 @@
       const logoStyles = {
         visa: 'bg-white px-2 py-1 text-[11px] font-black italic text-[#1a1f71]',
         amex: 'bg-[#016fd0] px-2 py-1 text-[9px] font-black text-white',
-        carnet: 'bg-[#c8102e] px-2 py-1 text-[9px] font-black text-white',
-        diners: 'bg-[#0077a8] px-2 py-1 text-[9px] font-black text-white'
+        bcp: 'bg-[#0033a0] px-2 py-1 text-[9px] font-black text-white',
+        interbank: 'bg-[#00843d] px-2 py-1 text-[9px] font-black text-white',
+        scotiabank: 'bg-[#c8102e] px-2 py-1 text-[8px] font-black text-white',
+        bbva: 'bg-[#004481] px-2 py-1 text-[9px] font-black text-white',
+        'banco-nacion': 'bg-[#004b87] px-2 py-1 text-[8px] font-black text-white',
+        falabella: 'bg-[#552583] px-2 py-1 text-[8px] font-black text-white'
       };
 
       return (
         <span className={`inline-flex items-center rounded-md ${logoStyles[cardType.id] || logoStyles.visa}`}>
-          {cardType.id === 'diners' ? 'DINERS CLUB' : cardType.label}
+          {cardType.label}
         </span>
       );
     }
@@ -13274,7 +13283,6 @@
       const digits = cardNumber.replace(/\D/g, '');
       if (digits.startsWith('4')) return 'visa';
       if (/^3[47]/.test(digits)) return 'amex';
-      if (/^(30[0-5]|36|38|39)/.test(digits)) return 'diners';
 
       const firstTwo = Number(digits.slice(0, 2));
       const firstFour = Number(digits.slice(0, 4));
@@ -14203,6 +14211,11 @@
         if (form) form.reset();
         closeDemoCardForm();
         setDemoCardFormNotice('');
+        if (DEMO_BANK_CARD_TYPE_IDS.includes(selectedCardBrand)) {
+          setOrderSubmitError('');
+          void completeCardPaymentOrder();
+          return;
+        }
         if (selectedCardBrand === 'visa'
           || selectedCardBrand === 'mastercard'
           || selectedCardBrand === 'amex') {
@@ -14960,7 +14973,9 @@
                               const cardNumber = event.currentTarget.value;
                               const digits = cardNumber.replace(/\D/g, '');
                               const detectedCardType = getDemoCardTypeFromNumber(cardNumber);
-                              if (detectedCardType) setDemoCardBrand(detectedCardType);
+                              if (detectedCardType && !DEMO_BANK_CARD_TYPE_IDS.includes(demoCardBrand)) {
+                                setDemoCardBrand(detectedCardType);
+                              }
                               setDemoCardLast4(digits.length >= 4 ? digits.slice(-4) : '0000');
                             }}
                             required
