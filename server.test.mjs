@@ -79,6 +79,35 @@ function invokeRequestHandler(server, { method, pathname, headers, body }) {
   });
 }
 
+test('includes BCP, Yape and Plin payment videos, audio and checkout support', async () => {
+  const mediaNames = [
+    'bcp-vertical.mp4',
+    'bcp-horizontal.mp4',
+    'bcp-peru.mp3',
+    'yape-vertical.mp4',
+    'yapee.mp3',
+    'plin-vertical.mp4',
+    'plin.mp3'
+  ];
+  const [html, serverSource, ...media] = await Promise.all([
+    readFile(join(process.cwd(), 'Al-toque-pe-mejorado.html'), 'utf8'),
+    readFile(join(process.cwd(), 'server.mjs'), 'utf8'),
+    ...mediaNames.map((name) => readFile(join(process.cwd(), name)))
+  ]);
+  const publicAssets = serverSource.match(/const PUBLIC_ASSETS = new Set\(\[([\s\S]*?)\n\]\);/)?.[1] || '';
+  const validPaymentMethods = serverSource.match(/const validPaymentMethods = new Set\(\[([^\]]+)\]\)/)?.[1] || '';
+
+  for (const [index, name] of mediaNames.entries()) {
+    assert.ok(publicAssets.includes(`'${name}'`), `${name} must be served as a public asset`);
+    assert.ok(media[index].length > 0, `${name} must not be empty`);
+  }
+  assert.ok(validPaymentMethods.includes("'bcp'"), 'the order API must accept BCP payments');
+  assert.match(html, /Continuar al seguimiento/);
+  assert.match(html, /bcp-horizontal\.mp4/);
+  assert.match(html, /plin-vertical\.mp4/);
+  assert.match(html, /yape-vertical\.mp4/);
+});
+
 test('uses and serves the tablet app photos for the mobile order catalog', async () => {
   const assetNames = [
     'desayuno-emoliente-pan-queso-nueva.png',

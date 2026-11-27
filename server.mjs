@@ -140,6 +140,13 @@ const PUBLIC_ASSETS = new Set([
   'visa-payment-demo.mp4',
   'visa-pago-9x16.mp4',
   'visa-payment-sound.mp3',
+  'bcp-vertical.mp4',
+  'bcp-horizontal.mp4',
+  'bcp-peru.mp3',
+  'yape-vertical.mp4',
+  'yapee.mp3',
+  'plin-vertical.mp4',
+  'plin.mp3',
   'apple-pay-demo.png',
   'google-pay-demo.png',
   'paypal-demo.png',
@@ -1901,7 +1908,7 @@ async function handleRequest(request, response, orders, riderLocations, idempote
 
     const isDemo = body.isDemo === true;
     const validPickupPoints = new Set(['En la puerta principal', 'En el patio', 'Área de tutoría']);
-    const validPaymentMethods = new Set(['yape', 'plin', 'tarjeta', 'efectivo', 'transferencia', 'paypal', 'googlepay', 'applepay', 'gorritos']);
+    const validPaymentMethods = new Set(['bcp', 'yape', 'plin', 'tarjeta', 'efectivo', 'transferencia', 'paypal', 'googlepay', 'applepay', 'gorritos']);
     const isGorritosOrder = body.paymentMethod === 'gorritos';
     const gorritosSpent = body.gorritosSpent;
     if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 20) {

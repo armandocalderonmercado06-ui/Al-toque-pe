@@ -13914,6 +13914,9 @@
         ? window.matchMedia('(orientation: landscape)').matches
         : window.innerWidth > window.innerHeight;
       const [isLandscapeViewport, setIsLandscapeViewport] = useState(readLandscapeOrientation);
+      const [activePaymentVideo, setActivePaymentVideo] = useState('');
+      const [isProviderPaymentAudioBlocked, setIsProviderPaymentAudioBlocked] = useState(false);
+      const isPortraitOnlyProviderVideo = ['yape', 'plin'].includes(activePaymentVideo);
       const [isPaymentDemoVideoOpen, setIsPaymentDemoVideoOpen] = useState(false);
       const [paymentDemoVideoSrc, setPaymentDemoVideoSrc] = useState('/visa-payment-demo.mp4');
       const isPortraitPaymentDemoVideo = paymentDemoVideoSrc === '/visa-pago-9x16.mp4'
@@ -13978,6 +13981,26 @@
       const paymentDemoVideoRef = useRef(null);
       const paymentDemoSoundRef = useRef(null);
       const paymentDemoMediaRef = useRef({ videoEnded: false, audioEnded: false, completed: false });
+      const providerPaymentVideoRef = useRef(null);
+      const providerPaymentAudioRef = useRef(null);
+      const playProviderPaymentMedia = () => {
+        if (isPortraitOnlyProviderVideo && isLandscapeViewport) return;
+        const playbacks = [providerPaymentVideoRef.current?.play(), providerPaymentAudioRef.current?.play()].filter(Boolean);
+        Promise.all(playbacks)
+          .then(() => setIsProviderPaymentAudioBlocked(false))
+          .catch((error) => {
+            setIsProviderPaymentAudioBlocked(true);
+            if (error.name !== 'NotAllowedError') {
+              console.error('No se pudo reproducir el video del medio de pago:', error);
+            }
+          });
+      };
+      const stopProviderPaymentMedia = () => {
+        providerPaymentVideoRef.current?.pause();
+        providerPaymentAudioRef.current?.pause();
+        setActivePaymentVideo('');
+        setIsProviderPaymentAudioBlocked(false);
+      };
       const [orderPickedUpAt, setOrderPickedUpAt] = useState(null);
       const [orderDeliveredAt, setOrderDeliveredAt] = useState(null);
       const [lateDeliveryRewardOrderId, setLateDeliveryRewardOrderId] = useState('');
@@ -14017,6 +14040,15 @@
           window.removeEventListener('orientationchange', updateOrientation);
         };
       }, []);
+      useEffect(() => {
+        if (!activePaymentVideo) return;
+        if (isPortraitOnlyProviderVideo && isLandscapeViewport) {
+          providerPaymentVideoRef.current?.pause();
+          providerPaymentAudioRef.current?.pause();
+          return;
+        }
+        playProviderPaymentMedia();
+      }, [activePaymentVideo, isLandscapeViewport]);
       const saveDeliveryProgress = (phase, startedAt) => {
         if (!deliveryProgressKey) return;
         try {
@@ -14610,6 +14642,7 @@
         try {
           if (isBembosDemoOnly) {
             await publishOrderToRiderQueue(true, selectedPaymentMethod);
+            if (['bcp', 'yape', 'plin'].includes(selectedPaymentMethod)) setActivePaymentVideo(selectedPaymentMethod);
             setOrderConfirmed(true);
             setConfirmedPaymentMethod(selectedPaymentMethod);
             setDeliveryPhase('idle');
@@ -14617,6 +14650,7 @@
           }
           const confirmedOrder = await publishOrderToRiderQueue(false, selectedPaymentMethod);
           onOrderRegistered(confirmedOrder);
+          if (['bcp', 'yape', 'plin'].includes(selectedPaymentMethod)) setActivePaymentVideo(selectedPaymentMethod);
           setOrderConfirmed(true);
           setConfirmedPaymentMethod(selectedPaymentMethod);
           setIsPagoEfectivoSimulation(false);
@@ -14685,6 +14719,8 @@
           url = 'https://www.apple.com/la/apple-pay/#setup';
         } else if (selectedPaymentMethod === 'yape') {
           url = 'https://www.yape.com.pe/';
+        } else if (selectedPaymentMethod === 'bcp') {
+          url = 'https://www.viabcp.com/';
         } else if (selectedPaymentMethod === 'plin') {
           url = 'https://www.interbank.pe/promociones/detalles/plin';
         } else if (selectedPaymentMethod === 'tarjeta') {
@@ -15715,6 +15751,68 @@
         );
       }
 
+      const renderProviderPaymentOverlay = () => {
+        if (!activePaymentVideo) return null;
+        const hidden = isPortraitOnlyProviderVideo && isLandscapeViewport;
+        const providerName = activePaymentVideo === 'bcp' ? 'BCP' : activePaymentVideo === 'yape' ? 'Yape' : 'Plin';
+        return ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black"
+            hidden={hidden}
+            role="dialog"
+            aria-label={`Video de pago con ${providerName}`}
+            aria-modal="true"
+            style={{
+              display: hidden ? 'none' : undefined,
+              paddingTop: 'env(safe-area-inset-top)',
+              paddingBottom: 'env(safe-area-inset-bottom)'
+            }}
+          >
+            <video
+              ref={providerPaymentVideoRef}
+              src={activePaymentVideo === 'yape'
+                ? '/yape-vertical.mp4'
+                : activePaymentVideo === 'plin'
+                  ? '/plin-vertical.mp4'
+                  : isLandscapeViewport ? '/bcp-horizontal.mp4' : '/bcp-vertical.mp4'}
+              autoPlay={activePaymentVideo === 'bcp' || !isLandscapeViewport}
+              playsInline
+              muted
+              onLoadedData={playProviderPaymentMedia}
+              onEnded={stopProviderPaymentMedia}
+              aria-label={`Video de ${providerName}`}
+              className="h-full w-full object-cover"
+            />
+            <audio
+              ref={providerPaymentAudioRef}
+              src={activePaymentVideo === 'yape'
+                ? '/yapee.mp3'
+                : activePaymentVideo === 'plin' ? '/plin.mp3' : '/bcp-peru.mp3'}
+              autoPlay={activePaymentVideo === 'bcp' || !isLandscapeViewport}
+              loop
+            />
+            {isProviderPaymentAudioBlocked && (
+              <button
+                type="button"
+                onClick={playProviderPaymentMedia}
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-6 py-3 text-sm font-bold text-black shadow-lg"
+              >
+                Tocar para reproducir con sonido
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={stopProviderPaymentMedia}
+              className="absolute left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-5 py-3 text-xs font-bold text-white"
+              style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+            >
+              Continuar al seguimiento
+            </button>
+          </div>,
+          document.body
+        );
+      };
+
       if (isRedirecting) {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4 py-12">
@@ -15869,11 +15967,13 @@
                 </div>
               )}
               {renderCancellationPolicyDialog()}
+              {renderProviderPaymentOverlay()}
             </div>
           );
         }
         return (
           <div className="flex min-h-full flex-col items-center justify-center text-center space-y-4 py-8">
+            {renderProviderPaymentOverlay()}
             {orderStatus === 'delivered' || deliveryPhase === 'arrived'
               ? renderArrival()
               : orderStatus === 'picked_up' || deliveryPhase === 'tracking'
@@ -16152,6 +16252,7 @@
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   {[
+                    { id: 'bcp', name: 'BCP', icon: 'landmark' },
                     { id: 'yape', name: 'Yape', icon: 'smartphone' },
                     { id: 'plin', name: 'Plin', icon: 'zap' },
                     { id: 'tarjeta', name: 'Tarjeta', icon: 'credit-card' },
